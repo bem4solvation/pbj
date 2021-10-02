@@ -86,7 +86,7 @@ if platform.system() == 'Linux':
 
         if not os.path.exists(nanoshaper_temp_dir):
             os.makedirs(nanoshaper_temp_dir)
-s
+
 
         # Execute NanoShaper
         config_template_file = open(nanoshaper_dir+'config', 'r')
