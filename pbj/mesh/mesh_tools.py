@@ -5,7 +5,7 @@ import subprocess
 import os
 import bempp.api
 import platform 
-from pbj.electrostatics import PBJ_PATH
+from pbj import PBJ_PATH
 
 def fix_mesh(mesh):
 
@@ -37,10 +37,11 @@ def fix_mesh(mesh):
 #    subprocess.call(["python2", "/home/chris/Software/apbs-pdb2pqr/pdb2pqr/pdb2pqr.py", "--ff="+force_field, mesh_pdb_path, mesh_pqr_path])
 
 # Esto a veces no funciona, ojo
-def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field):
+def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag = ''):
     """
     Blablabla
     """
+    force_field = force_field.upper()
     subprocess.call(["pdb2pqr30", "--ff="+force_field, mesh_pdb_path, mesh_pqr_path])
 
 
@@ -71,6 +72,8 @@ def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
         data.write("3"+" "+str(face[0])+" "+str(face[1])+" "+str(face[2])+"\n")
 
 # Aqui deberiamos crear una funcion para diferenciar de linux a windows
+
+# Cambiar el orden de los if y elif
 
 if platform.system() == 'Linux':
     def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_radius):
@@ -175,6 +178,7 @@ elif platform.system() == 'Windows':
         os.system('mv ' + nanoshaper_temp_dir + '*.face ' + output_name + '.face')
         
         # Warning de que NanoShaper no creo los archivos
+        # Probar con try except
         vert_file = open( output_name + '.vert', 'r' )
         vert = vert_file.readlines()
         vert_file.close()

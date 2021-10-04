@@ -1,0 +1,25 @@
+name: pbj
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - git
+  - jupyter
+  - ipython
+  - llvmlite
+  - mako
+  - notebook
+  - numba
+  - numpy
+  - pip
+  - plotly
+  - pybind11
+  - pyopencl
+  - python
+  - scipy
+  - tbb
+  - pdb2pqr
+  - pip:
+    - meshio
+    - "git+https://github.com/bempp/bempp-cl.git@master"
+    - trimesh
