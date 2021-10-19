@@ -8,16 +8,29 @@ import platform
 import shutil
 
 # from pbj import PBJ_PATH # circular import error
-#Preguntar por qué se encadenan estas funciones:
+# Preguntar por qué se encadenan estas funciones:
 PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 
 def fix_mesh(mesh):
+    """
+    Receives a trimesh mesh object and tries to fix it iteratively using the trimesh.repair.broken_faces() function. 
+    Prints a message if the mesh couldn't be fixed.
 
+    Parameters
+    ---------
+    mesh : trimesh mesh object
+        Original mesh object.
+
+    Returns
+    ----------
+    mesh : trimesh mesh object 
+        Mesh after trying to fix it. 
+    
+    """
     mesh.fill_holes()
     mesh.process()
     iter_limit = 20
-
     iteration = 0
     while not mesh.is_watertight and iteration < iter_limit:
         merge_tolerance = 0.05
@@ -30,19 +43,33 @@ def fix_mesh(mesh):
                     if (check < merge_tolerance) & (0 < check):
                         mesh.vertices[nf] = mesh.vertices[vert_nf[c]]
         iteration += 1
-
     if iteration > iter_limit - 1:
         print(" not watertight")
-
     mesh.fill_holes()
     mesh.process()
-
     return mesh
 
-#Revisar función, elegir paquete correcto o buscar opción de ejecutable:
+
+# Revisar función, elegir paquete correcto o buscar opción de ejecutable:
 def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag=""):
     """
-    Using pdb2pqr from APBS transform a pdb file into a pqr
+    Using pdb2pqr from APBS (pdb2pqr30 on bash) creates a pqr file from a pdb file.
+
+    Parameters
+    ----------
+    mesh_pdb_path : str 
+        Absolute path of pdb file.
+    mesh_pqr_path : str 
+        Absolute path of pqr file.
+    force_field : str 
+        Indicates selected force field to create pqr file, e.g. {AMBER,CHARMM,PARSE,TYL06,PEOEPB,SWANSON}
+    str_flag : str, default '' (empty string)
+        Indicates additional flags to be used in bash with pdb2pqr30
+
+
+    Returns
+    ----------
+    None    
     """
     force_field = force_field.upper()
     if str_flag:
@@ -54,8 +81,24 @@ def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag=""):
             ["pdb2pqr30", "--ff=" + force_field, mesh_pdb_path, mesh_pqr_path]
         )
 
-#Funciona bien:
+
+# Funciona bien:
 def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
+    """
+    Creates a xyzr format file from a pqr format file.
+
+
+    Parameters
+    ----------
+    mesh_pqr_path : str
+        Absolute path of pqr file
+    mesh_xyzr_path : str
+        Absolute path of xyzr file
+
+    Returns
+    ----------
+    None   
+    """
     pqr_file = open(mesh_pqr_path, "r")
     pqr_data = pqr_file.read().split("\n")
     xyzr_file = open(mesh_xyzr_path, "w")
@@ -69,10 +112,32 @@ def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
     pqr_file.close()
     xyzr_file.close()
 
-#Probar en Linux:
+
+# Probar en Linux:
 def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_radius):
+    """
+    Creates a .face file and a .vert file describing a mesh from a .xyzr file using msms. The files are saved in the output directory.
+
+    Parameters
+    ----------
+    mesh_xyzr_path : str
+        Absolute path of xyzr file.
+    output_dir : str
+        Absolute path of the output directory.
+    output_name : str
+        Name of the .face and .vert files created, e.g {output_name = "5pti" creates a 5pti.face and a 5pti.vert files}
+    density : float
+        Triangle density on the surface (typical values are 1.0 for molecules with more than one thousand atoms and 3.0 for smaller molecules).
+    probe_radius : float
+        Probe radius used to construct the molecular surface.
+
+    Returns
+    ----------
+    None   
+
+    """
     path = os.path.join(output_dir, output_name)
-    msms_dir = os.path.join(PBJ_PATH, 'ExternalSoftware','MSMS','')
+    msms_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "MSMS", "")
     if platform.system() == "Linux":
         external_file = "msms"
         os.system("chmod +x " + msms_dir + external_file)
@@ -94,7 +159,7 @@ def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_r
     os.system(command)
 
 
-#Averiguar por qué terminamos en dos directorios más arriba
+# Averiguar por qué terminamos en dos directorios más arriba
 def generate_nanoshaper_mesh(
     mesh_xyzr_path,
     output_dir,
@@ -104,16 +169,29 @@ def generate_nanoshaper_mesh(
     save_mesh_build_files,
 ):
     """
-    Usar path absoluto de mesh_xyzr_path y de output_name
+    Creates a .face file and a .vert file describing a mesh from a .xyzr file using NanoShaper. The files are saved in the output directory.
+
+    Parameters
+    ----------
+    mesh_xyzr_path : str
+        Absolute path of xyzr file.
+    output_dir : str
+        Absolute path of the output directory.
+    output_name : str
+        Name of the .face and .vert files created, e.g {output_name = "5pti" creates a 5pti.face and a 5pti.vert files}
+    density : float
+        Triangle density on the surface (typical values are 1.0 for molecules with more than one thousand atoms and 3.0 for smaller molecules).
+    probe_radius : float
+        Probe radius used to construct the molecular surface.
+    save_mesh_build_files : bool
+        If true, the raw .vert and .face files created from NanoShaper are not erased from the /nanotemp folder in the output directory.
+    Returns
+    ----------
+    None   
+
     """
-    nanoshaper_dir = os.path.join(PBJ_PATH,'ExternalSoftware','Nanoshaper','')
-    nanoshaper_temp_dir = os.path.join(output_dir, 'nanotemp','')
-    #if platform.system() == "Linux":
-    #    nanoshaper_dir = os.path.join(PBJ_PATH, "ExternalSoftware/NanoShaper/")
-    #    nanoshaper_temp_dir = os.path.join(output_dir, "nanotemp/")
-    #elif platform.system() == "Windows":
-    #    nanoshaper_dir = os.path.join(PBJ_PATH, "ExternalSoftware\\NanoShaper\\")
-    #    nanoshaper_temp_dir = os.path.join(output_dir, "nanotemp\\")
+    nanoshaper_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "NanoShaper", "")
+    nanoshaper_temp_dir = os.path.join(output_dir, "nanotemp", "")
 
     if not os.path.exists(nanoshaper_temp_dir):
         os.makedirs(nanoshaper_temp_dir)
@@ -134,28 +212,36 @@ def generate_nanoshaper_mesh(
     config_file.close()
     config_template_file.close()
 
-    #Probar en Linux
     os.chdir(nanoshaper_temp_dir)
     if platform.system() == "Linux":
-        os.system(nanoshaper_dir + "NanoShaper")
         os.system("chmod +x " + nanoshaper_dir + "NanoShaper")
+        os.system(nanoshaper_dir + "NanoShaper")
     elif platform.system() == "Windows":
-        if platform.architecture()[0] == '32bit':
-            os.system(nanoshaper_dir + "NanoShaper32.exe" + " " + nanoshaper_temp_dir+ 'surfaceConfiguration.prm')
-        elif platform.architecture()[0] == '64bit':
-            os.system(nanoshaper_dir + "NanoShaper64.exe" + " " + nanoshaper_temp_dir+ 'surfaceConfiguration.prm')
-    os.chdir('..')
-    
+        if platform.architecture()[0] == "32bit":
+            os.system(
+                nanoshaper_dir
+                + "NanoShaper32.exe"
+                + " "
+                + nanoshaper_temp_dir
+                + "surfaceConfiguration.prm"
+            )
+        elif platform.architecture()[0] == "64bit":
+            os.system(
+                nanoshaper_dir
+                + "NanoShaper64.exe"
+                + " "
+                + nanoshaper_temp_dir
+                + "surfaceConfiguration.prm"
+            )
+    os.chdir("..")
+
     try:
-        vert_file = open(nanoshaper_temp_dir + 'triangulatedSurf.vert', "r")
+        vert_file = open(nanoshaper_temp_dir + "triangulatedSurf.vert", "r")
         vert = vert_file.readlines()
         vert_file.close()
-        face_file = open(nanoshaper_temp_dir + 'triangulatedSurf.face', "r")
+        face_file = open(nanoshaper_temp_dir + "triangulatedSurf.face", "r")
         face = face_file.readlines()
         face_file.close()
-
-        ##os.remove(output_name + ".vert")
-        ##os.remove(output_name + ".face")
 
         vert_file = open(output_name + ".vert", "w")
         vert_file.write("".join(vert[3:]))
@@ -163,59 +249,32 @@ def generate_nanoshaper_mesh(
         face_file = open(output_name + ".face", "w")
         face_file.write("".join(face[3:]))
         face_file.close()
-        # Ya termina el crear los face y ver
 
         if not save_mesh_build_files:
             shutil.rmtree(nanoshaper_temp_dir)
-            #shutil.copy(nanoshaper_temp_dir + 'triangulatedSurf.face', output_name + ".face")
-            #shutil.copy(nanoshaper_temp_dir + 'triangulatedSurf.vert', output_name + ".vert")
-        #files = os.listdir(nanoshaper_temp_dir)
-        #for file in files:
-        #    os.remove(os.path.join(nanoshaper_temp_dir+)
-        #os.system("rm -r " + nanoshaper_temp_dir)
-        
 
-        """
-        vert_file = open(output_name + ".vert", "r")
-        vert = vert_file.readlines()
-        vert_file.close()
-        face_file = open(output_name + ".face", "r")
-        face = face_file.readlines()
-        face_file.close()
-
-        ##os.remove(output_name + ".vert")
-        ##os.remove(output_name + ".face")
-
-        vert_file = open(output_name + ".vert", "w")
-        vert_file.write("".join(vert[3:]))
-        vert_file.close()
-        face_file = open(output_name + ".face", "w")
-        face_file.write("".join(face[3:]))
-        face_file.close()
-        """
-    except OSError:
-        print('El archivo no existe o no fue creado por NanoShaper')
-    except FileExistsError:
-        pass
-    # Vestigios de la version pasada
-    """
-    if platform.system() == "Linux":
-        os.system("mv " + nanoshaper_temp_dir + "*.vert " + output_name + ".vert")
-        os.system("mv " + nanoshaper_temp_dir + "*.face " + output_name + ".face")
-    elif platform.system() == "Windows":
-        os.system("move " + nanoshaper_temp_dir + "*.vert " + output_name + ".vert")
-        os.system("move " + nanoshaper_temp_dir + "*.face " + output_name + ".face")
-    """
-    # Warning de que NanoShaper no creo los archivos
-    
-  
-    
-    
-
-    #os.chdir("..")
+    except (OSError, FileNotFoundError):
+        print("El archivo no existe o no fue creado por NanoShaper")
 
 
 def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
+    """
+    Creates an OFF format mesh file from a .face file and a .vert file.
+
+    Parameters
+    ----------
+    mesh_face_path : str
+        Absolute path of the .face file.
+    mesh_vert_file : str
+        Absolute path of the .vert file.
+    mesh_off_path : str
+        Absolute path of the .off file.
+
+    Returns
+    ----------
+    None   
+
+    """
     face = open(mesh_face_path, "r").read()
     vert = open(mesh_vert_path, "r").read()
 
@@ -228,28 +287,70 @@ def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
     for vert in verts:
         data.write(str(vert[0]) + " " + str(vert[1]) + " " + str(vert[2]) + "\n")
     for face in faces:
-        data.write(
-            "3" + " " + str(face[0]) + " " + str(face[1]) + " " + str(face[2]) + "\n"
-        )
+        data.write("3" + " " + str(face[0]) + " " + str(face[1]) + " " + str(face[2]) + "\n")
+
 
 def import_msms_mesh(mesh_face_path, mesh_vert_path):
+    """
+    Creates a bempp grid object from .face and .vert files.
+
+    Parameters
+    ----------
+    mesh_face_path : str
+        Absolute path of the .face file.
+    mesh_vert_file : str
+        Absolute path of the .vert file.
+
+    Returns
+    ----------
+    grid : Grid
+        Bempp Grid object.
+
+    """
     face = open(mesh_face_path, "r").read()
     vert = open(mesh_vert_path, "r").read()
 
     faces = np.vstack(np.char.split(face.split("\n")[0:-1]))[:, :3].astype(int) - 1
     verts = np.vstack(np.char.split(vert.split("\n")[0:-1]))[:, :3].astype(float)
 
-    # grid = bempp.api.grid_from_element_data(verts.transpose(), faces.transpose())
     grid = bempp.api.Grid(verts.transpose(), faces.transpose())
     return grid
 
 
 def import_off_mesh(mesh_off_path):
+    """
+    Creates a bempp grid object from a .OFF files.
+
+    Parameters
+    ----------
+    mesh_off_path : str
+        Absolute path of the .off file.
+    
+    Returns
+    ----------
+    grid : Grid
+        Bempp Grid object.
+
+    """
     grid = bempp.api.import_grid(mesh_off_path)
     return grid
 
 
 def density_to_nanoshaper_grid_scale_conversion(mesh_density):
+    """
+    Converts the grid density value into NanoShaper's grid scale value.
+
+    Parameters
+    ----------
+    mesh_density : float
+        Desired density of the grid.
+    
+    Returns
+    ----------
+    grid_scale : float
+        Grid scale value to be used in NanoShaper.
+
+    """
     grid_scale = round(
         0.797 * (mesh_density ** 0.507), 2
     )  ## Emperical relation found by creatign meshes using nanoshaper and calculating their density
