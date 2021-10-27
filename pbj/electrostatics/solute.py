@@ -60,7 +60,8 @@ class Solute:
         elif file_extension == "pqr":
             self.imported_file_type = "pqr"
             self.pqr_path = solute_file_path
-            self.solute_name = solute_file_path.split(".")[-2].split("/")[-1]
+            #self.solute_name = solute_file_path.split(".")[-2].split("/")[-1]
+            self.solute_name = os.path.split(solute_file_path.split(".")[-2])[-1]
 
         else:
             print("File is not pdb or pqr -> Cannot start")
