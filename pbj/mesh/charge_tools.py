@@ -3,8 +3,7 @@ import os
 # import .mesh_tools
 from .mesh_tools import *
 
-# def import_charges_from_pqr(pqr_path)
-def import_charges(pqr_path):
+def import_charges_from_pqr(pqr_path):
     # Read charges and coordinates from the .pqr file
     molecule_file = open(pqr_path, "r")
     molecule_data = molecule_file.read().split("\n")
@@ -76,7 +75,7 @@ def generate_msms_mesh_import_charges(solute):
     # convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path)
 
     grid = import_msms_mesh(mesh_face_path, mesh_vert_path)
-    q, x_q = import_charges(mesh_pqr_path)
+    q, x_q = import_charges_from_pqr(mesh_pqr_path)
 
     if solute.save_mesh_build_files:
         if solute.imported_file_type == "pdb":
@@ -92,8 +91,7 @@ def generate_msms_mesh_import_charges(solute):
 
 
 #
-# def load_charges_to_solute(solute):
-def load_charges(solute):
+def load_charges_to_solute(solute):
     mesh_dir = os.path.abspath("mesh_temp/")
     if solute.save_mesh_build_files:
         mesh_dir = solute.mesh_build_files_dir
@@ -110,6 +108,6 @@ def load_charges(solute):
     else:
         mesh_pqr_path = solute.pqr_path
 
-    q, x_q = import_charges(mesh_pqr_path)
+    q, x_q = import_charges_from_pqr(mesh_pqr_path)
 
     return q, x_q

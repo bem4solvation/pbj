@@ -4,6 +4,7 @@ import os
 import numpy as np
 import time
 import pbj.mesh.mesh_tools as mesh_tools
+import pbj.mesh.charge_tools as charge_tools
 #import bem_electrostatics.pb_formulation as pb_formulation
 #import bem_electrostatics.utils as utils
 
@@ -60,12 +61,11 @@ class Solute:
         elif file_extension == "pqr":
             self.imported_file_type = "pqr"
             self.pqr_path = solute_file_path
-            #self.solute_name = solute_file_path.split(".")[-2].split("/")[-1]
             self.solute_name = os.path.split(solute_file_path.split(".")[-2])[-1]
 
         else:
             print("File is not pdb or pqr -> Cannot start")
-        """
+        
 
         if external_mesh_file is not None:
             filename, file_extension = os.path.splitext(external_mesh_file)
@@ -78,13 +78,13 @@ class Solute:
                 self.external_mesh_file_path = external_mesh_file
                 self.mesh = bempp.api.import_grid(self.external_mesh_file_path)
 
-            self.q, self.x_q = import_charges(self)  # Import charges from given file
+            self.q, self.x_q = charge_tools.import_charges(self)  # Import charges from given file
 
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
-            self.mesh, self.q, self.x_q = generate_msms_mesh_import_charges(self)
+            self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.pb_formulation = "direct"
-        """
+        
         self.ep_in = 4.0
         self.ep_ex = 80.0
         self.kappa = 0.125
