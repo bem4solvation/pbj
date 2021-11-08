@@ -257,6 +257,8 @@ def generate_nanoshaper_mesh(
         if not save_mesh_build_files:
             shutil.rmtree(nanoshaper_temp_dir)
 
+        os.chdir("..")
+
     except (OSError, FileNotFoundError):
         print("El archivo no existe o no fue creado por NanoShaper")
 
