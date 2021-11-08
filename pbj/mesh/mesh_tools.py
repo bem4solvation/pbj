@@ -135,6 +135,10 @@ def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_r
     ----------
     None   
 
+    Examples
+    ----------
+    >>> generate_msms_mesh("5pti.xyzr", "", "5pti", 1.0, 1.4)
+    
     """
     path = os.path.join(output_dir, output_name)
     msms_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "MSMS", "")

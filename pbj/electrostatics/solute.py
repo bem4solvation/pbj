@@ -119,17 +119,16 @@ class Solute:
 ################################
 ################################
 # Bloque para funciones 
-# initialise_matrices
-# assemble_matrices
-# initialise_rhs
+# initialise_matrices  # Formulations
+# assemble_matrices    # Bempp
+# initialise_rhs       # Formulations
 # apply_preconditioning
-# pass_to_discrete_form
+# pass_to_discrete_form # Bempp
 
 # calculate_potential
 # calculate_solvation_energy
 
 ########################
-
 
 def get_name_from_pdb(pdb_path):
     pdb_file = open(pdb_path)
