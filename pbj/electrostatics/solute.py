@@ -115,8 +115,16 @@ class Solute:
         neumann_space = dirichl_space
         self.dirichl_space = dirichl_space
         self.neumann_space = neumann_space
-    
+    """
     def direct(self):
+        def lhs():
+            _lhs = pb_formulation.formulations.direct.lhs(self.dirichl_space,
+                                                    self.neumann_space,
+                                                    self.ep_in,
+                                                    self.ep_ex,
+                                                    self.kappa,
+                                                    self.operator_assembler)
+            return _lhs
         print("esta funcionando!")
         lhs = pb_formulation.formulations.direct.lhs(self.dirichl_space,
                                                     self.neumann_space,
@@ -131,13 +139,31 @@ class Solute:
                                                     self.ep_in,
                                                     self.rhs_constructor)
         return lhs, rhs
+    """
 
-    def initialise_matrices_and_rhs(self):
+    #def initialise_matrices_and_rhs(self):
+    def initialise_matrices(self):
         print('inicializar matrices')
         start_time = time.time()  # Start the timing for the matrix construction
 
         # Construct matrices based on the desired formulation
-        self.matrices["A"], [self.rhs["rhs_1"], self.rhs["rhs_2"]]  = getattr(self,self.pb_formulation)()
+        formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
+
+        self.matrices["A"] = formulation_object.lhs(self.dirichl_space,self.neumann_space,
+                                                                            self.ep_in,
+                                                                            self.ep_ex,
+                                                                            self.kappa,
+                                                                            self.operator_assembler
+                                                                            )
+        """
+        [self.rhs["rhs_1"],self.rhs["rhs_2"]] = formulation_object.rhs(self.dirichl_space,
+                                                    self.neumann_space,
+                                                    self.q,
+                                                    self.x_q,
+                                                    self.ep_in,
+                                                    self.rhs_constructor)
+        """
+        #self.matrices["A"], [self.rhs["rhs_1"], self.rhs["rhs_2"]]  = getattr(self,self.pb_formulation)()
         #try:
         #    self.matrices["A"], [self.rhs["rhs_1"], self.rhs["rhs_2"]]  = getattr(self,self.pb_formulation)()
             #self.dirichl_space,
@@ -164,6 +190,17 @@ class Solute:
         #matrix_discrete_start_time = time.time()
         self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
         self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type, self.matrices["A"])
+
+    def initialise_rhs(self):
+        start_rhs = time.time()
+        formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
+        (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self.dirichl_space,
+                                                    self.neumann_space,
+                                                    self.q,
+                                                    self.x_q,
+                                                    self.ep_in,
+                                                    self.rhs_constructor)
+        self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
 ################################
 ################################
@@ -192,9 +229,14 @@ class Solute:
         else:
             if "A" not in self.matrices or "rhs_1" not in self.rhs:
                 # If matrix A or rhs_1 doesn't exist, it must first be created
-                self.initialise_matrices_and_rhs()
+                
+                #self.initialise_matrices_and_rhs()
+                self.initialise_matrices()
+                self.initialise_rhs()
+
             if not self.matrices["A"]._cached:
                 self.assemble_matrices()
+                
             if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
                 # See if preconditioning needs to be applied if this hasn't been done
                 self.apply_preconditioning()

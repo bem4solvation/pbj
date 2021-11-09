@@ -1,1 +1,2 @@
-from .direct import *
+import pbj.electrostatics.pb_formulation.formulations.direct
+
