@@ -23,3 +23,4 @@ dependencies:
     - meshio
     - "git+https://github.com/bempp/bempp-cl.git@master"
     - trimesh
+    - "git+https://github.com/exafmm/exafmm-t.git"

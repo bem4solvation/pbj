@@ -115,65 +115,14 @@ class Solute:
         neumann_space = dirichl_space
         self.dirichl_space = dirichl_space
         self.neumann_space = neumann_space
-    """
-    def direct(self):
-        def lhs():
-            _lhs = pb_formulation.formulations.direct.lhs(self.dirichl_space,
-                                                    self.neumann_space,
-                                                    self.ep_in,
-                                                    self.ep_ex,
-                                                    self.kappa,
-                                                    self.operator_assembler)
-            return _lhs
-        print("esta funcionando!")
-        lhs = pb_formulation.formulations.direct.lhs(self.dirichl_space,
-                                                    self.neumann_space,
-                                                    self.ep_in,
-                                                    self.ep_ex,
-                                                    self.kappa,
-                                                    self.operator_assembler)
-        rhs = pb_formulation.formulations.direct.rhs(self.dirichl_space,
-                                                    self.neumann_space,
-                                                    self.q,
-                                                    self.x_q,
-                                                    self.ep_in,
-                                                    self.rhs_constructor)
-        return lhs, rhs
-    """
 
-    #def initialise_matrices_and_rhs(self):
     def initialise_matrices(self):
-        print('inicializar matrices')
         start_time = time.time()  # Start the timing for the matrix construction
 
         # Construct matrices based on the desired formulation
         formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
 
-        self.matrices["A"] = formulation_object.lhs(self.dirichl_space,self.neumann_space,
-                                                                            self.ep_in,
-                                                                            self.ep_ex,
-                                                                            self.kappa,
-                                                                            self.operator_assembler
-                                                                            )
-        """
-        [self.rhs["rhs_1"],self.rhs["rhs_2"]] = formulation_object.rhs(self.dirichl_space,
-                                                    self.neumann_space,
-                                                    self.q,
-                                                    self.x_q,
-                                                    self.ep_in,
-                                                    self.rhs_constructor)
-        """
-        #self.matrices["A"], [self.rhs["rhs_1"], self.rhs["rhs_2"]]  = getattr(self,self.pb_formulation)()
-        #try:
-        #    self.matrices["A"], [self.rhs["rhs_1"], self.rhs["rhs_2"]]  = getattr(self,self.pb_formulation)()
-            #self.dirichl_space,
-            #                                                                self.neumann_space,
-            #                                                                self.ep_in,
-            #                                                               self.ep_ex,
-            #                                                                self.kappa,
-            #                                                                self.operator_assembler,
-            #                                                                self.rhs_constructor
-            #                                                                )
+        self.matrices["A"] = formulation_object.lhs(self)
         #except:
         #    raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
@@ -194,28 +143,9 @@ class Solute:
     def initialise_rhs(self):
         start_rhs = time.time()
         formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
-        (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self.dirichl_space,
-                                                    self.neumann_space,
-                                                    self.q,
-                                                    self.x_q,
-                                                    self.ep_in,
-                                                    self.rhs_constructor)
+        (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self) 
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
-################################
-################################
-# Bloque para funciones 
-# initialise_matrices  # Formulations
-# assemble_matrices    # Bempp
-# initialise_rhs       # Formulations
-# apply_preconditioning
-# pass_to_discrete_form # Bempp
-
-# calculate_potential
-# calculate_solvation_energy
-
-########################
-    
     def calculate_potential(self, rerun_all = False):
         # Start the overall timing for the whole process
         start_time = time.time()
@@ -230,7 +160,6 @@ class Solute:
             if "A" not in self.matrices or "rhs_1" not in self.rhs:
                 # If matrix A or rhs_1 doesn't exist, it must first be created
                 
-                #self.initialise_matrices_and_rhs()
                 self.initialise_matrices()
                 self.initialise_rhs()
 
@@ -239,6 +168,7 @@ class Solute:
                 
             if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
                 # See if preconditioning needs to be applied if this hasn't been done
+
                 self.apply_preconditioning()
             # if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
             #   # See if discrete form has been called
@@ -246,25 +176,6 @@ class Solute:
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
-        """
-        if self.pb_formulation_preconditioning and (self.pb_formulation_preconditioning_type == "block_diagonal" or
-                self.pb_formulation_preconditioning_type == "block_diagonal_test"):
-            x, info, it_count = utils.solver(self.matrices["A_discrete"],
-                                             self.rhs["rhs_discrete"],
-                                             self.gmres_tolerance,
-                                             self.gmres_restart,
-                                             self.gmres_max_iterations,
-                                             precond=self.matrices["preconditioning_matrix"]
-                                             )
-                                             
-        else:
-            x, info, it_count = utils.solver(self.matrices["A_discrete"],
-                                             self.rhs["rhs_discrete"],
-                                             self.gmres_tolerance,
-                                             self.gmres_restart,
-                                             self.gmres_max_iterations
-                                             )
-        """
         x, info, it_count = utils.solver(self.matrices["A_discrete"],
                                              self.rhs["rhs_discrete"],
                                              self.gmres_tolerance,

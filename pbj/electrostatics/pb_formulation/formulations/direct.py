@@ -3,7 +3,15 @@ import bempp.api
 
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
-def lhs(dirichl_space, neumann_space, ep_in, ep_out, kappa, operator_assembler, permute_rows = False):
+def lhs(self, permute_rows = False):
+
+    dirichl_space = self.dirichl_space
+    neumann_space = self.neumann_space
+    ep_in = self.ep_in
+    ep_out = self.ep_ex
+    kappa = self.kappa
+    operator_assembler = self.operator_assembler
+
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
     slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
     dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
@@ -30,7 +38,14 @@ def lhs(dirichl_space, neumann_space, ep_in, ep_out, kappa, operator_assembler, 
 import os
 
 
-def rhs(dirichl_space, neumann_space, q, x_q, ep_in, rhs_constructor):
+def rhs(self):
+    dirichl_space = self.dirichl_space
+    neumann_space = self.neumann_space
+    q = self.q
+    x_q = self.x_q
+    ep_in = self.ep_in
+    rhs_constructor = self.rhs_constructor
+
     if rhs_constructor == "fmm":
         @bempp.api.callable(vectorized=True)
         def fmm_green_func(x, n, domain_index, result):
