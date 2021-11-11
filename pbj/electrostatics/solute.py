@@ -23,7 +23,8 @@ class Solute:
                  mesh_probe_radius=1.4,
                  mesh_generator="nanoshaper",
                  print_times=False,
-                 force_field="amber"
+                 force_field="amber",
+                 formulation="direct"
                  ):
 
         if not os.path.isfile(solute_file_path):
@@ -83,12 +84,18 @@ class Solute:
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
 
-        self.pb_formulation = "direct"
+        self.pb_formulation = formulation
+        available_formulations = os.listdir(os.path.join("pb_formulation", "formulations"))
+
+        if self.pb_formulation not in available_formulations:
+            raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
         
+        self.formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
+
         self.ep_in = 4.0
         self.ep_ex = 80.0
         self.kappa = 0.125
-
+        
         self.pb_formulation_alpha = 1.0
         self.pb_formulation_beta = self.ep_ex / self.ep_in
 
