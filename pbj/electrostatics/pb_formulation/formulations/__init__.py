@@ -1,2 +1,3 @@
 import pbj.electrostatics.pb_formulation.formulations.direct
-
+import pbj.electrostatics.pb_formulation.formulations.juffer
+import pbj.electrostatics.pb_formulation.formulations.alpha_beta

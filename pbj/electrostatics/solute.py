@@ -3,12 +3,11 @@ import bempp.api
 import os
 import numpy as np
 import time
-from pbj.electrostatics.pb_formulation.formulations.alphabeta import verify_parameters
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
 import pbj.electrostatics.pb_formulation as pb_formulation
 import pbj.electrostatics.utils as utils
-
+PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 class Solute:
     """The basic Solute object
@@ -31,6 +30,12 @@ class Solute:
         if not os.path.isfile(solute_file_path):
             print("file does not exist -> Cannot start")
             return
+        
+        self.pb_formulation = formulation
+        available_formulations = os.listdir(os.path.join(PBJ_PATH,"pb_formulation", "formulations"))
+
+        if self.pb_formulation+'.py' not in available_formulations:
+            raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
 
         self.force_field = force_field
 
@@ -84,12 +89,6 @@ class Solute:
 
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
-
-        self.pb_formulation = formulation
-        available_formulations = os.listdir(os.path.join("pb_formulation", "formulations"))
-
-        if self.pb_formulation not in available_formulations:
-            raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
         
         self.formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
 
@@ -157,7 +156,7 @@ class Solute:
         # Verify if parameters are already set and then save RHS
         if formulation_object.verify_parameters(self):
             (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self) 
-            
+
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
     def calculate_potential(self, rerun_all = False):
