@@ -3,6 +3,9 @@ import bempp.api
 
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+def verify_parameters(self):
+    return True
+
 def lhs(self, permute_rows = False):
 
     dirichl_space = self.dirichl_space

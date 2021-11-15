@@ -4,7 +4,10 @@ import os
 
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
-#def juffer(dirichl_space, neumann_space, ep_in, ep_ex, kappa, operator_assembler):
+def verify_parameters(self):
+    return True
+
+
 def lhs(self):
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space

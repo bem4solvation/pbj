@@ -3,6 +3,7 @@ import bempp.api
 import os
 import numpy as np
 import time
+from pbj.electrostatics.pb_formulation.formulations.alphabeta import verify_parameters
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
 import pbj.electrostatics.pb_formulation as pb_formulation
@@ -96,8 +97,8 @@ class Solute:
         self.ep_ex = 80.0
         self.kappa = 0.125
         
-        self.pb_formulation_alpha = 1.0
-        self.pb_formulation_beta = self.ep_ex / self.ep_in
+        self.pb_formulation_alpha = np.nan #1.0
+        self.pb_formulation_beta = np.nan #self.ep_ex / self.ep_in
 
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"
@@ -128,8 +129,10 @@ class Solute:
 
         # Construct matrices based on the desired formulation
         formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
-
-        self.matrices["A"] = formulation_object.lhs(self)
+        
+        # Verify if parameters are already set and save A matrix
+        if formulation_object.verify_parameters(self):
+            self.matrices["A"] = formulation_object.lhs(self)
         #except:
         #    raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
@@ -150,7 +153,11 @@ class Solute:
     def initialise_rhs(self):
         start_rhs = time.time()
         formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
-        (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self) 
+
+        # Verify if parameters are already set and then save RHS
+        if formulation_object.verify_parameters(self):
+            (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self) 
+            
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
     def calculate_potential(self, rerun_all = False):
