@@ -1,7 +1,6 @@
 import numpy as np
-import os
 import bempp.api
-
+import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
 def verify_parameters(self):
@@ -10,6 +9,7 @@ def verify_parameters(self):
     if np.isnan(alpha) or np.isnan(beta):
         raise ValueError("pb_formulation_alpha and pb_formulation_beta not defined in Solute class")
     return True
+
 
 def lhs(self):
     dirichl_space = self.dirichl_space
@@ -21,47 +21,32 @@ def lhs(self):
     beta = self.pb_formulation_beta
     operator_assembler = self.operator_assembler
 
-    phi_id = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
-    dph_id = sparse.identity(neumann_space, neumann_space, neumann_space)
+    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
+    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
+    hlp_in = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
+    adlp_in = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+
+    dlp_out = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
+                                              assembler=operator_assembler)
+    slp_out = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
+                                              assembler=operator_assembler)
+    hlp_out = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
+                                               assembler=operator_assembler)
+    adlp_out = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
+                                                       assembler=operator_assembler)
+
+    phi_identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
+    dph_identity = sparse.identity(neumann_space, neumann_space, neumann_space)
 
     ep = ep_ex / ep_in
 
-    A_in = laplace_multitrace(dirichl_space, neumann_space, operator_assembler)
-    A_ex = mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler)
+    A = bempp.api.BlockedOperator(2, 2)
+    A[0, 0] = (-0.5 * (1 + alpha)) * phi_identity + (alpha * dlp_out) - dlp_in
+    A[0, 1] = slp_in - ((alpha / ep) * slp_out)
+    A[1, 0] = hlp_in - (beta * hlp_out)
+    A[1, 1] = (-0.5 * (1 + (beta / ep))) * dph_identity + adlp_in - ((beta / ep) * adlp_out)
 
-    D = bempp.api.BlockedOperator(2, 2)
-    D[0, 0] = alpha * phi_id
-    D[0, 1] = 0.0 * phi_id
-    D[1, 0] = 0.0 * phi_id
-    D[1, 1] = beta * dph_id
-
-    E = bempp.api.BlockedOperator(2, 2)
-    E[0, 0] = phi_id
-    E[0, 1] = 0.0 * phi_id
-    E[1, 0] = 0.0 * phi_id
-    E[1, 1] = dph_id * (1.0 / ep)
-
-    F = bempp.api.BlockedOperator(2, 2)
-    F[0, 0] = alpha * phi_id
-    F[0, 1] = 0.0 * phi_id
-    F[1, 0] = 0.0 * phi_id
-    F[1, 1] = dph_id * (beta / ep)
-
-    Id = bempp.api.BlockedOperator(2, 2)
-    Id[0, 0] = phi_id
-    Id[0, 1] = 0.0 * phi_id
-    Id[1, 0] = 0.0 * phi_id
-    Id[1, 1] = dph_id
-
-    interior_projector = ((0.5 * Id) + A_in)
-    scaled_exterior_projector = (D * ((0.5 * Id) - A_ex) * E)
-    A = ((0.5 * Id) + A_in) + (D * ((0.5 * Id) - A_ex) * E) - (Id + F)
-    
     self.matrices["A"] = A
-    self.matrices["A_in"] = A_in
-    self.matrices["A_ex"] = A_ex
-    self.matrices["interior_projector"] = interior_projector
-    self.matrices["scaled_exterior_projector"] = scaled_exterior_projector
 
 
 def rhs(self):

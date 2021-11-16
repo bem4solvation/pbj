@@ -1,7 +1,6 @@
 import numpy as np
-import os
 import bempp.api
-
+import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
 def verify_parameters(self):
@@ -12,6 +11,8 @@ def verify_parameters(self):
     return True
 
 def lhs(self):
+    
+    #def alpha_beta_external(dirichl_space, neumann_space, ep_in, ep_ex, kappa, alpha, beta, operator_assembler):
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     ep_in = self.ep_in
@@ -35,11 +36,11 @@ def lhs(self):
     D[1, 0] = 0.0 * phi_id
     D[1, 1] = beta * dph_id
 
-    E = bempp.api.BlockedOperator(2, 2)
-    E[0, 0] = phi_id
-    E[0, 1] = 0.0 * phi_id
-    E[1, 0] = 0.0 * phi_id
-    E[1, 1] = dph_id * (1.0 / ep)
+    E_1 = bempp.api.BlockedOperator(2, 2)
+    E_1[0, 0] = phi_id
+    E_1[0, 1] = 0.0 * phi_id
+    E_1[1, 0] = 0.0 * phi_id
+    E_1[1, 1] = dph_id * ep
 
     F = bempp.api.BlockedOperator(2, 2)
     F[0, 0] = alpha * phi_id
@@ -53,10 +54,10 @@ def lhs(self):
     Id[1, 0] = 0.0 * phi_id
     Id[1, 1] = dph_id
 
-    interior_projector = ((0.5 * Id) + A_in)
-    scaled_exterior_projector = (D * ((0.5 * Id) - A_ex) * E)
-    A = ((0.5 * Id) + A_in) + (D * ((0.5 * Id) - A_ex) * E) - (Id + F)
-    
+    interior_projector = ((0.5 * Id) + A_in) * E_1
+    scaled_exterior_projector = D * ((0.5 * Id) - A_ex)
+    A = (((0.5 * Id) + A_in) * E_1) + (D * ((0.5 * Id) - A_ex)) - D - E_1
+
     self.matrices["A"] = A
     self.matrices["A_in"] = A_in
     self.matrices["A_ex"] = A_ex
@@ -123,7 +124,6 @@ def laplace_multitrace(dirichl_space, neumann_space, operator_assembler):
     A[1, 1] = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
 
     return A
-
 
 def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler):
     A = bempp.api.BlockedOperator(2, 2)

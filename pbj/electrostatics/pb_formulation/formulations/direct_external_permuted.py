@@ -6,15 +6,15 @@ from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 def verify_parameters(self):
     return True
 
-def lhs(self):
 
+def lhs(self):
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     ep_in = self.ep_in
     ep_out = self.ep_ex
     kappa = self.kappa
     operator_assembler = self.operator_assembler
-
+    
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
     slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
     dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
@@ -26,11 +26,12 @@ def lhs(self):
     A = bempp.api.BlockedOperator(2, 2)
 
     A[0, 0] = 0.5 * identity + dlp_in
-    A[0, 1] = -slp_in
+    A[0, 1] = -(ep_out / ep_in) * slp_in
     A[1, 0] = 0.5 * identity - dlp_out
-    A[1, 1] = (ep_in / ep_out) * slp_out
+    A[1, 1] = slp_out
 
     self.matrices["A"] = A
+
 
 def rhs(self):
     dirichl_space = self.dirichl_space
@@ -77,4 +78,3 @@ def rhs(self):
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1,rhs_2
-    

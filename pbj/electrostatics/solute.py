@@ -24,7 +24,10 @@ class Solute:
                  mesh_generator="nanoshaper",
                  print_times=False,
                  force_field="amber",
-                 formulation="direct"
+                 formulation="direct"#,
+                 #physical_parameters = {'ep_in':1.0, 'ep_ex':80.0, 'kappa':0.0, 'pb_formulation_alpha':1.0, 'pb_formulation_beta':1.0}
+                 #gmres_parameters = {'tolerance':1e-8, 'max_iterations':1000, 'verbose':False}
+                 #mesh_parameters = {'mesh_generator':'nanoshaper',mesh_probe_radius':1.4, 'mesh_density':1.0}
                  ):
 
         if not os.path.isfile(solute_file_path):
@@ -91,13 +94,13 @@ class Solute:
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
         
         self.formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
-
+        
         self.ep_in = 4.0
         self.ep_ex = 80.0
         self.kappa = 0.125
         
         self.pb_formulation_alpha = np.nan #1.0
-        self.pb_formulation_beta = np.nan #self.ep_ex / self.ep_in
+        self.pb_formulation_beta = np.nan  #self.ep_ex / self.ep_in
 
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"
@@ -131,7 +134,7 @@ class Solute:
         
         # Verify if parameters are already set and save A matrix
         if formulation_object.verify_parameters(self):
-            self.matrices["A"] = formulation_object.lhs(self)
+            formulation_object.lhs(self)
         #except:
         #    raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
@@ -155,7 +158,7 @@ class Solute:
 
         # Verify if parameters are already set and then save RHS
         if formulation_object.verify_parameters(self):
-            (self.rhs["rhs_1"],self.rhs["rhs_2"]) = formulation_object.rhs(self) 
+            formulation_object.rhs(self) 
 
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
