@@ -3,11 +3,14 @@ import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+invert_potential = False
+
+
 def verify_parameters(self):
     return True
 
-def lhs(self):
 
+def lhs(self):
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     ep_in = self.ep_in
@@ -31,6 +34,7 @@ def lhs(self):
     A[1, 1] = (ep_in / ep_out) * slp_out
 
     self.matrices["A"] = A
+
 
 def rhs(self):
     dirichl_space = self.dirichl_space
@@ -77,4 +81,47 @@ def rhs(self):
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1,rhs_2
-    
+
+
+# def preconditioner(solute):
+#     if solute.pb_formulation_preconditioning_type == "block_diagonal":
+#         solute.matrices['preconditioning_matrix'] = block_diagonal_precondiioner(solute.matrices['A'])
+#         solute.matrices["A_final"] = solute.matrices["A"]
+#         solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+#     else:
+#         raise ValueError('Unrecognised preconditioning type %s for current formulation type %s' % (solute.pb_formulation_preconditioning_type ,solute.pb_formulation))
+
+
+def block_diagonal_preconditioner(solute):
+    from scipy.sparse import diags, bmat
+    from scipy.sparse.linalg import aslinearoperator
+
+    matrix_A = solute.matrices['A']
+
+    block1 = matrix_A[0, 0]
+    block2 = matrix_A[0, 1]
+    block3 = matrix_A[1, 0]
+    block4 = matrix_A[1, 1]
+
+    diag11 = block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal() + \
+             block1._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag12 = block2._alpha * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag21 = block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal() + \
+             block3._op2._alpha * block3._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag22 = block4._alpha * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+
+    d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
+    diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
+    diag12_inv = -1 / diag11 * diag12 * d_aux
+    diag21_inv = -d_aux * diag21 / diag11
+    diag22_inv = d_aux
+
+    block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
+
+    solute.matrices['preconditioning_matrix'] = aslinearoperator(block_mat_precond)
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+
+def pass_to_discrete_form(solute):
+    return True

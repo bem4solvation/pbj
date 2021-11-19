@@ -33,7 +33,7 @@ class Solute:
         if not os.path.isfile(solute_file_path):
             print("file does not exist -> Cannot start")
             return
-        
+
         self.pb_formulation = formulation
         available_formulations = os.listdir(os.path.join(PBJ_PATH,"pb_formulation", "formulations"))
 
@@ -75,7 +75,6 @@ class Solute:
 
         else:
             print("File is not pdb or pqr -> Cannot start")
-        
 
         if external_mesh_file is not None:
             filename, file_extension = os.path.splitext(external_mesh_file)
@@ -92,13 +91,13 @@ class Solute:
 
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
-        
-        self.formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
-        
+
+        self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation)
+
         self.ep_in = 4.0
         self.ep_ex = 80.0
         self.kappa = 0.125
-        
+
         self.pb_formulation_alpha = np.nan #1.0
         self.pb_formulation_beta = np.nan  #self.ep_ex / self.ep_in
 
@@ -130,8 +129,8 @@ class Solute:
         start_time = time.time()  # Start the timing for the matrix construction
 
         # Construct matrices based on the desired formulation
-        formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
-        
+        formulation_object = getattr(pb_formulation.formulations, self.pb_formulation)
+
         # Verify if parameters are already set and save A matrix
         if formulation_object.verify_parameters(self):
             formulation_object.lhs(self)
@@ -143,45 +142,61 @@ class Solute:
         start_assembly = time.time()
         self.matrices["A"].weak_form()
         self.timings["time_matrix_assembly"] = time.time() - start_assembly
-    
-    def apply_preconditioning(self):
-        # Pass matrix A to discrete form (either strong or weak)
-        self.matrices["A_final"] = self.matrices["A"]
-        self.rhs["rhs_final"] = [self.rhs["rhs_1"], self.rhs["rhs_2"]]
-        #matrix_discrete_start_time = time.time()
-        self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
-        self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type, self.matrices["A"])
 
     def initialise_rhs(self):
         start_rhs = time.time()
-        formulation_object =  getattr(pb_formulation.formulations, self.pb_formulation)
+        formulation_object = getattr(pb_formulation.formulations, self.pb_formulation)
 
         # Verify if parameters are already set and then save RHS
         if formulation_object.verify_parameters(self):
-            formulation_object.rhs(self) 
+            formulation_object.rhs(self)
 
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
+
+    def apply_preconditioning(self):
+        preconditioning_start_time = time.time()
+        precon_str = self.pb_formulation_preconditioning_type+"_preconditioner"
+        preconditioning_object = getattr(self.formulation_object, precon_str)
+        preconditioning_object(self)
+
+        matrix_discrete_start_time = time.time()
+        self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
+        self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type,
+                                                        self.matrices["A"])
+        self.formulation_object.pass_to_discrete_form(self)
+        self.timings["time_matrix_to_discrete"] = time.time() - matrix_discrete_start_time
+
+        self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
+
+        # # Pass matrix A to discrete form (either strong or weak)
+        # self.matrices["A_final"] = self.matrices["A"]
+        # self.rhs["rhs_final"] = [self.rhs["rhs_1"], self.rhs["rhs_2"]]
+        # # matrix_discrete_start_time = time.time()
+        # self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
+        # self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type,
+        #                                                 self.matrices["A"])
 
     def calculate_potential(self, rerun_all = False):
         # Start the overall timing for the whole process
         start_time = time.time()
 
         if rerun_all:
-            self.initialise_matrices_and_rhs()
+            self.initialise_matrices()
             self.assemble_matrices()
-            self.apply_preconditioning() 
+            self.initialise_rhs()
+            self.apply_preconditioning()
             #self.pass_to_discrete_form()
 
         else:
             if "A" not in self.matrices or "rhs_1" not in self.rhs:
                 # If matrix A or rhs_1 doesn't exist, it must first be created
-                
+
                 self.initialise_matrices()
                 self.initialise_rhs()
 
             if not self.matrices["A"]._cached:
                 self.assemble_matrices()
-                
+
             if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
                 # See if preconditioning needs to be applied if this hasn't been done
 
@@ -198,7 +213,7 @@ class Solute:
                                              self.gmres_restart,
                                              self.gmres_max_iterations
                                              )
-                                             
+
         self.timings["time_gmres"] = time.time() - gmres_start_time
 
         # Split solution and generate corresponding grid functions
@@ -208,12 +223,17 @@ class Solute:
         # Save number of iterations taken and the solution of the system
         self.results["solver_iteration_count"] = it_count
         self.results["phi"] = dirichlet_solution
-        if self.pb_formulation == "alpha_beta_external_potential" or self.pb_formulation == "lu" \
-                or self.pb_formulation == "muller_external" or self.pb_formulation == "first_kind_external"\
-                or self.pb_formulation == "direct_external" or self.pb_formulation == "direct_external_permuted":
+        if self.formulation_object.invert_potential:
             self.results["d_phi"] = (self.ep_ex / self.ep_in) * neumann_solution
         else:
             self.results["d_phi"] = neumann_solution
+
+        # if self.pb_formulation == "alpha_beta_external_potential" or self.pb_formulation == "lu" \
+        #         or self.pb_formulation == "muller_external" or self.pb_formulation == "first_kind_external"\
+        #         or self.pb_formulation == "direct_external" or self.pb_formulation == "direct_external_permuted":
+        #     self.results["d_phi"] = (self.ep_ex / self.ep_in) * neumann_solution
+        # else:
+        #     self.results["d_phi"] = neumann_solution
         # self.solver_iteration_count = it_count
         # self.phi = dirichlet_solution
         # self.d_phi = neumann_solution
@@ -225,7 +245,7 @@ class Solute:
         # Print times, if this is desired
         if self.print_times:
             show_potential_calculation_times(self)
-    
+
     def calculate_solvation_energy(self, rerun_all = False):
         if rerun_all:
             self.calculate_potential(rerun_all)
@@ -254,7 +274,7 @@ class Solute:
         if self.print_times:
             print('It took ', self.timings["time_calc_energy"], ' seconds to compute the solvation energy')
 
-            
+
 def get_name_from_pdb(pdb_path):
     pdb_file = open(pdb_path)
     first_line = pdb_file.readline()
@@ -305,4 +325,3 @@ def show_potential_calculation_times(self):
         print('It took ', self.timings["time_compute_potential"], ' seconds in total to compute the surface potential')
     else:
         print('Potential must first be calculated to show times.')
-    
