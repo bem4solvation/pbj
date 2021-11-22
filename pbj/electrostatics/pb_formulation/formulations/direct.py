@@ -122,6 +122,25 @@ def block_diagonal_preconditioner(solute):
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
+    """
+    identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
+    identity_diag = identity.weak_form().to_sparse().diagonal()
+    slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
+                                       assembler="only_diagonal_part").weak_form().get_diagonal()
+    dlp_in_diag = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
+                                       assembler="only_diagonal_part").weak_form().get_diagonal()
+    slp_out_diag = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
+                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
+    dlp_out_diag = modified_helmholtz.double_layer(neumann_space, dirichl_space, dirichl_space, kappa,
+                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
+
+    #if permuted_rows:
+    diag11 = .5 * identity_diag - dlp_out_diag
+    diag12 = (ep_in / ep_ex) * slp_out_diag
+    diag21 = .5 * identity_diag + dlp_in_diag
+    diag22 = -slp_in_diag
+    """
+    
 
 def pass_to_discrete_form(solute):
     return True
