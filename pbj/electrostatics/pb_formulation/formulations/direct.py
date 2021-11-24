@@ -2,7 +2,6 @@ import numpy as np
 import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
-from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
 invert_potential = False
 
@@ -96,6 +95,7 @@ def rhs(self):
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import aslinearoperator
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
     matrix_A = solute.matrices['A']
 
