@@ -2,6 +2,7 @@ import numpy as np
 import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
 invert_potential = False
 
@@ -80,7 +81,7 @@ def rhs(self):
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
 
-    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
 # def preconditioner(solute):
@@ -118,9 +119,12 @@ def block_diagonal_preconditioner(solute):
 
     block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
 
-    solute.matrices['preconditioning_matrix'] = aslinearoperator(block_mat_precond)
+    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(block_mat_precond)
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
     """
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
@@ -140,7 +144,3 @@ def block_diagonal_preconditioner(solute):
     diag21 = .5 * identity_diag + dlp_in_diag
     diag22 = -slp_in_diag
     """
-    
-
-def pass_to_discrete_form(solute):
-    return True

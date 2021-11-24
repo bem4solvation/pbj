@@ -35,7 +35,7 @@ class Solute:
             return
 
         self.pb_formulation = formulation
-        available_formulations = os.listdir(os.path.join(PBJ_PATH,"pb_formulation", "formulations"))
+        available_formulations = os.listdir(os.path.join(PBJ_PATH, "pb_formulation", "formulations"))
 
         if self.pb_formulation+'.py' not in available_formulations:
             raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
@@ -92,7 +92,9 @@ class Solute:
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
 
-        self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation)
+        self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
+        if self.formulation_object is None:
+            raise ValueError('Unrecognised formulation type %s' % self.pb_formulation_preconditioning_type)
 
         self.ep_in = 4.0
         self.ep_ex = 80.0
@@ -127,15 +129,10 @@ class Solute:
 
     def initialise_matrices(self):
         start_time = time.time()  # Start the timing for the matrix construction
-
         # Construct matrices based on the desired formulation
-        formulation_object = getattr(pb_formulation.formulations, self.pb_formulation)
-
         # Verify if parameters are already set and save A matrix
-        if formulation_object.verify_parameters(self):
-            formulation_object.lhs(self)
-        #except:
-        #    raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
+        if self.formulation_object.verify_parameters(self):
+            self.formulation_object.lhs(self)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
 
     def assemble_matrices(self):
@@ -145,26 +142,34 @@ class Solute:
 
     def initialise_rhs(self):
         start_rhs = time.time()
-        formulation_object = getattr(pb_formulation.formulations, self.pb_formulation)
-
         # Verify if parameters are already set and then save RHS
-        if formulation_object.verify_parameters(self):
-            formulation_object.rhs(self)
-
+        if self.formulation_object.verify_parameters(self):
+            self.formulation_object.rhs(self)
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
     def apply_preconditioning(self):
         preconditioning_start_time = time.time()
-        precon_str = self.pb_formulation_preconditioning_type+"_preconditioner"
-        preconditioning_object = getattr(self.formulation_object, precon_str)
-        preconditioning_object(self)
+        if self.pb_formulation_preconditioning:
+            precon_str = self.pb_formulation_preconditioning_type+"_preconditioner"
+            preconditioning_object = getattr(self.formulation_object, precon_str, None)
+            if preconditioning_object is not None:
+                preconditioning_object(self)
+            else:
+                raise ValueError('Unrecognised preconditioning type %s for current formulation type %s'
+                                 % (self.pb_formulation_preconditioning_type, self.pb_formulation))
+        else:
+            self.matrices["A_final"] = self.matrices["A"]
+            self.rhs["rhs_final"] = [self.rhs["rhs_1"], self.rhs["rhs_2"]]
 
-        matrix_discrete_start_time = time.time()
-        self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
-        self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type,
-                                                        self.matrices["A"])
-        self.formulation_object.pass_to_discrete_form(self)
-        self.timings["time_matrix_to_discrete"] = time.time() - matrix_discrete_start_time
+            self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], "weak")
+            self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], "weak", self.matrices["A"])
+
+        # matrix_discrete_start_time = time.time()
+        # self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
+        # self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type,
+        #                                                 self.matrices["A"])
+        # self.formulation_object.pass_to_discrete_form(self)
+        # self.timings["time_matrix_to_discrete"] = time.time() - matrix_discrete_start_time
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
 
@@ -190,16 +195,12 @@ class Solute:
         else:
             if "A" not in self.matrices or "rhs_1" not in self.rhs:
                 # If matrix A or rhs_1 doesn't exist, it must first be created
-
                 self.initialise_matrices()
                 self.initialise_rhs()
-
             if not self.matrices["A"]._cached:
                 self.assemble_matrices()
-
             if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
                 # See if preconditioning needs to be applied if this hasn't been done
-
                 self.apply_preconditioning()
             # if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
             #   # See if discrete form has been called
@@ -207,7 +208,16 @@ class Solute:
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
-        x, info, it_count = utils.solver(self.matrices["A_discrete"],
+        if "preconditioning_matrix_gmres" in self.matrices:
+            x, info, it_count = utils.solver(self.matrices["A_discrete"],
+                                             self.rhs["rhs_discrete"],
+                                             self.gmres_tolerance,
+                                             self.gmres_restart,
+                                             self.gmres_max_iterations,
+                                             precond=self.matrices["preconditioning_matrix_gmres"]
+                                             )
+        else:
+            x, info, it_count = utils.solver(self.matrices["A_discrete"],
                                              self.rhs["rhs_discrete"],
                                              self.gmres_tolerance,
                                              self.gmres_restart,
@@ -240,7 +250,6 @@ class Solute:
 
         # Finished computing surface potential, register total time taken
         self.timings["time_compute_potential"] = time.time() - start_time
-        # self.time_compute_potential = time.time()-start_time
 
         # Print times, if this is desired
         if self.print_times:
@@ -268,7 +277,6 @@ class Solute:
         # total solvation energy applying constant to get units [kcal/mol]
         total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
         self.results["solvation_energy"] = total_energy
-
         self.timings["time_calc_energy"] = time.time() - start_time
 
         if self.print_times:
