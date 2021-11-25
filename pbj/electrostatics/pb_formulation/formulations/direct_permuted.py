@@ -3,8 +3,12 @@ import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+invert_potential = False
+
+
 def verify_parameters(self):
     return True
+
 
 def lhs(self):
     dirichl_space = self.dirichl_space
@@ -13,7 +17,6 @@ def lhs(self):
     ep_out = self.ep_ex
     kappa = self.kappa
     operator_assembler = self.operator_assembler
-
 
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
     slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
@@ -74,4 +77,4 @@ def rhs(self):
         rhs_1 = bempp.api.GridFunction(neumann_space, fun=zero)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
 
-    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2

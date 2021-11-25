@@ -3,6 +3,9 @@ import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+invert_potential = True
+
+
 def verify_parameters(self):
     return True
 
@@ -77,4 +80,4 @@ def rhs(self):
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
 
-    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2

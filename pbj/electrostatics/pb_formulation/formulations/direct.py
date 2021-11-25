@@ -83,15 +83,6 @@ def rhs(self):
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
-# def preconditioner(solute):
-#     if solute.pb_formulation_preconditioning_type == "block_diagonal":
-#         solute.matrices['preconditioning_matrix'] = block_diagonal_precondiioner(solute.matrices['A'])
-#         solute.matrices["A_final"] = solute.matrices["A"]
-#         solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-#     else:
-#         raise ValueError('Unrecognised preconditioning type %s for current formulation type %s' % (solute.pb_formulation_preconditioning_type ,solute.pb_formulation))
-
-
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import aslinearoperator

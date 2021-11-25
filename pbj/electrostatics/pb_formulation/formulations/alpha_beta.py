@@ -1,8 +1,10 @@
 import numpy as np
 import os
 import bempp.api
-
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+
+invert_potential = False
+
 
 def verify_parameters(self):
     alpha = self.pb_formulation_alpha
@@ -10,6 +12,7 @@ def verify_parameters(self):
     if np.isnan(alpha) or np.isnan(beta):
         raise ValueError("pb_formulation_alpha and pb_formulation_beta not defined in Solute class")
     return True
+
 
 def lhs(self):
     dirichl_space = self.dirichl_space
@@ -112,7 +115,7 @@ def rhs(self):
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
 
-    self.rhs["rhs_1"],self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
 def laplace_multitrace(dirichl_space, neumann_space, operator_assembler):

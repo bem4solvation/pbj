@@ -3,6 +3,9 @@ import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+invert_potential = True
+
+
 def verify_parameters(self):
     return True
 

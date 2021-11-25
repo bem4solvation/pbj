@@ -3,6 +3,9 @@ import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+invert_potential = True
+
+
 def verify_parameters(self):
     alpha = self.pb_formulation_alpha
     beta = self.pb_formulation_beta
@@ -10,9 +13,8 @@ def verify_parameters(self):
         raise ValueError("pb_formulation_alpha and pb_formulation_beta not defined in Solute class")
     return True
 
+
 def lhs(self):
-    
-    #def alpha_beta_external(dirichl_space, neumann_space, ep_in, ep_ex, kappa, alpha, beta, operator_assembler):
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     ep_in = self.ep_in
@@ -113,7 +115,7 @@ def rhs(self):
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
 
-    self.rhs["rhs_1"],self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
 def laplace_multitrace(dirichl_space, neumann_space, operator_assembler):
@@ -124,6 +126,7 @@ def laplace_multitrace(dirichl_space, neumann_space, operator_assembler):
     A[1, 1] = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
 
     return A
+
 
 def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler):
     A = bempp.api.BlockedOperator(2, 2)

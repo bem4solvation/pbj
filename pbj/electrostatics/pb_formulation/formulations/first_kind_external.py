@@ -3,6 +3,9 @@ import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
+invert_potential = True
+
+
 def verify_parameters(self):
     return True
 
@@ -60,6 +63,7 @@ def rhs(self):
     ep_in = self.ep_in
     ep_ex = self.ep_ex
     rhs_constructor = self.rhs_constructor
+
     if rhs_constructor == "fmm":
         @bempp.api.callable(vectorized=True)
         def rhs1_fun(x, n, domain_index, result):
@@ -101,4 +105,4 @@ def rhs(self):
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=d_green_func)
 
-    self.rhs["rhs_1"],self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
