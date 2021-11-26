@@ -140,3 +140,84 @@ def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler)
                                                       assembler=operator_assembler)
 
     return A
+
+
+def block_diagonal_precon_alpha_beta(solute):
+    from scipy.sparse import diags, bmat
+    from scipy.sparse.linalg import factorized, LinearOperator
+    from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+    
+    dirichl_space = solute.dirichl_space
+    neumann_space = solute.neumann_space
+    ep_in = solute.ep_in   
+    ep_ex = solute.ep_ex   
+    kappa = solute.kappa
+    alpha = solute.alpha
+    beta = solute.beta
+
+    slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
+                                       assembler="only_diagonal_part").weak_form().A
+    dlp_in_diag = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
+                                       assembler="only_diagonal_part").weak_form().A
+    hlp_in_diag = laplace.hypersingular(dirichl_space, neumann_space, neumann_space,
+                                        assembler="only_diagonal_part").weak_form().A
+    adlp_in_diag = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space,
+                                                assembler="only_diagonal_part").weak_form().A
+    
+    slp_out_diag = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
+                                                   assembler="only_diagonal_part").weak_form().A
+    dlp_out_diag = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
+                                                   assembler="only_diagonal_part").weak_form().A
+    hlp_out_diag = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
+                                                    assembler="only_diagonal_part").weak_form().A
+    adlp_out_diag = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
+                                                            assembler="only_diagonal_part").weak_form().A
+
+    phi_identity_diag = sparse.identity(dirichl_space, dirichl_space, dirichl_space).weak_form().A.diagonal()
+    dph_identity_diag = sparse.identity(neumann_space, neumann_space, neumann_space).weak_form().A.diagonal()
+
+    ep = ep_ex/ep_in
+    
+    diag11 = diags((-0.5*(1+alpha))*phi_identity_diag + (alpha*dlp_out_diag) - dlp_in_diag)
+    diag12 = diags(slp_in_diag - ((alpha/ep)*slp_out_diag))
+    diag21 = diags(hlp_in_diag - (beta*hlp_out_diag))
+    diag22 = diags((-0.5*(1+(beta/ep)))*dph_identity_diag + adlp_in_diag - ((beta/ep)*adlp_out_diag))
+    block_mat_precond = bmat([[diag11, diag12], [diag21, diag22]]).tocsr()  # csr_matrix
+
+    solve = factorized(block_mat_precond)  # a callable for solving a sparse linear system (treat it as an inverse)
+    precond = LinearOperator(matvec=solve, dtype='float64', shape=block_mat_precond.shape)
+    
+    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(block_mat_precond)
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+
+
+def mass_matrix_preconditioner(solute):
+    #Opción A:
+    from bempp.api.utils.helpers import get_inverse_mass_matrix
+    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+
+    matrix = solute.matrices["A"]
+    nrows = len(matrix.range_spaces)
+    range_ops = np.empty((nrows, nrows), dtype="O")
+
+    for index in range(nrows):
+        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
+                                                          matrix.dual_to_range_spaces[index])
+
+    preconditioner = BlockedDiscreteOperator(range_ops)
+    solute.matrices['preconditioning_matrix_gmres'] = preconditioner
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+
+    """
+    #Opción B:
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    """

@@ -101,3 +101,118 @@ def rhs(self):
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
+
+
+def block_diagonal_preconditioner(solute):
+    from scipy.sparse import diags, bmat
+    from scipy.sparse.linalg import factorized, LinearOperator
+    from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+
+    dirichl_space = solute.dirichl_space
+    neumann_space = solute.neumann_space
+    ep_in = solute.ep_in
+    ep_ex = solute.ep_ex
+    kappa = solute.kappa
+
+    phi_id = sparse.identity(dirichl_space, dirichl_space, dirichl_space).weak_form().A.diagonal()
+    dph_id = sparse.identity(neumann_space, neumann_space, neumann_space).weak_form().A.diagonal()
+    ep = ep_ex/ep_in
+
+    dF = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
+                              assembler="only_diagonal_part").weak_form().A
+    dP = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
+                                         assembler="only_diagonal_part").weak_form().A
+    L1 = (ep*dP) - dF
+
+    F = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
+                             assembler="only_diagonal_part").weak_form().A
+    P = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
+                                        assembler="only_diagonal_part").weak_form().A
+    L2 = F - P
+
+    ddF = laplace.hypersingular(dirichl_space, neumann_space, neumann_space,
+                                assembler="only_diagonal_part").weak_form().A
+    ddP = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
+                                           assembler="only_diagonal_part").weak_form().A
+    L3 = ddP - ddF
+
+    dF0 = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space,
+                                       assembler="only_diagonal_part").weak_form().A
+    dP0 = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
+                                                  assembler="only_diagonal_part").weak_form().A
+    L4 = dF0 - ((1.0/ep)*dP0)
+
+    diag11 = diags((0.5*(1.0 + ep)*phi_id) - L1)
+    diag12 = diags((-1.0)*L2)
+    diag21 = diags(L3)
+    diag22 = diags((0.5*(1.0 + (1.0/ep))*dph_id) - L4)
+    block_mat_precond = bmat([[diag11, diag12], [diag21, diag22]]).tocsr()  # csr_matrix
+
+    solve = factorized(block_mat_precond)  # a callable for solving a sparse linear system (treat it as an inverse)
+    precond = LinearOperator(matvec=solve, dtype='float64', shape=block_mat_precond.shape)
+
+
+    solute.matrices["preconditioning_matrix_gmres"] = precond
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+
+
+def mass_matrix_preconditioner(solute):
+    #Opción A:
+    from bempp.api.utils.helpers import get_inverse_mass_matrix
+    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+
+    matrix = solute.matrices["A"]
+    nrows = len(matrix.range_spaces)
+    range_ops = np.empty((nrows, nrows), dtype="O")
+
+    for index in range(nrows):
+        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
+                                                          matrix.dual_to_range_spaces[index])
+
+    preconditioner = BlockedDiscreteOperator(range_ops)
+    solute.matrices['preconditioning_matrix_gmres'] = preconditioner
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+
+    """
+    #Opción B:
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    """
+
+
+def scaled_mass_preconditioner(solute):
+    from bempp.api.utils.helpers import get_inverse_mass_matrix
+    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+
+    ep_in = solute.ep_in
+    ep_ex = solute.ep_ex
+    matrix = solute.matrices["A"]
+
+    nrows = len(matrix.range_spaces)
+    range_ops = np.empty((nrows, nrows), dtype="O")
+
+    for index in range(nrows):
+        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
+                                                          matrix.dual_to_range_spaces[index])
+
+    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.5 * (1.0 + (ep_ex/ep_in))))
+    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.5*(1.0+(ep_in/ep_ex))))
+
+    preconditioner = BlockedDiscreteOperator(range_ops)
+    solute.matrices['preconditioning_matrix_gmres'] = preconditioner
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+
+
+
+    

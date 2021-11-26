@@ -135,3 +135,30 @@ def block_diagonal_preconditioner(solute):
     diag21 = .5 * identity_diag + dlp_in_diag
     diag22 = -slp_in_diag
     """
+
+def mass_matrix_preconditioner(solute):
+    #Opción A:
+    from bempp.api.utils.helpers import get_inverse_mass_matrix
+    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+
+    matrix = solute.matrices["A"]
+    nrows = len(matrix.range_spaces)
+    range_ops = np.empty((nrows, nrows), dtype="O")
+
+    for index in range(nrows):
+        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
+                                                          matrix.dual_to_range_spaces[index])
+
+    preconditioner = BlockedDiscreteOperator(range_ops)
+    solute.matrices['preconditioning_matrix_gmres'] = preconditioner
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+
+    """
+    #Opción B:
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    """
