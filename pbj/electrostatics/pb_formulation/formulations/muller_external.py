@@ -73,6 +73,7 @@ def mass_matrix_preconditioner(solute):
     #Opción A:
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
     matrix = solute.matrices["A"]
     nrows = len(matrix.range_spaces)
