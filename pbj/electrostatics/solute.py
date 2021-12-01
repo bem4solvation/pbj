@@ -94,7 +94,7 @@ class Solute:
 
         self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
         if self.formulation_object is None:
-            raise ValueError('Unrecognised formulation type %s' % self.pb_formulation_preconditioning_type)
+            raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
         self.ep_in = 4.0
         self.ep_ex = 80.0
