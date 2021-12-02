@@ -142,7 +142,7 @@ def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler)
     return A
 
 
-def block_diagonal_precon_alpha_beta(solute):
+def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import factorized, LinearOperator
     from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
@@ -152,8 +152,8 @@ def block_diagonal_precon_alpha_beta(solute):
     ep_in = solute.ep_in   
     ep_ex = solute.ep_ex   
     kappa = solute.kappa
-    alpha = solute.alpha
-    beta = solute.beta
+    alpha = solute.pb_formulation_alpha
+    beta = solute.pb_formulation_beta
 
     slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
                                        assembler="only_diagonal_part").weak_form().A
@@ -194,12 +194,21 @@ def block_diagonal_precon_alpha_beta(solute):
     solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
+    """
+    File "e:\tesis\pbj\pbj\electrostatics\pb_formulation\formulations\alpha_beta.py", line 181, in block_diagonal_preconditioner
+    diag11 = diags((-0.5*(1+alpha))*phi_identity_diag + (alpha*dlp_out_diag) - dlp_in_diag)
+    File "D:\ProgramData\Anaconda3\envs\pbj_env\lib\site-packages\scipy\sparse\construct.py", line 141, in diags
+    raise ValueError("Different number of diagonals and offsets.")
+    ValueError: Different number of diagonals and offsets.
+    """
+
 
 def mass_matrix_preconditioner(solute):
-    #Opción A:
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    """
+    #Option A:
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
     matrix = solute.matrices["A"]
     nrows = len(matrix.range_spaces)
@@ -217,8 +226,7 @@ def mass_matrix_preconditioner(solute):
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
     """
-    #Opción B:
+    solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
     solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
-    """

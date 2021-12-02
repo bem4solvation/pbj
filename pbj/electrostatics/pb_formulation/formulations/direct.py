@@ -137,10 +137,11 @@ def block_diagonal_preconditioner(solute):
     """
 
 def mass_matrix_preconditioner(solute):
-    #Opción A:
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    #Option A:
+    """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
     matrix = solute.matrices["A"]
     nrows = len(matrix.range_spaces)
@@ -158,8 +159,7 @@ def mass_matrix_preconditioner(solute):
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
     """
-    #Opción B:
+    solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
     solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
-    """

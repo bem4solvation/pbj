@@ -40,6 +40,22 @@ class Solute:
         if self.pb_formulation+'.py' not in available_formulations:
             raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
 
+        @property
+        def formulation(self): #Hay que cambiar el nombre a carpeta pb_formulation o al método pb_formulation! Esta propiedad sobreescribe
+            return self.pb_formulation #a pb_formulation.formulations
+        @formulation.setter
+        def formulation(self, value):
+            if value+'.py' not in available_formulations:
+                raise ValueError('Unrecognised formulation type for matrix construction: %s' % value)
+            self.pb_formulation = value
+            self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
+            if self.formulation_object is None:
+                raise ValueError('Unrecognised formulation type %s' % self.pb_formulation) #Es necesario este doble check?
+
+        self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
+        if self.formulation_object is None:
+            raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
+
         self.force_field = force_field
 
         self.save_mesh_build_files = save_mesh_build_files
@@ -92,9 +108,6 @@ class Solute:
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
 
-        self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
-        if self.formulation_object is None:
-            raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
         self.ep_in = 4.0
         self.ep_ex = 80.0
