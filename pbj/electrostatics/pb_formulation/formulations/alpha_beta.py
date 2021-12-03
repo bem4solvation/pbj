@@ -144,8 +144,9 @@ def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler)
 
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
-    from scipy.sparse.linalg import factorized, LinearOperator
+    from scipy.sparse.linalg import aslinearoperator
     from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
     
     dirichl_space = solute.dirichl_space
     neumann_space = solute.neumann_space
@@ -156,38 +157,43 @@ def block_diagonal_preconditioner(solute):
     beta = solute.pb_formulation_beta
 
     slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
-                                       assembler="only_diagonal_part").weak_form().A
+                                       assembler="only_diagonal_part").weak_form().get_diagonal()
     dlp_in_diag = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
-                                       assembler="only_diagonal_part").weak_form().A
+                                       assembler="only_diagonal_part").weak_form().get_diagonal()
     hlp_in_diag = laplace.hypersingular(dirichl_space, neumann_space, neumann_space,
-                                        assembler="only_diagonal_part").weak_form().A
+                                        assembler="only_diagonal_part").weak_form().get_diagonal()
     adlp_in_diag = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space,
-                                                assembler="only_diagonal_part").weak_form().A
+                                                assembler="only_diagonal_part").weak_form().get_diagonal()
     
     slp_out_diag = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                                   assembler="only_diagonal_part").weak_form().A
+                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
     dlp_out_diag = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                                   assembler="only_diagonal_part").weak_form().A
+                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
     hlp_out_diag = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                                    assembler="only_diagonal_part").weak_form().A
+                                                    assembler="only_diagonal_part").weak_form().get_diagonal()
     adlp_out_diag = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                            assembler="only_diagonal_part").weak_form().A
+                                                            assembler="only_diagonal_part").weak_form().get_diagonal()
 
     phi_identity_diag = sparse.identity(dirichl_space, dirichl_space, dirichl_space).weak_form().A.diagonal()
     dph_identity_diag = sparse.identity(neumann_space, neumann_space, neumann_space).weak_form().A.diagonal()
 
     ep = ep_ex/ep_in
     
-    diag11 = diags((-0.5*(1+alpha))*phi_identity_diag + (alpha*dlp_out_diag) - dlp_in_diag)
-    diag12 = diags(slp_in_diag - ((alpha/ep)*slp_out_diag))
-    diag21 = diags(hlp_in_diag - (beta*hlp_out_diag))
-    diag22 = diags((-0.5*(1+(beta/ep)))*dph_identity_diag + adlp_in_diag - ((beta/ep)*adlp_out_diag))
-    block_mat_precond = bmat([[diag11, diag12], [diag21, diag22]]).tocsr()  # csr_matrix
+    diag11 = (-0.5*(1+alpha))*phi_identity_diag + (alpha*dlp_out_diag) - dlp_in_diag
+    diag12 = slp_in_diag - ((alpha/ep)*slp_out_diag)
+    diag21 = hlp_in_diag - (beta*hlp_out_diag)
+    diag22 = (-0.5*(1+(beta/ep)))*dph_identity_diag + adlp_in_diag - ((beta/ep)*adlp_out_diag)
 
-    solve = factorized(block_mat_precond)  # a callable for solving a sparse linear system (treat it as an inverse)
-    precond = LinearOperator(matvec=solve, dtype='float64', shape=block_mat_precond.shape)
+    d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
+    diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
+    diag12_inv = -1 / diag11 * diag12 * d_aux
+    diag21_inv = -d_aux * diag21 / diag11
+    diag22_inv = d_aux
+
+    block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
+    precond = aslinearoperator(block_mat_precond)
     
-    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(block_mat_precond)
+    solute.matrices["preconditioning_matrix_gmres"] = precond
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
