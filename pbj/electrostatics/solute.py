@@ -5,9 +5,9 @@ import numpy as np
 import time
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.electrostatics.pb_formulation as pb_formulation
+import pbj.electrostatics.pb_formulation.formulations as formulations
 import pbj.electrostatics.utils as utils
-PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+
 
 class Solute:
     """The basic Solute object
@@ -24,7 +24,7 @@ class Solute:
                  mesh_generator="nanoshaper",
                  print_times=False,
                  force_field="amber",
-                 formulation="direct"#,
+                 formulation="direct",
                  #physical_parameters = {'ep_in':1.0, 'ep_ex':80.0, 'kappa':0.0, 'pb_formulation_alpha':1.0, 'pb_formulation_beta':1.0}
                  #gmres_parameters = {'tolerance':1e-8, 'max_iterations':1000, 'verbose':False}
                  #mesh_parameters = {'mesh_generator':'nanoshaper',mesh_probe_radius':1.4, 'mesh_density':1.0}
@@ -34,25 +34,9 @@ class Solute:
             print("file does not exist -> Cannot start")
             return
 
-        self.pb_formulation = formulation
-        available_formulations = os.listdir(os.path.join(PBJ_PATH, "pb_formulation", "formulations"))
+        self._pb_formulation = formulation
 
-        if self.pb_formulation+'.py' not in available_formulations:
-            raise ValueError('Unrecognised formulation type for matrix construction: %s' % self.pb_formulation)
-
-        @property
-        def formulation(self): #Hay que cambiar el nombre a carpeta pb_formulation o al método pb_formulation! Esta propiedad sobreescribe
-            return self.pb_formulation #a pb_formulation.formulations
-        @formulation.setter
-        def formulation(self, value):
-            if value+'.py' not in available_formulations:
-                raise ValueError('Unrecognised formulation type for matrix construction: %s' % value)
-            self.pb_formulation = value
-            self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
-            if self.formulation_object is None:
-                raise ValueError('Unrecognised formulation type %s' % self.pb_formulation) #Es necesario este doble check?
-
-        self.formulation_object = getattr(pb_formulation.formulations, self.pb_formulation, None)
+        self.formulation_object = getattr(formulations, self.pb_formulation, None)
         if self.formulation_object is None:
             raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
@@ -108,13 +92,12 @@ class Solute:
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
             self.mesh, self.q, self.x_q = charge_tools.generate_msms_mesh_import_charges(self)
 
-
         self.ep_in = 4.0
         self.ep_ex = 80.0
         self.kappa = 0.125
 
-        self.pb_formulation_alpha = np.nan #1.0
-        self.pb_formulation_beta = np.nan  #self.ep_ex / self.ep_in
+        self.pb_formulation_alpha = np.nan  # 1.0
+        self.pb_formulation_beta = np.nan   # self.ep_ex / self.ep_in
 
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"
@@ -139,6 +122,17 @@ class Solute:
         neumann_space = dirichl_space
         self.dirichl_space = dirichl_space
         self.neumann_space = neumann_space
+
+    @property
+    def pb_formulation(self):
+        return self._pb_formulation
+
+    @pb_formulation.setter
+    def pb_formulation(self, value):
+        self.pb_formulation = value
+        self.formulation_object = getattr(formulations, self.pb_formulation, None)
+        if self.formulation_object is None:
+            raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
     def initialise_matrices(self):
         start_time = time.time()  # Start the timing for the matrix construction
@@ -177,24 +171,9 @@ class Solute:
             self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], "weak")
             self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], "weak", self.matrices["A"])
 
-        # matrix_discrete_start_time = time.time()
-        # self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
-        # self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type,
-        #                                                 self.matrices["A"])
-        # self.formulation_object.pass_to_discrete_form(self)
-        # self.timings["time_matrix_to_discrete"] = time.time() - matrix_discrete_start_time
-
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
 
-        # # Pass matrix A to discrete form (either strong or weak)
-        # self.matrices["A_final"] = self.matrices["A"]
-        # self.rhs["rhs_final"] = [self.rhs["rhs_1"], self.rhs["rhs_2"]]
-        # # matrix_discrete_start_time = time.time()
-        # self.matrices["A_discrete"] = matrix_to_discrete_form(self.matrices["A_final"], self.discrete_form_type)
-        # self.rhs["rhs_discrete"] = rhs_to_discrete_form(self.rhs["rhs_final"], self.discrete_form_type,
-        #                                                 self.matrices["A"])
-
-    def calculate_potential(self, rerun_all = False):
+    def calculate_potential(self, rerun_all=False):
         # Start the overall timing for the whole process
         start_time = time.time()
 
@@ -251,16 +230,6 @@ class Solute:
         else:
             self.results["d_phi"] = neumann_solution
 
-        # if self.pb_formulation == "alpha_beta_external_potential" or self.pb_formulation == "lu" \
-        #         or self.pb_formulation == "muller_external" or self.pb_formulation == "first_kind_external"\
-        #         or self.pb_formulation == "direct_external" or self.pb_formulation == "direct_external_permuted":
-        #     self.results["d_phi"] = (self.ep_ex / self.ep_in) * neumann_solution
-        # else:
-        #     self.results["d_phi"] = neumann_solution
-        # self.solver_iteration_count = it_count
-        # self.phi = dirichlet_solution
-        # self.d_phi = neumann_solution
-
         # Finished computing surface potential, register total time taken
         self.timings["time_compute_potential"] = time.time() - start_time
 
@@ -268,7 +237,7 @@ class Solute:
         if self.print_times:
             show_potential_calculation_times(self)
 
-    def calculate_solvation_energy(self, rerun_all = False):
+    def calculate_solvation_energy(self, rerun_all=False):
         if rerun_all:
             self.calculate_potential(rerun_all)
 
