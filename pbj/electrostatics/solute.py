@@ -5,7 +5,7 @@ import numpy as np
 import time
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.electrostatics.pb_formulation.formulations as formulations
+import pbj.electrostatics.pb_formulation.formulations as pb_formulations
 import pbj.electrostatics.utils as utils
 
 
@@ -36,7 +36,7 @@ class Solute:
 
         self._pb_formulation = formulation
 
-        self.formulation_object = getattr(formulations, self.pb_formulation, None)
+        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
         if self.formulation_object is None:
             raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
@@ -129,8 +129,8 @@ class Solute:
 
     @pb_formulation.setter
     def pb_formulation(self, value):
-        self.pb_formulation = value
-        self.formulation_object = getattr(formulations, self.pb_formulation, None)
+        self._pb_formulation = value
+        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
         if self.formulation_object is None:
             raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
