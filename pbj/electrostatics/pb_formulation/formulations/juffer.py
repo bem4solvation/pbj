@@ -129,7 +129,7 @@ def block_diagonal_preconditioner(solute):
     F = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
                              assembler="only_diagonal_part").weak_form().get_diagonal()
     P = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                        assembler="only_diagonal_part").weak_form().get_diagonal().get_diagonal()
+                                        assembler="only_diagonal_part").weak_form().get_diagonal()
     L2 = F - P
 
     ddF = laplace.hypersingular(dirichl_space, neumann_space, neumann_space,
