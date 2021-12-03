@@ -92,20 +92,18 @@ def block_diagonal_preconditioner(solute):
     block3 = matrix_A[1, 0]
     block4 = matrix_A[1, 1]
 
-    diag11 = block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal() + \
-             block3._op2._alpha * block3._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    diag12 = block4._alpha * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    diag21 = block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal() + \
-             block1._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    diag22 = block2._alpha * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag11 = block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal() + \
+             block1._op2._alpha * block1._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag12 = block2._alpha * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag21 = block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal() + \
+             block3._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag22 = block4._alpha * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
 
     d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
     diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
     diag12_inv = -1 / diag11 * diag12 * d_aux
     diag21_inv = -d_aux * diag21 / diag11
     diag22_inv = d_aux
-
-    
 
     block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
 
