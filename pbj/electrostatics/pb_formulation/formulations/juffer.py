@@ -105,8 +105,10 @@ def rhs(self):
 
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
-    from scipy.sparse.linalg import factorized, LinearOperator
+    # from scipy.sparse.linalg import factorized, LinearOperator
+    from scipy.sparse.linalg import aslinearoperator
     from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
     dirichl_space = solute.dirichl_space
     neumann_space = solute.neumann_space
@@ -119,44 +121,57 @@ def block_diagonal_preconditioner(solute):
     ep = ep_ex/ep_in
 
     dF = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
-                              assembler="only_diagonal_part").weak_form().A
+                              assembler="only_diagonal_part").weak_form().get_diagonal()
     dP = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                         assembler="only_diagonal_part").weak_form().A
+                                         assembler="only_diagonal_part").weak_form().get_diagonal()
     L1 = (ep*dP) - dF
 
     F = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
-                             assembler="only_diagonal_part").weak_form().A
+                             assembler="only_diagonal_part").weak_form().get_diagonal()
     P = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                        assembler="only_diagonal_part").weak_form().A
+                                        assembler="only_diagonal_part").weak_form().get_diagonal().get_diagonal()
     L2 = F - P
 
     ddF = laplace.hypersingular(dirichl_space, neumann_space, neumann_space,
-                                assembler="only_diagonal_part").weak_form().A
+                                assembler="only_diagonal_part").weak_form().get_diagonal()
     ddP = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                           assembler="only_diagonal_part").weak_form().A
+                                           assembler="only_diagonal_part").weak_form().get_diagonal()
     L3 = ddP - ddF
 
     dF0 = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space,
-                                       assembler="only_diagonal_part").weak_form().A
+                                       assembler="only_diagonal_part").weak_form().get_diagonal()
     dP0 = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                  assembler="only_diagonal_part").weak_form().A
+                                                  assembler="only_diagonal_part").weak_form().get_diagonal()
     L4 = dF0 - ((1.0/ep)*dP0)
 
-    diag11 = diags((0.5*(1.0 + ep)*phi_id) - L1)
-    diag12 = diags((-1.0)*L2)
-    diag21 = diags(L3)
-    diag22 = diags((0.5*(1.0 + (1.0/ep))*dph_id) - L4)
-    block_mat_precond = bmat([[diag11, diag12], [diag21, diag22]]).tocsr()  # csr_matrix
+    diag11 = (0.5 * (1.0 + ep) * phi_id) - L1
+    diag12 = (-1.0) * L2
+    diag21 = L3
+    diag22 = (0.5 * (1.0 + (1.0 / ep)) * dph_id) - L4
 
-    #Error:
-    #diag11 = diags((0.5*(1.0 + ep)*phi_id) - L1)
-    #File "D:\ProgramData\Anaconda3\envs\pbj_env\lib\site-packages\scipy\sparse\construct.py", line 141, in diags
-    #raise ValueError("Different number of diagonals and offsets.")
-    #ValueError: Different number of diagonals and offsets.
+    d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
+    diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
+    diag12_inv = -1 / diag11 * diag12 * d_aux
+    diag21_inv = -d_aux * diag21 / diag11
+    diag22_inv = d_aux
 
-    solve = factorized(block_mat_precond)  # a callable for solving a sparse linear system (treat it as an inverse)
-    precond = LinearOperator(matvec=solve, dtype='float64', shape=block_mat_precond.shape)
+    block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
+    precond = aslinearoperator(block_mat_precond)
 
+    # diag11 = diags((0.5*(1.0 + ep)*phi_id) - L1)
+    # diag12 = diags((-1.0)*L2)
+    # diag21 = diags(L3)
+    # diag22 = diags((0.5*(1.0 + (1.0/ep))*dph_id) - L4)
+    # block_mat_precond = bmat([[diag11, diag12], [diag21, diag22]]).tocsr()  # csr_matrix
+    #
+    # #Error:
+    # #diag11 = diags((0.5*(1.0 + ep)*phi_id) - L1)
+    # #File "D:\ProgramData\Anaconda3\envs\pbj_env\lib\site-packages\scipy\sparse\construct.py", line 141, in diags
+    # #raise ValueError("Different number of diagonals and offsets.")
+    # #ValueError: Different number of diagonals and offsets.
+    #
+    # solve = factorized(block_mat_precond)  # a callable for solving a sparse linear system (treat it as an inverse)
+    # precond = LinearOperator(matvec=solve, dtype='float64', shape=block_mat_precond.shape)
 
     solute.matrices["preconditioning_matrix_gmres"] = precond
     solute.matrices["A_final"] = solute.matrices["A"]
@@ -168,7 +183,7 @@ def block_diagonal_preconditioner(solute):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
-    #Option A:
+    # Option A:
     """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
@@ -216,10 +231,10 @@ def scaled_mass_preconditioner(solute):
 
     preconditioner = BlockedDiscreteOperator(range_ops)
     solute.matrices['preconditioning_matrix_gmres'] = preconditioner
-    #solute.matrices['preconditioning_matrix'] = preconditioner
+    # solute.matrices['preconditioning_matrix'] = preconditioner
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    #multiplicar por precondicionador
+    # multiplicar por precondicionador
     solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
