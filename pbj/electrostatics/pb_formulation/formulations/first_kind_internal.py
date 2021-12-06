@@ -107,7 +107,7 @@ def rhs(self):
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
-def calderon_preconditioner(solute):
+def calderon_squared_preconditioner(solute):
     solute.matrices["preconditioning_matrix"] = solute.matrices["A"]
     apply_calderon_precondtioning(solute)
 
