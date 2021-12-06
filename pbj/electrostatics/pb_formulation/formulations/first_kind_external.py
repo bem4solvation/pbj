@@ -108,6 +108,14 @@ def rhs(self):
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
+def mass_matrix_preconditioner(solute):
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+
+
 def calderon_squared_preconditioner(solute):
     solute.matrices["preconditioning_matrix"] = solute.matrices["A"]
     apply_calderon_precondtioning(solute)
@@ -133,7 +141,7 @@ def apply_calderon_precondtioning(solute):
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
 
 
-def calderon_interior_operator_scaled_with_scaled_mass_preconditioner(solute):
+def calderon_interior_operator_scaled_with_scaled_mass_matrix_preconditioner(solute):
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
@@ -167,7 +175,7 @@ def calderon_interior_operator_scaled_with_scaled_mass_preconditioner(solute):
     solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
 
 
-def calderon_exterior_operator_with_scaled_mass_preconditioner(solute):
+def calderon_exterior_operator_with_scaled_mass_matrix_preconditioner(solute):
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
