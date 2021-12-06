@@ -134,6 +134,21 @@ class Solute:
         if self.formulation_object is None:
             raise ValueError('Unrecognised formulation type %s' % self.pb_formulation)
 
+    def display_available_formulations(self):
+        from inspect import getmembers, ismodule
+        print('Current formulation: '+self.pb_formulation)
+        print('List of available formulations:')
+        for name, object_address in getmembers(pb_formulations, ismodule):
+            print(name)
+
+    def display_available_preconditioners(self):
+        from inspect import getmembers, isfunction
+        print('List of preconditioners available for the current formulation ('+self.pb_formulation+'):')
+        for name, object_address in getmembers(self.formulation_object, isfunction):
+            if name.endswith('preconditioner'):
+                name_removed = name[:-15]
+                print(name_removed)
+
     def initialise_matrices(self):
         start_time = time.time()  # Start the timing for the matrix construction
         # Construct matrices based on the desired formulation
