@@ -149,8 +149,8 @@ def calderon_interior_operator_scaled_with_scaled_mass_preconditioner(solute):
         range_ops[index, index] = get_inverse_mass_matrix(preconditioner.range_spaces[index],
                                                           preconditioner.dual_to_range_spaces[index])
 
-    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
-    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
+    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
+    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
 
     mass_matrix = BlockedDiscreteOperator(range_ops)
 
@@ -183,8 +183,8 @@ def calderon_exterior_operator_with_scaled_mass_preconditioner(solute):
         range_ops[index, index] = get_inverse_mass_matrix(preconditioner.range_spaces[index],
                                                           preconditioner.dual_to_range_spaces[index])
 
-    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
-    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
+    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
+    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
 
     mass_matrix = BlockedDiscreteOperator(range_ops)
 
