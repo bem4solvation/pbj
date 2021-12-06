@@ -153,7 +153,7 @@ def calderon_interior_operator_with_scaled_mass_preconditioner(solute):
 
     mass_matrix = BlockedDiscreteOperator(range_ops)
 
-    preconditioner_with_mass = mass_matrix() * preconditioner.weak_form()
+    preconditioner_with_mass = mass_matrix * preconditioner.weak_form()
 
     solute.matrices["preconditioning_matrix"] = preconditioner_with_mass
     solute.matrices["A_final"] = solute.matrices["A"]
@@ -187,7 +187,7 @@ def calderon_exterior_operator_scaled_with_scaled_mass_preconditioner(solute):
 
     mass_matrix = BlockedDiscreteOperator(range_ops)
 
-    preconditioner_with_mass = mass_matrix() * preconditioner.weak_form()
+    preconditioner_with_mass = mass_matrix * preconditioner.weak_form()
 
     solute.matrices["preconditioning_matrix"] = preconditioner_with_mass
     solute.matrices["A_final"] = solute.matrices["A"]
