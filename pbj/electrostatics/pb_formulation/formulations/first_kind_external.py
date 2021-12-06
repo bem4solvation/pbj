@@ -52,7 +52,7 @@ def lhs(self):
     calderon_ext[1, 0] = hlp_ex
     calderon_ext[1, 1] = adlp_ex
 
-    self.matrices["A"], self.matrices["A_int"], self.matrices["A_ext"] = A, calderon_int_scal, calderon_ext
+    self.matrices["A"], self.matrices["A_int_scal"], self.matrices["A_ext"] = A, calderon_int_scal, calderon_ext
 
 
 def rhs(self):
@@ -85,7 +85,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = (-1.0)*np.sum(values[:,1:] * n.T, axis=1) / ep_ex
+            result[:] = (-1.0)*np.sum(values[:, 1:] * n.T, axis=1) / ep_ex
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=rhs1_fun)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=rhs2_fun)
@@ -106,3 +106,28 @@ def rhs(self):
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=d_green_func)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
+
+
+def calderon_preconditioner(solute):
+    solute.matrices["preconditioning_matrix"] = solute.matrices["A"]
+    apply_calderon_precondtioning(solute)
+
+
+def calderon_interior_operator_scaled_preconditioner(solute):
+    solute.matrices["preconditioning_matrix"] = solute.matrices["A_int_scal"]
+    apply_calderon_precondtioning(solute)
+
+
+def calderon_exterior_operator_preconditioner(solute):
+    solute.matrices["preconditioning_matrix"] = solute.matrices["A_ext"]
+    apply_calderon_precondtioning(solute)
+
+
+def apply_calderon_precondtioning(solute):
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
+    solute.matrices["A_final"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A"]
+    solute.rhs["rhs_final"] = solute.matrices["preconditioning_matrix"] * [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
