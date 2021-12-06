@@ -131,3 +131,71 @@ def apply_calderon_precondtioning(solute):
 
     solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+
+
+def calderon_interior_operator_scaled_with_scaled_mass_preconditioner(solute):
+    from bempp.api.utils.helpers import get_inverse_mass_matrix
+    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
+    preconditioner = solute.matrices["A_int_scal"]
+    ep_ex = solute.ep_ex
+    ep_in = solute.ep_in
+
+    nrows = len(preconditioner.range_spaces)
+    range_ops = np.empty((nrows, nrows), dtype="O")
+
+    for index in range(nrows):
+        range_ops[index, index] = get_inverse_mass_matrix(preconditioner.range_spaces[index],
+                                                          preconditioner.dual_to_range_spaces[index])
+
+    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
+    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
+
+    mass_matrix = BlockedDiscreteOperator(range_ops)
+
+    preconditioner_with_mass = mass_matrix * preconditioner.weak_form()
+
+    solute.matrices["preconditioning_matrix"] = preconditioner_with_mass
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+
+    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A_discrete"]
+    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
+
+
+def calderon_exterior_operator_with_scaled_mass_preconditioner(solute):
+    from bempp.api.utils.helpers import get_inverse_mass_matrix
+    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
+    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
+    preconditioner = solute.matrices["A_ext"]
+    ep_ex = solute.ep_ex
+    ep_in = solute.ep_in
+
+    nrows = len(preconditioner.range_spaces)
+    range_ops = np.empty((nrows, nrows), dtype="O")
+
+    for index in range(nrows):
+        range_ops[index, index] = get_inverse_mass_matrix(preconditioner.range_spaces[index],
+                                                          preconditioner.dual_to_range_spaces[index])
+
+    range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
+    range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
+
+    mass_matrix = BlockedDiscreteOperator(range_ops)
+
+    preconditioner_with_mass = mass_matrix * preconditioner.weak_form()
+
+    solute.matrices["preconditioning_matrix"] = preconditioner_with_mass
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+
+    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A_discrete"]
+    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
