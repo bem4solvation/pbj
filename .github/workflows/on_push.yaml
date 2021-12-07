@@ -37,7 +37,7 @@ jobs:
         name: Run flake8 checks
       - run: |
             python3 -m black --line-length 88 --check pbj
-        name: Run black checks in bempp
+        name: Run black checks in pbj
       - run: |
             python3 -m black --line-length 88 --check test
         name: Run black checks on tests
