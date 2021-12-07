@@ -27,7 +27,7 @@ def lhs(self):
                                               assembler=operator_assembler)
 
     A = bempp.api.BlockedOperator(2, 2)
-    
+
     A[0, 0] = 0.5 * identity - dlp_out
     A[0, 1] = (ep_in / ep_out) * slp_out
     A[1, 0] = 0.5 * identity + dlp_in
@@ -92,11 +92,11 @@ def block_diagonal_preconditioner(solute):
     block3 = matrix_A[1, 0]
     block4 = matrix_A[1, 1]
 
-    diag11 = block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal() + \
-             block1._op2._alpha * block1._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag11 = (block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal()
+              + block1._op2._alpha * block1._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal())
     diag12 = block2._alpha * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    diag21 = block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal() + \
-             block3._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag21 = (block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal()
+              + block3._op2.descriptor.singular_part.weak_form().to_sparse().diagonal())
     diag22 = block4._alpha * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
 
     d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
@@ -115,12 +115,6 @@ def block_diagonal_preconditioner(solute):
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
     """
-    File "e:\tesis\pbj\pbj\electrostatics\pb_formulation\formulations\direct_permuted.py", line 96, in block_diagonal_preconditioner
-    block3._op2._alpha * block3._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    AttributeError: 'BoundaryOperatorWithAssembler' object has no attribute '_alpha'
-    """
-    
-    """
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
     identity_diag = identity.weak_form().to_sparse().diagonal()
     slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
@@ -136,7 +130,7 @@ def block_diagonal_preconditioner(solute):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
-    #Option A:
+    # Option A:
     """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator

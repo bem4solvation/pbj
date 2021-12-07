@@ -38,10 +38,10 @@ def lhs(self):
     ep = ep_ex / ep_in
 
     A = bempp.api.BlockedOperator(2, 2)
-    A[0, 0] = (0.5*(1+(1.0/ep)))*phi_identity - dlp_ex + (1.0/ep)*dlp_in
+    A[0, 0] = (0.5 * (1 + (1.0 / ep))) * phi_identity - dlp_ex + (1.0 / ep) * dlp_in
     A[0, 1] = slp_ex - slp_in
-    A[1, 0] = (1.0/ep)*hlp_ex - (1.0/ep)*hlp_in
-    A[1, 1] = (0.5*(1+(1.0/ep)))*dph_identity + (1.0/ep)*adlp_ex - adlp_in
+    A[1, 0] = (1.0 / ep) * hlp_ex - (1.0 / ep) * hlp_in
+    A[1, 1] = (0.5 * (1 + (1.0 / ep))) * dph_identity + (1.0 / ep) * adlp_ex - adlp_in
 
     self.matrices["A"] = A
 
@@ -64,7 +64,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = values[:,0] / ep_ex
+            result[:] = values[:, 0] / ep_ex
 
         @bempp.api.callable(vectorized=True)
         def rhs2_fun(x, n, domain_index, result):
@@ -75,7 +75,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = np.sum(values[:,1:] * n.T, axis=1) / ep_ex
+            result[:] = np.sum(values[:, 1:] * n.T, axis=1) / ep_ex
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=rhs1_fun)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=rhs2_fun)
@@ -83,14 +83,14 @@ def rhs(self):
     else:
         @bempp.api.real_callable
         def d_green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-            const = -1./(4.*np.pi*ep_ex)
-            result[:] = const*np.sum(q*np.dot(x-x_q, n)/(nrm**3))
+            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            const = -1.0 / (4.0 * np.pi * ep_ex)
+            result[:] = const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
 
         @bempp.api.real_callable
         def green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-            result[:] = np.sum(q/nrm)/(4.*np.pi*ep_ex)
+            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            result[:] = np.sum(q / nrm) / (4.0 * np.pi * ep_ex)
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
@@ -100,11 +100,11 @@ def rhs(self):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
-    #Option A:
+    # Option A:
     """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
-    
+
 
     matrix = solute.matrices["A"]
     nrows = len(matrix.range_spaces)

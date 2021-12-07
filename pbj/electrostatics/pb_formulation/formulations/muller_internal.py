@@ -1,6 +1,5 @@
 import numpy as np
 import bempp.api
-import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 
 invert_potential = False
@@ -39,7 +38,7 @@ def lhs(self):
 
     A = bempp.api.BlockedOperator(2, 2)
     A[0, 0] = phi_identity + dlp_in - dlp_ex
-    A[0, 1] = -slp_in + ((1.0/ep) * slp_ex)
+    A[0, 1] = -slp_in + ((1.0 / ep) * slp_ex)
     A[1, 0] = -hlp_in + (ep * hlp_ex)
     A[1, 1] = dph_identity - adlp_in + adlp_ex
 
@@ -54,14 +53,14 @@ def rhs(self):
 
     @bempp.api.real_callable
     def d_green_func(x, n, domain_index, result):
-        nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-        const = -1./(4.*np.pi*ep_in)
-        result[:] = const*np.sum(q*np.dot(x-x_q, n)/(nrm**3))
+        nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+        const = -1.0 / (4.0 * np.pi * ep_in)
+        result[:] = const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
 
     @bempp.api.real_callable
     def green_func(x, n, domain_index, result):
-        nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-        result[:] = np.sum(q/nrm)/(4.*np.pi*ep_in)
+        nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+        result[:] = np.sum(q / nrm) / (4.0 * np.pi * ep_in)
 
     rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
     rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
@@ -72,7 +71,7 @@ def rhs(self):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
-    #Option A:
+    # Option A:
     """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator

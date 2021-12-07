@@ -1,7 +1,7 @@
 import numpy as np
 import bempp.api
 import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from bempp.api.operators.boundary import laplace, modified_helmholtz
 
 invert_potential = True
 
@@ -230,8 +230,8 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     solute.matrices["preconditioning_matrix"] = lhs(solute)[0]
 
     solute.matrices["preconditioning_matrix"].strong_form()
-    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"].strong_form() * \
-                                    solute.matrices["A"].strong_form()
+    solute.matrices["A_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
+                                     * solute.matrices["A"].strong_form())
 
     bempp.api.GLOBAL_PARAMETERS.fmm.expansion_order = expansion_order_main
     bempp.api.GLOBAL_PARAMETERS.fmm.ncrit = ncrit_main
@@ -239,5 +239,5 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = sing_quadrature_points_main
 
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"].strong_form() *\
-                                 rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
+                                  * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"]))

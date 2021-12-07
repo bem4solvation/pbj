@@ -1,7 +1,7 @@
 import numpy as np
 import bempp.api
 import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from bempp.api.operators.boundary import laplace, modified_helmholtz
 
 invert_potential = False
 
@@ -35,21 +35,21 @@ def lhs(self):
     ep = ep_ex / ep_in
 
     A = bempp.api.BlockedOperator(2, 2)
-    A[0, 0] = (-1.0*dlp_in) - dlp_ex
-    A[0, 1] = slp_in + ((1.0/ep)*slp_ex)
-    A[1, 0] = hlp_in + (ep*hlp_ex)
+    A[0, 0] = (-1.0 * dlp_in) - dlp_ex
+    A[0, 1] = slp_in + ((1.0 / ep) * slp_ex)
+    A[1, 0] = hlp_in + (ep * hlp_ex)
     A[1, 1] = adlp_in + adlp_ex
 
     calderon_int = bempp.api.BlockedOperator(2, 2)
-    calderon_int[0, 0] = -1.0*dlp_in
+    calderon_int[0, 0] = -1.0 * dlp_in
     calderon_int[0, 1] = slp_in
     calderon_int[1, 0] = hlp_in
     calderon_int[1, 1] = adlp_in
 
     calderon_ext_scal = bempp.api.BlockedOperator(2, 2)
-    calderon_ext_scal[0, 0] = -1.0*dlp_ex
-    calderon_ext_scal[0, 1] = (1.0/ep)*slp_ex
-    calderon_ext_scal[1, 0] = ep*hlp_ex
+    calderon_ext_scal[0, 0] = -1.0 * dlp_ex
+    calderon_ext_scal[0, 1] = (1.0 / ep) * slp_ex
+    calderon_ext_scal[1, 0] = ep * hlp_ex
     calderon_ext_scal[1, 1] = adlp_ex
 
     self.matrices["A"], self.matrices["A_int"], self.matrices["A_ext_scal"] = A, calderon_int, calderon_ext_scal
@@ -62,7 +62,7 @@ def rhs(self):
     x_q = self.x_q
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
-    
+
     if rhs_constructor == "fmm":
         @bempp.api.callable(vectorized=True)
         def rhs1_fun(x, n, domain_index, result):
@@ -73,7 +73,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = (-1.0)*values[:, 0] / ep_in
+            result[:] = (-1.0) * values[:, 0] / ep_in
 
         @bempp.api.callable(vectorized=True)
         def rhs2_fun(x, n, domain_index, result):
@@ -84,7 +84,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = (-1.0)*np.sum(values[:, 1:] * n.T, axis=1) / ep_in
+            result[:] = (-1.0) * np.sum(values[:, 1:] * n.T, axis=1) / ep_in
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=rhs1_fun)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=rhs2_fun)
@@ -92,14 +92,14 @@ def rhs(self):
     else:
         @bempp.api.real_callable
         def d_green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-            const = -1./(4.*np.pi*ep_in)
-            result[:] = -1.0 * const*np.sum(q*np.dot(x-x_q, n)/(nrm**3))
+            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            const = -1.0 / (4.0 * np.pi * ep_in)
+            result[:] = -1.0 * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
 
         @bempp.api.real_callable
         def green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-            result[:] = -1.0 * np.sum(q/nrm)/(4.*np.pi*ep_in)
+            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            result[:] = -1.0 * np.sum(q / nrm) / (4.0 * np.pi * ep_in)
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
@@ -233,8 +233,8 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     solute.matrices["preconditioning_matrix"] = lhs(solute)[0]
 
     solute.matrices["preconditioning_matrix"].strong_form()
-    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"].strong_form() * \
-                                    solute.matrices["A"].strong_form()
+    solute.matrices["A_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
+                                     * solute.matrices["A"].strong_form())
 
     bempp.api.GLOBAL_PARAMETERS.fmm.expansion_order = expansion_order_main
     bempp.api.GLOBAL_PARAMETERS.fmm.ncrit = ncrit_main
@@ -242,8 +242,8 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = sing_quadrature_points_main
 
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"].strong_form() *\
-                                 rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
+                                  * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"]))
 
 
 def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_preconditioner(solute):
@@ -265,8 +265,8 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = 3
 
     preconditioner = lhs(solute)[1]
-    solute.matrices["preconditioning_matrix"] = interior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in) *\
-                                                preconditioner.weak_form()
+    solute.matrices["preconditioning_matrix"] = (interior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in)
+                                                 * preconditioner.weak_form())
     solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A"].strong_form()
 
     bempp.api.GLOBAL_PARAMETERS.fmm.expansion_order = expansion_order_main
@@ -275,5 +275,5 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = sing_quadrature_points_main
 
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"].strong_form() *\
-                                 rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
+                                  * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"]))

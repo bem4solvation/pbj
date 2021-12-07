@@ -31,7 +31,7 @@ def lhs(self):
     A[0, 0] = 0.5 * identity - dlp_out
     A[0, 1] = slp_out
     A[1, 0] = 0.5 * identity + dlp_in
-    A[1, 1] = -(ep_out/ep_in) * slp_in
+    A[1, 1] = -(ep_out / ep_in) * slp_in
 
     self.matrices["A"] = A
 

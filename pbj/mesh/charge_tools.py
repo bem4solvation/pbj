@@ -1,25 +1,27 @@
 import os
+import numpy as np
+import shutil
+from .mesh_tools import (convert_pdb2pqr, generate_msms_mesh, convert_pqr2xyzr, generate_nanoshaper_mesh,
+                         import_msms_mesh)
 
-# import .mesh_tools
-from .mesh_tools import *
 
 def import_charges_from_pqr(pqr_path):
     """
-    Given a pqr file, import the charges and the coordinates of them. Returns two arrays, 
+    Given a pqr file, import the charges and the coordinates of them. Returns two arrays,
     q with the charges and x_q with the coordinates.
 
     Parameters
     ----------
     pqr_path : str
         Path to the pqr file.
-    
+
     Returns
     -------
         q : numpy.array
             Array with the charges.
         x_q : numpy.array
             Array with the coordinates of the charges.
-    
+
     Examples
     --------
     >>> import numpy as np
@@ -60,14 +62,14 @@ def import_charges_from_pqr(pqr_path):
 
 def generate_msms_mesh_import_charges(solute):
     """
-    Generate mesh grid for the solute class given by parameter. It returns a grid class, 
+    Generate mesh grid for the solute class given by parameter. It returns a grid class,
     and two arrays for the charges and the coordinates of the charges.
 
     Parameters
     ----------
     solute : class
         Solute class.
-    
+
     Returns
     -------
         grid : class
@@ -120,7 +122,7 @@ def generate_msms_mesh_import_charges(solute):
 
     mesh_off_path = os.path.join(mesh_dir, solute.solute_name + ".off")
 
-    #### Esta cuestionable, al parecer era codigo de bempp legacy, pero ahora no es necesario
+    # Esta cuestionable, al parecer era codigo de bempp legacy, pero ahora no es necesario
     # convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path)
 
     grid = import_msms_mesh(mesh_face_path, mesh_vert_path)
@@ -141,14 +143,14 @@ def generate_msms_mesh_import_charges(solute):
 
 def load_charges_to_solute(solute):
     """
-    Given a class solute as a parameter, it loads the charges and the coordinates of the charges to the class, 
+    Given a class solute as a parameter, it loads the charges and the coordinates of the charges to the class,
     using the paths saved in the class and the function import_charges_from_pqr.
 
     Parameters
     ----------
         solute : class
             Solute class.
-    
+
     Returns
     -------
         q : numpy.array

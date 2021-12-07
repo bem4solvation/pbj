@@ -17,7 +17,7 @@ def lhs(self):
     ep_out = self.ep_ex
     kappa = self.kappa
     operator_assembler = self.operator_assembler
-    
+
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
     slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
     dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)

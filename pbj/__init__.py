@@ -1,12 +1,10 @@
 """Poisson Boltzmann & Jupyter: Bempp based biomolecular electrostatics solver."""
-
 # Add imports here
-import bempp.api
 import os
-from pbj.electrostatics.solute import *
-from pbj.nonpolar import * 
-from pbj.mesh import *
-PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__))) #Agregamos PBJ_PATH
+from pbj.electrostatics.solute import Solute
+
+PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+
 # Handle versioneer
 from ._version import get_versions
 versions = get_versions()

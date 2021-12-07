@@ -25,9 +25,6 @@ class Solute:
                  print_times=False,
                  force_field="amber",
                  formulation="direct",
-                 #physical_parameters = {'ep_in':1.0, 'ep_ex':80.0, 'kappa':0.0, 'pb_formulation_alpha':1.0, 'pb_formulation_beta':1.0}
-                 #gmres_parameters = {'tolerance':1e-8, 'max_iterations':1000, 'verbose':False}
-                 #mesh_parameters = {'mesh_generator':'nanoshaper',mesh_probe_radius':1.4, 'mesh_density':1.0}
                  ):
 
         if not os.path.isfile(solute_file_path):
@@ -136,14 +133,14 @@ class Solute:
 
     def display_available_formulations(self):
         from inspect import getmembers, ismodule
-        print('Current formulation: '+self.pb_formulation)
+        print('Current formulation: ' + self.pb_formulation)
         print('List of available formulations:')
         for name, object_address in getmembers(pb_formulations, ismodule):
             print(name)
 
     def display_available_preconditioners(self):
         from inspect import getmembers, isfunction
-        print('List of preconditioners available for the current formulation ('+self.pb_formulation+'):')
+        print('List of preconditioners available for the current formulation (' + self.pb_formulation + '):')
         for name, object_address in getmembers(self.formulation_object, isfunction):
             if name.endswith('preconditioner'):
                 name_removed = name[:-15]
@@ -172,7 +169,7 @@ class Solute:
     def apply_preconditioning(self):
         preconditioning_start_time = time.time()
         if self.pb_formulation_preconditioning:
-            precon_str = self.pb_formulation_preconditioning_type+"_preconditioner"
+            precon_str = self.pb_formulation_preconditioning_type + "_preconditioner"
             preconditioning_object = getattr(self.formulation_object, precon_str, None)
             if preconditioning_object is not None:
                 preconditioning_object(self)
@@ -197,7 +194,7 @@ class Solute:
             self.assemble_matrices()
             self.initialise_rhs()
             self.apply_preconditioning()
-            #self.pass_to_discrete_form()
+            # self.pass_to_discrete_form()
 
         else:
             if "A" not in self.matrices or "rhs_1" not in self.rhs:
@@ -235,7 +232,8 @@ class Solute:
 
         # Split solution and generate corresponding grid functions
         from bempp.api.assembly.blocked_operator import grid_function_list_from_coefficients
-        (dirichlet_solution, neumann_solution) = grid_function_list_from_coefficients(x.ravel(), self.matrices["A"].domain_spaces)
+        (dirichlet_solution, neumann_solution) = grid_function_list_from_coefficients(x.ravel(),
+                                                                                      self.matrices["A"].domain_spaces)
 
         # Save number of iterations taken and the solution of the system
         self.results["solver_iteration_count"] = it_count

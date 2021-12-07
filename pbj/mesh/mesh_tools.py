@@ -1,4 +1,3 @@
-import time
 import trimesh
 import numpy as np
 import subprocess
@@ -7,14 +6,10 @@ import bempp.api
 import platform
 import shutil
 
-# from pbj import PBJ_PATH # circular import error
-# Preguntar por qué se encadenan estas funciones:
-PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
-
 
 def fix_mesh(mesh):
     """
-    Receives a trimesh mesh object and tries to fix it iteratively using the trimesh.repair.broken_faces() function. 
+    Receives a trimesh mesh object and tries to fix it iteratively using the trimesh.repair.broken_faces() function.
     Prints a message if the mesh couldn't be fixed.
 
     Parameters
@@ -24,9 +19,9 @@ def fix_mesh(mesh):
 
     Returns
     ----------
-    mesh : trimesh mesh object 
-        Mesh after trying to fix it. 
-    
+    mesh : trimesh mesh object
+        Mesh after trying to fix it.
+
     """
     mesh.fill_holes()
     mesh.process()
@@ -57,11 +52,11 @@ def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag=""):
 
     Parameters
     ----------
-    mesh_pdb_path : str 
+    mesh_pdb_path : str
         Absolute path of pdb file.
-    mesh_pqr_path : str 
+    mesh_pqr_path : str
         Absolute path of pqr file.
-    force_field : str 
+    force_field : str
         Indicates selected force field to create pqr file, e.g. {AMBER,CHARMM,PARSE,TYL06,PEOEPB,SWANSON}
     str_flag : str, default '' (empty string)
         Indicates additional flags to be used in bash with pdb2pqr30
@@ -69,7 +64,7 @@ def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag=""):
 
     Returns
     ----------
-    None    
+    None
     """
     force_field = force_field.upper()
     if str_flag:
@@ -97,7 +92,7 @@ def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
 
     Returns
     ----------
-    None   
+    None
     """
     pqr_file = open(mesh_pqr_path, "r")
     pqr_data = pqr_file.read().split("\n")
@@ -133,13 +128,15 @@ def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_r
 
     Returns
     ----------
-    None   
+    None
 
     Examples
     ----------
     >>> generate_msms_mesh("5pti.xyzr", "", "5pti", 1.0, 1.4)
-    
+
     """
+    from pbj import PBJ_PATH
+
     path = os.path.join(output_dir, output_name)
     msms_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "MSMS", "")
     if platform.system() == "Linux":
@@ -191,9 +188,11 @@ def generate_nanoshaper_mesh(
         If true, the raw .vert and .face files created from NanoShaper are not erased from the /nanotemp folder in the output directory.
     Returns
     ----------
-    None   
+    None
 
     """
+    from pbj import PBJ_PATH
+
     nanoshaper_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "NanoShaper", "")
     nanoshaper_temp_dir = os.path.join(output_dir, "nanotemp", "")
 
@@ -278,7 +277,7 @@ def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
 
     Returns
     ----------
-    None   
+    None
 
     """
     face = open(mesh_face_path, "r").read()
@@ -331,7 +330,7 @@ def import_off_mesh(mesh_off_path):
     ----------
     mesh_off_path : str
         Absolute path of the .off file.
-    
+
     Returns
     ----------
     grid : Grid
@@ -350,7 +349,7 @@ def density_to_nanoshaper_grid_scale_conversion(mesh_density):
     ----------
     mesh_density : float
         Desired density of the grid.
-    
+
     Returns
     ----------
     grid_scale : float
@@ -359,5 +358,5 @@ def density_to_nanoshaper_grid_scale_conversion(mesh_density):
     """
     grid_scale = round(
         0.797 * (mesh_density ** 0.507), 2
-    )  ## Emperical relation found by creating meshes using nanoshaper and calculating their density
+    )  # Emperical relation found by creating meshes using nanoshaper and calculating their density
     return grid_scale

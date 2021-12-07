@@ -69,7 +69,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = (-1.0)*values[:, 0] / ep_in
+            result[:] = (-1.0) * values[:, 0] / ep_in
 
         @bempp.api.callable(vectorized=True)
         def fmm_d_green_func(x, n, domain_index, result):
@@ -80,7 +80,7 @@ def rhs(self):
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
             os.remove('.rhs.tmp')
-            result[:] = (-1.0)*np.sum(values[:, 1:] * n.T, axis=1) / ep_in
+            result[:] = (-1.0) * np.sum(values[:, 1:] * n.T, axis=1) / ep_in
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=fmm_d_green_func)
@@ -88,19 +88,19 @@ def rhs(self):
     else:
         @bempp.api.real_callable
         def d_green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-            const = -1./(4.*np.pi*ep_in)
-            result[:] = (-1.0)*const*np.sum(q*np.dot(x-x_q, n)/(nrm**3))
+            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            const = -1.0 / (4.0 * np.pi * ep_in)
+            result[:] = (-1.0) * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
 
         @bempp.api.real_callable
         def green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0]-x_q[:, 0])**2 + (x[1]-x_q[:, 1])**2 + (x[2]-x_q[:, 2])**2)
-            result[:] = (-1.0)*np.sum(q/nrm)/(4.*np.pi*ep_in)
+            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            result[:] = (-1.0) * np.sum(q / nrm) / (4.0 * np.pi * ep_in)
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=d_green_func)
 
-    self.rhs["rhs_1"],self.rhs["rhs_2"] = rhs_1,rhs_2
+    self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
 def laplace_multitrace(dirichl_space, neumann_space, operator_assembler):
