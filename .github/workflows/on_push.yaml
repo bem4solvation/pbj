@@ -33,7 +33,6 @@ jobs:
         name: Install Python style tools
       - run: |
             python3 -m flake8 pbj
-            python3 -m flake8 test
         name: Run flake8 checks
       - run: |
             python3 -m black --line-length 88 --check pbj
