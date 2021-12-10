@@ -1,6 +1,7 @@
 """
 Unit and regression test for the pbj package.
 """
+#python -m pytest 
 
 # Import package, test suite, and other packages as needed
 import sys
