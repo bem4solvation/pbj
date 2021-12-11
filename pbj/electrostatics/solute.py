@@ -93,8 +93,8 @@ class Solute:
         self.ep_ex = 80.0
         self.kappa = 0.125
 
-        self.pb_formulation_alpha = np.nan  # 1.0
-        self.pb_formulation_beta = np.nan   # self.ep_ex / self.ep_in
+        self.pb_formulation_alpha = 1.0 #np.nan
+        self.pb_formulation_beta = self.ep_ex / self.ep_in #np.nan
 
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"

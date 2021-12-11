@@ -230,7 +230,7 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     bempp.api.GLOBAL_PARAMETERS.quadrature.regular = 1
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = 3
 
-    solute.matrices["preconditioning_matrix"] = lhs(solute)[0]
+    solute.matrices["preconditioning_matrix"] = solute.matrices["A"]
 
     solute.matrices["preconditioning_matrix"].strong_form()
     solute.matrices["A_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
@@ -264,7 +264,7 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     bempp.api.GLOBAL_PARAMETERS.quadrature.regular = 1
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = 3
 
-    preconditioner = lhs(solute)[1]
+    preconditioner = solute.matrices["A_int"]
     solute.matrices["preconditioning_matrix"] = (interior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in)
                                                  * preconditioner.weak_form())
     solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A"].strong_form()
@@ -277,3 +277,8 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
     solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
                                   * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"]))
+
+    """
+    solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
+    AttributeError: '_ProductDiscreteOperator' object has no attribute 'strong_form'
+    """

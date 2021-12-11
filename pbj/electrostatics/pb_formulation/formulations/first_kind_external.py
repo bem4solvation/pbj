@@ -227,7 +227,7 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     bempp.api.GLOBAL_PARAMETERS.quadrature.regular = 1
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = 3
 
-    solute.matrices["preconditioning_matrix"] = lhs(solute)[0]
+    solute.matrices["preconditioning_matrix"] = solute.matrices["A"]
 
     solute.matrices["preconditioning_matrix"].strong_form()
     solute.matrices["A_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()

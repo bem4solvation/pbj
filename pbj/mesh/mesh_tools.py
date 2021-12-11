@@ -138,7 +138,7 @@ def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_r
     from pbj import PBJ_PATH
 
     path = os.path.join(output_dir, output_name)
-    msms_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "MSMS", "")
+    msms_dir = os.path.join(PBJ_PATH, "mesh", "ExternalSoftware", "MSMS", "")
     if platform.system() == "Linux":
         external_file = "msms"
         os.system("chmod +x " + msms_dir + external_file)
@@ -157,6 +157,7 @@ def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_r
         + str(density)
         + " -no_header"
     )
+    print(command)
     os.system(command)
 
 
@@ -193,7 +194,7 @@ def generate_nanoshaper_mesh(
     """
     from pbj import PBJ_PATH
 
-    nanoshaper_dir = os.path.join(PBJ_PATH, "ExternalSoftware", "NanoShaper", "")
+    nanoshaper_dir = os.path.join(PBJ_PATH, "mesh", "ExternalSoftware", "NanoShaper", "")
     nanoshaper_temp_dir = os.path.join(output_dir, "nanotemp", "")
 
     if not os.path.exists(nanoshaper_temp_dir):
