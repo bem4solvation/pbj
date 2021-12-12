@@ -55,6 +55,39 @@ def lhs(self):
     self.matrices["A"], self.matrices["A_int_scal"], self.matrices["A_ext"] = A, calderon_int_scal, calderon_ext
 
 
+def calderon_A_only(solute):
+    dirichl_space = solute.dirichl_space
+    neumann_space = solute.neumann_space
+    ep_in = solute.ep_in
+    ep_ex = solute.ep_ex
+    kappa = solute.kappa
+    operator_assembler = solute.operator_assembler
+
+    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
+    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
+    hlp_in = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
+    adlp_in = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+
+    dlp_ex = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
+                                             assembler=operator_assembler)
+    slp_ex = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
+                                             assembler=operator_assembler)
+    hlp_ex = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
+                                              assembler=operator_assembler)
+    adlp_ex = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
+                                                      assembler=operator_assembler)
+
+    ep = ep_ex / ep_in
+
+    A = bempp.api.BlockedOperator(2, 2)
+    A[0, 0] = (-1.0 * dlp_ex) - dlp_in
+    A[0, 1] = slp_ex + (ep * slp_in)
+    A[1, 0] = hlp_ex + ((1.0 / ep) * hlp_in)
+    A[1, 1] = adlp_ex + adlp_in
+
+    return A
+
+
 def rhs(self):
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
@@ -227,7 +260,7 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     bempp.api.GLOBAL_PARAMETERS.quadrature.regular = 1
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = 3
 
-    solute.matrices["preconditioning_matrix"] = solute.matrices["A"]
+    solute.matrices["preconditioning_matrix"] = calderon_A_only(solute)
 
     solute.matrices["preconditioning_matrix"].strong_form()
     solute.matrices["A_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
