@@ -1,8 +1,8 @@
 """
 Unit and regression test for the pbj package.
 """
-#python -m pytest 
-#tests should start with "test_"!
+# python -m pytest
+# tests should start with "test_"!
 # Import package, test suite, and other packages as needed
 import sys
 import pytest
@@ -17,4 +17,3 @@ def test_pbj_imported():
 @pytest.fixture
 def test():
     print(pbj.PBJ_PATH)
-
