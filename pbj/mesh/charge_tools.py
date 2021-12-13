@@ -1,8 +1,13 @@
 import os
 import numpy as np
 import shutil
-from .mesh_tools import (convert_pdb2pqr, generate_msms_mesh, convert_pqr2xyzr, generate_nanoshaper_mesh,
-                         import_msms_mesh)
+from .mesh_tools import (
+    convert_pdb2pqr,
+    generate_msms_mesh,
+    convert_pqr2xyzr,
+    generate_nanoshaper_mesh,
+    import_msms_mesh,
+)
 
 
 def import_charges_from_pqr(pqr_path):

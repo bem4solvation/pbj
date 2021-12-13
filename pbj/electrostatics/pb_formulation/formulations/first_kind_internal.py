@@ -18,19 +18,31 @@ def lhs(self):
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
-    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    hlp_in = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
-    adlp_in = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+    dlp_in = laplace.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    slp_in = laplace.single_layer(
+        neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    hlp_in = laplace.hypersingular(
+        dirichl_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
+    adlp_in = laplace.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
 
-    dlp_ex = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                             assembler=operator_assembler)
-    slp_ex = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                             assembler=operator_assembler)
-    hlp_ex = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                              assembler=operator_assembler)
-    adlp_ex = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                      assembler=operator_assembler)
+    dlp_ex = modified_helmholtz.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    slp_ex = modified_helmholtz.single_layer(
+        neumann_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    hlp_ex = modified_helmholtz.hypersingular(
+        dirichl_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
+    adlp_ex = modified_helmholtz.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
 
     ep = ep_ex / ep_in
 
@@ -52,7 +64,11 @@ def lhs(self):
     calderon_ext_scal[1, 0] = ep * hlp_ex
     calderon_ext_scal[1, 1] = adlp_ex
 
-    self.matrices["A"], self.matrices["A_int"], self.matrices["A_ext_scal"] = A, calderon_int, calderon_ext_scal
+    self.matrices["A"], self.matrices["A_int"], self.matrices["A_ext_scal"] = (
+        A,
+        calderon_int,
+        calderon_ext_scal,
+    )
 
 
 def calderon_A_only(solute):
@@ -63,19 +79,31 @@ def calderon_A_only(solute):
     kappa = solute.kappa
     operator_assembler = solute.operator_assembler
 
-    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    hlp_in = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
-    adlp_in = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+    dlp_in = laplace.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    slp_in = laplace.single_layer(
+        neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    hlp_in = laplace.hypersingular(
+        dirichl_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
+    adlp_in = laplace.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
 
-    dlp_ex = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                             assembler=operator_assembler)
-    slp_ex = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                             assembler=operator_assembler)
-    hlp_ex = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                              assembler=operator_assembler)
-    adlp_ex = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                      assembler=operator_assembler)
+    dlp_ex = modified_helmholtz.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    slp_ex = modified_helmholtz.single_layer(
+        neumann_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    hlp_ex = modified_helmholtz.hypersingular(
+        dirichl_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
+    adlp_ex = modified_helmholtz.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
 
     ep = ep_ex / ep_in
 
@@ -93,10 +121,18 @@ def calderon_int_only(solute):
     neumann_space = solute.neumann_space
     operator_assembler = solute.operator_assembler
 
-    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    hlp_in = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
-    adlp_in = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+    dlp_in = laplace.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    slp_in = laplace.single_layer(
+        neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    hlp_in = laplace.hypersingular(
+        dirichl_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
+    adlp_in = laplace.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
 
     calderon_int = bempp.api.BlockedOperator(2, 2)
     calderon_int[0, 0] = -1.0 * dlp_in
@@ -116,41 +152,53 @@ def rhs(self):
     rhs_constructor = self.rhs_constructor
 
     if rhs_constructor == "fmm":
+
         @bempp.api.callable(vectorized=True)
         def rhs1_fun(x, n, domain_index, result):
             import exafmm.laplace as _laplace
+
             sources = _laplace.init_sources(x_q, q)
             targets = _laplace.init_targets(x.T)
-            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename='.rhs.tmp')
+            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename=".rhs.tmp")
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
-            os.remove('.rhs.tmp')
+            os.remove(".rhs.tmp")
             result[:] = (-1.0) * values[:, 0] / ep_in
 
         @bempp.api.callable(vectorized=True)
         def rhs2_fun(x, n, domain_index, result):
             import exafmm.laplace as _laplace
+
             sources = _laplace.init_sources(x_q, q)
             targets = _laplace.init_targets(x.T)
-            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename='.rhs.tmp')
+            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename=".rhs.tmp")
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
-            os.remove('.rhs.tmp')
+            os.remove(".rhs.tmp")
             result[:] = (-1.0) * np.sum(values[:, 1:] * n.T, axis=1) / ep_in
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=rhs1_fun)
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=rhs2_fun)
 
     else:
+
         @bempp.api.real_callable
         def d_green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            nrm = np.sqrt(
+                (x[0] - x_q[:, 0]) ** 2
+                + (x[1] - x_q[:, 1]) ** 2
+                + (x[2] - x_q[:, 2]) ** 2
+            )
             const = -1.0 / (4.0 * np.pi * ep_in)
-            result[:] = -1.0 * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
+            result[:] = -1.0 * const * np.sum(q * np.dot(x - x_q, n) / (nrm ** 3))
 
         @bempp.api.real_callable
         def green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            nrm = np.sqrt(
+                (x[0] - x_q[:, 0]) ** 2
+                + (x[1] - x_q[:, 1]) ** 2
+                + (x[2] - x_q[:, 2]) ** 2
+            )
             result[:] = -1.0 * np.sum(q / nrm) / (4.0 * np.pi * ep_in)
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
@@ -161,10 +209,15 @@ def rhs(self):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
 
 
 def calderon_squared_preconditioner(solute):
@@ -185,11 +238,20 @@ def calderon_exterior_operator_scaled_preconditioner(solute):
 def apply_calderon_precondtioning(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
-    solute.matrices["A_final"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A"]
-    solute.rhs["rhs_final"] = solute.matrices["preconditioning_matrix"] * [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_final"] = (
+        solute.matrices["preconditioning_matrix"] * solute.matrices["A"]
+    )
+    solute.rhs["rhs_final"] = solute.matrices["preconditioning_matrix"] * [
+        solute.rhs["rhs_1"],
+        solute.rhs["rhs_2"],
+    ]
 
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
 
 
 def interior_mass_matrix(matrix, ep_ex, ep_in):
@@ -200,8 +262,9 @@ def interior_mass_matrix(matrix, ep_ex, ep_in):
     range_ops = np.empty((nrows, nrows), dtype="O")
 
     for index in range(nrows):
-        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
-                                                          matrix.dual_to_range_spaces[index])
+        range_ops[index, index] = get_inverse_mass_matrix(
+            matrix.range_spaces[index], matrix.dual_to_range_spaces[index]
+        )
 
     range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
     range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
@@ -218,8 +281,9 @@ def exterior_mass_matrix(matrix, ep_ex, ep_in):
     range_ops = np.empty((nrows, nrows), dtype="O")
 
     for index in range(nrows):
-        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
-                                                          matrix.dual_to_range_spaces[index])
+        range_ops[index, index] = get_inverse_mass_matrix(
+            matrix.range_spaces[index], matrix.dual_to_range_spaces[index]
+        )
 
     range_ops[0, 0] = range_ops[0, 0] * (1.0 / (0.25 + (ep_in / (4.0 * ep_ex))))
     range_ops[1, 1] = range_ops[1, 1] * (1.0 / (0.25 + (ep_ex / (4.0 * ep_in))))
@@ -239,11 +303,19 @@ def calderon_interior_operator_with_scaled_mass_matrix_preconditioner(solute):
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
 
-    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A_discrete"]
-    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
+    solute.matrices["A_discrete"] = (
+        solute.matrices["preconditioning_matrix"] * solute.matrices["A_discrete"]
+    )
+    solute.rhs["rhs_discrete"] = (
+        solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
+    )
 
 
 def calderon_exterior_operator_scaled_with_scaled_mass_matrix_preconditioner(solute):
@@ -257,11 +329,19 @@ def calderon_exterior_operator_scaled_with_scaled_mass_matrix_preconditioner(sol
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
 
-    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A_discrete"]
-    solute.rhs["rhs_discrete"] = solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
+    solute.matrices["A_discrete"] = (
+        solute.matrices["preconditioning_matrix"] * solute.matrices["A_discrete"]
+    )
+    solute.rhs["rhs_discrete"] = (
+        solute.matrices["preconditioning_matrix"] * solute.rhs["rhs_discrete"]
+    )
 
 
 def calderon_squared_lowered_parameters_preconditioner(solute):
@@ -285,8 +365,10 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     solute.matrices["preconditioning_matrix"] = calderon_A_only(solute)
 
     solute.matrices["preconditioning_matrix"].strong_form()
-    solute.matrices["A_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
-                                     * solute.matrices["A"].strong_form())
+    solute.matrices["A_discrete"] = (
+        solute.matrices["preconditioning_matrix"].strong_form()
+        * solute.matrices["A"].strong_form()
+    )
 
     bempp.api.GLOBAL_PARAMETERS.fmm.expansion_order = expansion_order_main
     bempp.api.GLOBAL_PARAMETERS.fmm.ncrit = ncrit_main
@@ -294,11 +376,16 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = sing_quadrature_points_main
 
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"].strong_form()
-                                  * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"]))
+    solute.rhs["rhs_discrete"] = solute.matrices[
+        "preconditioning_matrix"
+    ].strong_form() * rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
 
 
-def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_preconditioner(solute):
+def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_preconditioner(
+    solute,
+):
     from pbj.electrostatics.solute import rhs_to_discrete_form
 
     # Pass A to strong form with user set parameters
@@ -317,9 +404,13 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = 3
 
     preconditioner = calderon_int_only(solute)
-    solute.matrices["preconditioning_matrix"] = (interior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in)
-                                                 * preconditioner.weak_form())
-    solute.matrices["A_discrete"] = solute.matrices["preconditioning_matrix"] * solute.matrices["A"].strong_form()
+    solute.matrices["preconditioning_matrix"] = (
+        interior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in)
+        * preconditioner.weak_form()
+    )
+    solute.matrices["A_discrete"] = (
+        solute.matrices["preconditioning_matrix"] * solute.matrices["A"].strong_form()
+    )
 
     bempp.api.GLOBAL_PARAMETERS.fmm.expansion_order = expansion_order_main
     bempp.api.GLOBAL_PARAMETERS.fmm.ncrit = ncrit_main
@@ -327,5 +418,6 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     bempp.api.GLOBAL_PARAMETERS.quadrature.singular = sing_quadrature_points_main
 
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = (solute.matrices["preconditioning_matrix"]
-                                  * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"]))
+    solute.rhs["rhs_discrete"] = solute.matrices[
+        "preconditioning_matrix"
+    ] * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])

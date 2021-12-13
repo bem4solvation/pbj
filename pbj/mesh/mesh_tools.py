@@ -194,7 +194,9 @@ def generate_nanoshaper_mesh(
     """
     from pbj import PBJ_PATH
 
-    nanoshaper_dir = os.path.join(PBJ_PATH, "mesh", "ExternalSoftware", "NanoShaper", "")
+    nanoshaper_dir = os.path.join(
+        PBJ_PATH, "mesh", "ExternalSoftware", "NanoShaper", ""
+    )
     nanoshaper_temp_dir = os.path.join(output_dir, "nanotemp", "")
 
     if not os.path.exists(nanoshaper_temp_dir):
@@ -293,7 +295,9 @@ def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
     for vert in verts:
         data.write(str(vert[0]) + " " + str(vert[1]) + " " + str(vert[2]) + "\n")
     for face in faces:
-        data.write("3" + " " + str(face[0]) + " " + str(face[1]) + " " + str(face[2]) + "\n")
+        data.write(
+            "3" + " " + str(face[0]) + " " + str(face[1]) + " " + str(face[2]) + "\n"
+        )
 
 
 def import_msms_mesh(mesh_face_path, mesh_vert_path):

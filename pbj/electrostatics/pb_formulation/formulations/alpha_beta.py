@@ -10,7 +10,9 @@ def verify_parameters(self):
     alpha = self.pb_formulation_alpha
     beta = self.pb_formulation_beta
     if np.isnan(alpha) or np.isnan(beta):
-        raise ValueError("pb_formulation_alpha and pb_formulation_beta not defined in Solute class")
+        raise ValueError(
+            "pb_formulation_alpha and pb_formulation_beta not defined in Solute class"
+        )
     return True
 
 
@@ -56,8 +58,8 @@ def lhs(self):
     Id[1, 0] = 0.0 * phi_id
     Id[1, 1] = dph_id
 
-    interior_projector = ((0.5 * Id) + A_in)
-    scaled_exterior_projector = (D * ((0.5 * Id) - A_ex) * E)
+    interior_projector = (0.5 * Id) + A_in
+    scaled_exterior_projector = D * ((0.5 * Id) - A_ex) * E
     A = ((0.5 * Id) + A_in) + (D * ((0.5 * Id) - A_ex) * E) - (Id + F)
 
     self.matrices["A"] = A
@@ -75,41 +77,53 @@ def rhs(self):
     rhs_constructor = self.rhs_constructor
 
     if rhs_constructor == "fmm":
+
         @bempp.api.callable(vectorized=True)
         def fmm_green_func(x, n, domain_index, result):
             import exafmm.laplace as _laplace
+
             sources = _laplace.init_sources(x_q, q)
             targets = _laplace.init_targets(x.T)
-            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename='.rhs.tmp')
+            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename=".rhs.tmp")
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
-            os.remove('.rhs.tmp')
+            os.remove(".rhs.tmp")
             result[:] = (-1.0) * values[:, 0] / ep_in
 
         @bempp.api.callable(vectorized=True)
         def fmm_d_green_func(x, n, domain_index, result):
             import exafmm.laplace as _laplace
+
             sources = _laplace.init_sources(x_q, q)
             targets = _laplace.init_targets(x.T)
-            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename='.rhs.tmp')
+            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename=".rhs.tmp")
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
-            os.remove('.rhs.tmp')
+            os.remove(".rhs.tmp")
             result[:] = (-1.0) * np.sum(values[:, 1:] * n.T, axis=1) / ep_in
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=fmm_d_green_func)
 
     else:
+
         @bempp.api.real_callable
         def d_green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            nrm = np.sqrt(
+                (x[0] - x_q[:, 0]) ** 2
+                + (x[1] - x_q[:, 1]) ** 2
+                + (x[2] - x_q[:, 2]) ** 2
+            )
             const = -1.0 / (4.0 * np.pi * ep_in)
-            result[:] = (-1.0) * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
+            result[:] = (-1.0) * const * np.sum(q * np.dot(x - x_q, n) / (nrm ** 3))
 
         @bempp.api.real_callable
         def green_func(x, n, domain_index, result):
-            nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+            nrm = np.sqrt(
+                (x[0] - x_q[:, 0]) ** 2
+                + (x[1] - x_q[:, 1]) ** 2
+                + (x[2] - x_q[:, 2]) ** 2
+            )
             result[:] = (-1.0) * np.sum(q / nrm) / (4.0 * np.pi * ep_in)
 
         rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
@@ -120,24 +134,36 @@ def rhs(self):
 
 def laplace_multitrace(dirichl_space, neumann_space, operator_assembler):
     A = bempp.api.BlockedOperator(2, 2)
-    A[0, 0] = (-1.0) * laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    A[0, 1] = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    A[1, 0] = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
-    A[1, 1] = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+    A[0, 0] = (-1.0) * laplace.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    A[0, 1] = laplace.single_layer(
+        neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    A[1, 0] = laplace.hypersingular(
+        dirichl_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
+    A[1, 1] = laplace.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
 
     return A
 
 
 def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler):
     A = bempp.api.BlockedOperator(2, 2)
-    A[0, 0] = (-1.0) * modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                                       assembler=operator_assembler)
-    A[0, 1] = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                              assembler=operator_assembler)
-    A[1, 0] = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                               assembler=operator_assembler)
-    A[1, 1] = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                      assembler=operator_assembler)
+    A[0, 0] = (-1.0) * modified_helmholtz.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    A[0, 1] = modified_helmholtz.single_layer(
+        neumann_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    A[1, 0] = modified_helmholtz.hypersingular(
+        dirichl_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
+    A[1, 1] = modified_helmholtz.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
 
     return A
 
@@ -156,33 +182,103 @@ def block_diagonal_preconditioner(solute):
     alpha = solute.pb_formulation_alpha
     beta = solute.pb_formulation_beta
 
-    slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
-                                       assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_in_diag = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
-                                       assembler="only_diagonal_part").weak_form().get_diagonal()
-    hlp_in_diag = laplace.hypersingular(dirichl_space, neumann_space, neumann_space,
-                                        assembler="only_diagonal_part").weak_form().get_diagonal()
-    adlp_in_diag = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space,
-                                                assembler="only_diagonal_part").weak_form().get_diagonal()
+    slp_in_diag = (
+        laplace.single_layer(
+            neumann_space, dirichl_space, dirichl_space, assembler="only_diagonal_part"
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    dlp_in_diag = (
+        laplace.double_layer(
+            dirichl_space, dirichl_space, dirichl_space, assembler="only_diagonal_part"
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    hlp_in_diag = (
+        laplace.hypersingular(
+            dirichl_space, neumann_space, neumann_space, assembler="only_diagonal_part"
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    adlp_in_diag = (
+        laplace.adjoint_double_layer(
+            neumann_space, neumann_space, neumann_space, assembler="only_diagonal_part"
+        )
+        .weak_form()
+        .get_diagonal()
+    )
 
-    slp_out_diag = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_out_diag = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
-    hlp_out_diag = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                                    assembler="only_diagonal_part").weak_form().get_diagonal()
-    adlp_out_diag = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                            assembler="only_diagonal_part").weak_form().get_diagonal()
+    slp_out_diag = (
+        modified_helmholtz.single_layer(
+            neumann_space,
+            dirichl_space,
+            dirichl_space,
+            kappa,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    dlp_out_diag = (
+        modified_helmholtz.double_layer(
+            dirichl_space,
+            dirichl_space,
+            dirichl_space,
+            kappa,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    hlp_out_diag = (
+        modified_helmholtz.hypersingular(
+            dirichl_space,
+            neumann_space,
+            neumann_space,
+            kappa,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    adlp_out_diag = (
+        modified_helmholtz.adjoint_double_layer(
+            neumann_space,
+            neumann_space,
+            neumann_space,
+            kappa,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
 
-    phi_identity_diag = sparse.identity(dirichl_space, dirichl_space, dirichl_space).weak_form().A.diagonal()
-    dph_identity_diag = sparse.identity(neumann_space, neumann_space, neumann_space).weak_form().A.diagonal()
+    phi_identity_diag = (
+        sparse.identity(dirichl_space, dirichl_space, dirichl_space)
+        .weak_form()
+        .A.diagonal()
+    )
+    dph_identity_diag = (
+        sparse.identity(neumann_space, neumann_space, neumann_space)
+        .weak_form()
+        .A.diagonal()
+    )
 
     ep = ep_ex / ep_in
 
-    diag11 = (-0.5 * (1 + alpha)) * phi_identity_diag + (alpha * dlp_out_diag) - dlp_in_diag
+    diag11 = (
+        (-0.5 * (1 + alpha)) * phi_identity_diag + (alpha * dlp_out_diag) - dlp_in_diag
+    )
     diag12 = slp_in_diag - ((alpha / ep) * slp_out_diag)
     diag21 = hlp_in_diag - (beta * hlp_out_diag)
-    diag22 = (-0.5 * (1 + (beta / ep))) * dph_identity_diag + adlp_in_diag - ((beta / ep) * adlp_out_diag)
+    diag22 = (
+        (-0.5 * (1 + (beta / ep))) * dph_identity_diag
+        + adlp_in_diag
+        - ((beta / ep) * adlp_out_diag)
+    )
 
     d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
     diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
@@ -190,19 +286,26 @@ def block_diagonal_preconditioner(solute):
     diag21_inv = -d_aux * diag21 / diag11
     diag22_inv = d_aux
 
-    block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
+    block_mat_precond = bmat(
+        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    ).tocsr()
     precond = aslinearoperator(block_mat_precond)
 
     solute.matrices["preconditioning_matrix_gmres"] = precond
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "weak"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "weak", solute.matrices["A"]
+    )
 
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
     """
     #Option A:
     from bempp.api.utils.helpers import get_inverse_mass_matrix
@@ -226,5 +329,9 @@ def mass_matrix_preconditioner(solute):
 
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )

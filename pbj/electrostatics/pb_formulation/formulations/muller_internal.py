@@ -17,19 +17,31 @@ def lhs(self):
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
-    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    hlp_in = laplace.hypersingular(dirichl_space, neumann_space, neumann_space, assembler=operator_assembler)
-    adlp_in = laplace.adjoint_double_layer(neumann_space, neumann_space, neumann_space, assembler=operator_assembler)
+    dlp_in = laplace.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    slp_in = laplace.single_layer(
+        neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    hlp_in = laplace.hypersingular(
+        dirichl_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
+    adlp_in = laplace.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, assembler=operator_assembler
+    )
 
-    dlp_ex = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                             assembler=operator_assembler)
-    slp_ex = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                             assembler=operator_assembler)
-    hlp_ex = modified_helmholtz.hypersingular(dirichl_space, neumann_space, neumann_space, kappa,
-                                              assembler=operator_assembler)
-    adlp_ex = modified_helmholtz.adjoint_double_layer(neumann_space, neumann_space, neumann_space, kappa,
-                                                      assembler=operator_assembler)
+    dlp_ex = modified_helmholtz.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    slp_ex = modified_helmholtz.single_layer(
+        neumann_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    hlp_ex = modified_helmholtz.hypersingular(
+        dirichl_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
+    adlp_ex = modified_helmholtz.adjoint_double_layer(
+        neumann_space, neumann_space, neumann_space, kappa, assembler=operator_assembler
+    )
 
     phi_identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
     dph_identity = sparse.identity(neumann_space, neumann_space, neumann_space)
@@ -53,13 +65,17 @@ def rhs(self):
 
     @bempp.api.real_callable
     def d_green_func(x, n, domain_index, result):
-        nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+        nrm = np.sqrt(
+            (x[0] - x_q[:, 0]) ** 2 + (x[1] - x_q[:, 1]) ** 2 + (x[2] - x_q[:, 2]) ** 2
+        )
         const = -1.0 / (4.0 * np.pi * ep_in)
-        result[:] = const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
+        result[:] = const * np.sum(q * np.dot(x - x_q, n) / (nrm ** 3))
 
     @bempp.api.real_callable
     def green_func(x, n, domain_index, result):
-        nrm = np.sqrt((x[0] - x_q[:, 0])**2 + (x[1] - x_q[:, 1])**2 + (x[2] - x_q[:, 2])**2)
+        nrm = np.sqrt(
+            (x[0] - x_q[:, 0]) ** 2 + (x[1] - x_q[:, 1]) ** 2 + (x[2] - x_q[:, 2]) ** 2
+        )
         result[:] = np.sum(q / nrm) / (4.0 * np.pi * ep_in)
 
     rhs_1 = bempp.api.GridFunction(dirichl_space, fun=green_func)
@@ -71,6 +87,7 @@ def rhs(self):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
     # Option A:
     """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
@@ -93,5 +110,9 @@ def mass_matrix_preconditioner(solute):
     """
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )

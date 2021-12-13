@@ -19,12 +19,18 @@ def lhs(self):
     operator_assembler = self.operator_assembler
 
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
-    slp_in = laplace.single_layer(neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    dlp_in = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler)
-    slp_out = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                              assembler=operator_assembler)
-    dlp_out = modified_helmholtz.double_layer(dirichl_space, dirichl_space, dirichl_space, kappa,
-                                              assembler=operator_assembler)
+    slp_in = laplace.single_layer(
+        neumann_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    dlp_in = laplace.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, assembler=operator_assembler
+    )
+    slp_out = modified_helmholtz.single_layer(
+        neumann_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
+    dlp_out = modified_helmholtz.double_layer(
+        dirichl_space, dirichl_space, dirichl_space, kappa, assembler=operator_assembler
+    )
 
     A = bempp.api.BlockedOperator(2, 2)
 
@@ -45,15 +51,17 @@ def rhs(self):
     rhs_constructor = self.rhs_constructor
 
     if rhs_constructor == "fmm":
+
         @bempp.api.callable(vectorized=True)
         def fmm_green_func(x, n, domain_index, result):
             import exafmm.laplace as _laplace
+
             sources = _laplace.init_sources(x_q, q)
             targets = _laplace.init_targets(x.T)
-            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename='.rhs.tmp')
+            fmm = _laplace.LaplaceFmm(p=10, ncrit=500, filename=".rhs.tmp")
             tree = _laplace.setup(sources, targets, fmm)
             values = _laplace.evaluate(tree, fmm)
-            os.remove('.rhs.tmp')
+            os.remove(".rhs.tmp")
             result[:] = values[:, 0] / ep_in
 
         @bempp.api.real_callable
@@ -64,9 +72,14 @@ def rhs(self):
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
 
     else:
+
         @bempp.api.real_callable
         def charges_fun(x, n, domain_index, result):
-            nrm = np.sqrt((x[0] - x_q[:, 0]) ** 2 + (x[1] - x_q[:, 1]) ** 2 + (x[2] - x_q[:, 2]) ** 2)
+            nrm = np.sqrt(
+                (x[0] - x_q[:, 0]) ** 2
+                + (x[1] - x_q[:, 1]) ** 2
+                + (x[2] - x_q[:, 2]) ** 2
+            )
             aux = np.sum(q / nrm)
             result[0] = aux / (4 * np.pi * ep_in)
 
@@ -85,19 +98,30 @@ def block_diagonal_preconditioner(solute):
     from scipy.sparse.linalg import aslinearoperator
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
-    matrix_A = solute.matrices['A']
+    matrix_A = solute.matrices["A"]
 
     block1 = matrix_A[0, 0]
     block2 = matrix_A[0, 1]
     block3 = matrix_A[1, 0]
     block4 = matrix_A[1, 1]
 
-    diag11 = (block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal()
-              + block1._op2._alpha * block1._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal())
-    diag12 = block2._alpha * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    diag21 = (block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal()
-              + block3._op2.descriptor.singular_part.weak_form().to_sparse().diagonal())
-    diag22 = block4._alpha * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    diag11 = (
+        block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal()
+        + block1._op2._alpha
+        * block1._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+    diag12 = (
+        block2._alpha
+        * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+    diag21 = (
+        block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal()
+        + block3._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+    diag22 = (
+        block4._alpha
+        * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
 
     d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
     diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
@@ -105,14 +129,22 @@ def block_diagonal_preconditioner(solute):
     diag21_inv = -d_aux * diag21 / diag11
     diag22_inv = d_aux
 
-    block_mat_precond = bmat([[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]).tocsr()
+    block_mat_precond = bmat(
+        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    ).tocsr()
 
-    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(block_mat_precond)
+    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
+        block_mat_precond
+    )
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "weak"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "weak", solute.matrices["A"]
+    )
 
     """
     identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
@@ -130,6 +162,7 @@ def block_diagonal_preconditioner(solute):
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+
     # Option A:
     """
     from bempp.api.utils.helpers import get_inverse_mass_matrix
@@ -153,5 +186,9 @@ def mass_matrix_preconditioner(solute):
     """
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "strong")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
