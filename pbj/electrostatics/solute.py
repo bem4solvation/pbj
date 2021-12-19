@@ -11,7 +11,8 @@ import pbj.electrostatics.utils as utils
 
 class Solute:
     """The basic Solute object
-    This object holds all the solute information and allows for an easy way to hold the data"""
+    This object holds all the solute information and allows for an easy way to hold the data
+    """
 
     def __init__(
         self,
