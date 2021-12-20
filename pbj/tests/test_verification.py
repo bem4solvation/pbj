@@ -22,7 +22,7 @@ def test_verification():
         spheres = []
         print("Creating meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "test.pqr")
-        for mesh_dens in [0.425, 0.85, 1.7]:
+        for mesh_dens in [0.85, 1.7, 3.4]:
             sphere = pbj.Solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
             sphere.x_q[0][0] = 0.1
             spheres.append(sphere)
@@ -56,20 +56,14 @@ def test_verification():
                 if preconditioner == "no_precond":
                     sphere.pb_formulation_preconditioning = False
                     sphere.calculate_solvation_energy(rerun_all=True)
-                    print(values[formulation]["no_precond"])
-                    print(sphere.results["solvation_energy"])
-                    print(sphere.mesh_density)
                     values[formulation]["no_precond"] = np.append(
                         values[formulation]["no_precond"],
                         (sphere.results["solvation_energy"], sphere.mesh_density),
                     )
-                else:  # preconditioner
+                else:  
                     sphere.pb_formulation_preconditioning = True
                     sphere.pb_formulation_preconditioning_type = preconditioner
                     sphere.calculate_solvation_energy(rerun_all=True)
-                    print("Current formulation: {}".format(formulation))
-                    print("Current sphere: {}".format(sphere.mesh_density))
-                    print("Current preconditioner: {}".format(preconditioner))
                     values[formulation][preconditioner] = np.append(
                         values[formulation][preconditioner],
                         (sphere.results["solvation_energy"], sphere.mesh_density),
