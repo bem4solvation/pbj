@@ -14,6 +14,7 @@ dependencies:
   - notebook
   - numba
   - numpy
+  - matplotlib
   - ocl-icd
   - openblas=0.3.9
   - pdb2pqr
