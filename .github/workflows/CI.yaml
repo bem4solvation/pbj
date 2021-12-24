@@ -8,6 +8,7 @@ on:
     branches:
       - "master"
       - "main"
+      - "solute_imp"
   pull_request:
     branches:
       - "master"
