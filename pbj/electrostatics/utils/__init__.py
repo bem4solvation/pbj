@@ -1,5 +1,6 @@
 from .analytical import *
 
+
 def solver(A, rhs, tolerance, restart_value, max_iterations, precond=None):
     from scipy.sparse.linalg import gmres
     from bempp.api.linalg.iterative_solvers import IterationCounter

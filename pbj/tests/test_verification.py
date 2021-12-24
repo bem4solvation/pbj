@@ -1,4 +1,3 @@
-import pytest
 import pbj
 import pbj.electrostatics.pb_formulation.formulations as pb_formulations
 from pbj.electrostatics.utils.analytical import an_P
@@ -7,16 +6,14 @@ import numpy as np
 from pbj import PBJ_PATH
 import os
 
-# run with: python -m pytest -q test_verification.py -s  
+# run with: python -m pytest -q test_verification.py -s
 
 
 def test_verification():
-    
-    def richardson_extrapolation(f1,f2,f3,r):
-        p = np.log((f3-f2)/(f2-f1))/np.log(r)
-        f = f1 + (f1-f2)/(r**p-1)
+    def richardson_extrapolation(f1, f2, f3, r):
+        p = np.log((f3 - f2) / (f2 - f1)) / np.log(r)
+        f = f1 + (f1 - f2) / (r ** p - 1)
         return p, f
-
 
     def spheres():
         spheres = []
@@ -27,7 +24,6 @@ def test_verification():
             sphere.x_q[0][0] = 0.1
             spheres.append(sphere)
         return spheres
-
 
     def values():
         values = {}
@@ -41,13 +37,25 @@ def test_verification():
                     values[formulation_name][precond_name_removed] = np.array([])
         return values
 
-
     spheres = spheres()
     values = values()
     file = open("test_results.txt", "w")
-    solvation_value = an_P(spheres[0].q, spheres[0].x_q, spheres[0].ep_in, spheres[0].ep_ex, 5, spheres[0].kappa, 5, 3)
+    solvation_value = an_P(
+        spheres[0].q,
+        spheres[0].x_q,
+        spheres[0].ep_in,
+        spheres[0].ep_ex,
+        5,
+        spheres[0].kappa,
+        5,
+        3,
+    )
     tol = 0.1
-    file.write("The expected value is: {}, with a tolerance of {}.\n\n".format(solvation_value,tol))
+    file.write(
+        "The expected value is: {}, with a tolerance of {}.\n\n".format(
+            solvation_value, tol
+        )
+    )
     for sphere in spheres:
         for formulation in values.keys():
             print("Computing for {} with {}".format(formulation, sphere.mesh_density))
@@ -60,7 +68,7 @@ def test_verification():
                         values[formulation]["no_precond"],
                         (sphere.results["solvation_energy"], sphere.mesh_density),
                     )
-                else:  
+                else:
                     sphere.pb_formulation_preconditioning = True
                     sphere.pb_formulation_preconditioning_type = preconditioner
                     sphere.calculate_solvation_energy(rerun_all=True)
@@ -73,13 +81,19 @@ def test_verification():
     solvation_energy_expected_values = np.array([])
     solvation_energy_values_formulation_and_precond = np.array([])
     p_array = np.array([])
-    file.write("Extrapolated values and p parameter for each formulation and preconditioner combination:\n")
+    file.write(
+        "Extrapolated values and p parameter for each formulation and preconditioner combination:\n"
+    )
     for formulation in values.keys():
         for preconditioner in values[formulation].keys():
             val_array = values[formulation][preconditioner]
-            p,val = richardson_extrapolation(val_array[4], val_array[2], val_array[0],2)  
+            p, val = richardson_extrapolation(
+                val_array[4], val_array[2], val_array[0], 2
+            )
             solvation_energy_values = np.append(solvation_energy_values, val)
-            file.write("{} with {}: {}, {}\n".format(formulation, preconditioner, val, p))
+            file.write(
+                "{} with {}: {}, {}\n".format(formulation, preconditioner, val, p)
+            )
             p_array = np.append(p_array, p)
             solvation_energy_values_formulation_and_precond = np.append(
                 solvation_energy_values_formulation_and_precond,
@@ -113,4 +127,3 @@ def test_verification():
         solvation_energy_values, solvation_energy_expected_values, atol=tol, rtol=0
     )
     file.close()
-
