@@ -93,7 +93,7 @@ class Solute:
                 self.external_mesh_file_path = external_mesh_file
                 self.mesh = bempp.api.import_grid(self.external_mesh_file_path)
 
-            self.q, self.x_q = charge_tools.load_charges_to_solute(
+            self.q, self.x_q, self.r_q = charge_tools.load_charges_to_solute(
                 self
             )  # Import charges from given file
 
@@ -102,6 +102,7 @@ class Solute:
                 self.mesh,
                 self.q,
                 self.x_q,
+                self.r_q
             ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0
@@ -110,6 +111,8 @@ class Solute:
 
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
+
+        self.pb_formulation_stern_width = 2.0
 
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"
