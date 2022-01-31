@@ -4,17 +4,7 @@ import os
 import shutil
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 import pbj
-
-
-"""
-ep_stern = getattr(self, ep_stern, self.ep_out)
-self.ep_stern = ep_stern
-ep_out = self.ep_ex
-
-e_hat_diel = ep_in / ep_stern 
-e_hat_stern = ep_stern / ep_out 
-ep_in = self.ep_in
-"""
+from .common import calculate_potential_stern, calculate_solvation_energy_one_surface
 
 def verify_parameters(self):
     return True
@@ -68,7 +58,6 @@ def lhs(self):
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
-    create_stern_mesh(self)
     dirichl_space_stern = self.stern_object.dirichl_space
     neumann_space_stern = self.stern_object.neumann_space
 
@@ -119,8 +108,8 @@ def lhs(self):
     A[1, 0] = 0.5 * identity_diel - dlp_out_diel
     A[1, 1] = slp_out_diel * e_hat_diel
     A[1, 2] = dlp_stern_diel
-    A[1, 3] = -slp_diel_stern
-    A[2, 0] = -dlp_stern_diel
+    A[1, 3] = -slp_stern_diel
+    A[2, 0] = -dlp_diel_stern
     A[2, 1] = slp_diel_stern * e_hat_diel
     A[2, 2] = 0.5 * identity_stern + dlp_in_stern
     A[2, 3] = -slp_in_stern
@@ -286,3 +275,19 @@ def mass_matrix_preconditioner(solute):
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
         solute.rhs["rhs_final"], "strong", solute.matrices["A"]
     )
+
+def calculate_potential(self, rerun_all):
+    ep_stern_ = getattr(self, 'ep_stern', self.ep_ex)
+    self.ep_stern = ep_stern_
+    self.e_hat_diel = self.ep_in / self.ep_stern 
+    self.e_hat_stern = self.ep_stern / self.ep_ex
+    getattr(self, 'stern_object', create_stern_mesh(self))
+    calculate_potential_stern(self, rerun_all)
+
+def calculate_solvation_energy(self, rerun_all):
+    ep_stern_ = getattr(self, 'ep_stern', self.ep_ex)
+    self.ep_stern = ep_stern_
+    self.e_hat_diel = self.ep_in / self.ep_stern 
+    self.e_hat_stern = self.ep_stern / self.ep_ex
+    getattr(self, 'stern_object', create_stern_mesh(self))
+    calculate_solvation_energy_one_surface(self, rerun_all)

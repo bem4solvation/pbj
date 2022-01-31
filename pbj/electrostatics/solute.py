@@ -204,7 +204,7 @@ class Solute:
                 )
         else:
             self.matrices["A_final"] = self.matrices["A"]
-            self.rhs["rhs_final"] = [self.rhs["rhs_1"], self.rhs["rhs_2"]]
+            self.rhs["rhs_final"] = [rhs for key,rhs in sorted(self.rhs.items())][:len(self.matrices["A"].domain_spaces)]
 
             self.matrices["A_discrete"] = matrix_to_discrete_form(
                 self.matrices["A_final"], "weak"
