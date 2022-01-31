@@ -2,6 +2,7 @@ import numpy as np
 import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from .common import calculate_potential_one_surface, calculate_solvation_energy_one_surface
 
 invert_potential = False
 
@@ -201,3 +202,10 @@ def mass_matrix_preconditioner(solute):
     solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
         solute.rhs["rhs_final"], "strong", solute.matrices["A"]
     )
+
+
+def calculate_potential(self, rerun_all):
+    calculate_potential_one_surface(self, rerun_all)
+
+def calculate_solvation_energy(self, rerun_all):
+    calculate_solvation_energy_one_surface(self, rerun_all)

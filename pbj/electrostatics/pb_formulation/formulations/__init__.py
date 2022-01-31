@@ -11,3 +11,4 @@ from . import first_kind_internal
 from . import first_kind_external
 from . import muller_internal
 from . import muller_external
+from . import direct_stern
