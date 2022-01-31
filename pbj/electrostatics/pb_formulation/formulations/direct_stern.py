@@ -5,6 +5,17 @@ import shutil
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 import pbj
 
+
+"""
+ep_stern = getattr(self, ep_stern, self.ep_out)
+self.ep_stern = ep_stern
+ep_out = self.ep_ex
+
+e_hat_diel = ep_in / ep_stern 
+e_hat_stern = ep_stern / ep_out 
+ep_in = self.ep_in
+"""
+
 def verify_parameters(self):
     return True
 
@@ -52,10 +63,8 @@ def create_stern_mesh(self):
 def lhs(self):
     dirichl_space_diel = self.dirichl_space
     neumann_space_diel = self.neumann_space
-    ep_in = self.ep_in
-    ep_stern = getattr(self, ep_stern, self.ep_out)
-    self.ep_stern = ep_stern
-    ep_out = self.ep_ex
+    e_hat_diel = self.e_hat_diel
+    e_hat_stern = self.e_hat_stern
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
@@ -108,15 +117,15 @@ def lhs(self):
     A[0, 0] = 0.5 * identity_diel + dlp_in_diel
     A[0, 1] = -slp_in_diel
     A[1, 0] = 0.5 * identity_diel - dlp_out_diel
-    A[1, 1] = (ep_in / ep_stern) * slp_out_diel
+    A[1, 1] = slp_out_diel * e_hat_diel
     A[1, 2] = dlp_stern_diel
     A[1, 3] = -slp_diel_stern
     A[2, 0] = -dlp_stern_diel
-    A[2, 1] = (ep_in / ep_stern) * slp_diel_stern
+    A[2, 1] = slp_diel_stern * e_hat_diel
     A[2, 2] = 0.5 * identity_stern + dlp_in_stern
     A[2, 3] = -slp_in_stern
     A[3, 2] = 0.5 * identity_stern - dlp_out_stern
-    A[3, 3] = (ep_stern / ep_out) * slp_out_stern
+    A[3, 3] = slp_out_stern * e_hat_stern
 
     self.matrices["A"] = A
 
@@ -184,34 +193,50 @@ def rhs(self):
 
 
 def block_diagonal_preconditioner(solute):
-    from scipy.sparse import diags, bmat
+    from scipy.sparse import diags, bmat, block_diag
     from scipy.sparse.linalg import aslinearoperator
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
-    matrix_A = solute.matrices["A"]
+    dirichl_space_diel = solute.dirichl_space
+    neumann_space_diel = solute.neumann_space
+    dirichl_space_stern = solute.stern_object.dirichl_space
+    neumann_space_stern = solute.stern_object.neumann_space
+    e_hat_diel = solute.e_hat_diel
+    e_hat_stern = solute.e_hat_stern
+    kappa = solute.kappa
 
-    block1 = matrix_A[0, 0]
-    block2 = matrix_A[0, 1]
-    block3 = matrix_A[1, 0]
-    block4 = matrix_A[1, 1]
+    if not (isinstance(e_hat_diel, float) or isinstance(e_hat_diel, int)):
+        e_hat_diel = e_hat_diel.weak_form().to_sparse().diagonal()
 
-    diag11 = (
-        block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal()
-        + block1._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    )
-    diag12 = (
-        block2._alpha
-        * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    )
-    diag21 = (
-        block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal()
-        + block3._op2._alpha
-        * block3._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    )
-    diag22 = (
-        block4._alpha
-        * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
-    )
+    if not (isinstance(e_hat_stern, float) or isinstance(e_hat_stern, int)):
+        e_hat_stern = e_hat_stern.weak_form().to_sparse().diagonal()
+
+    identity_diel = sparse.identity(dirichl_space_diel, dirichl_space_diel, dirichl_space_diel)
+    identity_diel_diag = identity_diel.weak_form().to_sparse().diagonal()
+    slp_in_diel_diag = laplace.single_layer(
+        neumann_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
+    dlp_in_diel_diag = laplace.double_layer(
+        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
+    slp_out_diel_diag = laplace.single_layer(
+        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
+    dlp_out_diel_diag = laplace.double_layer(
+        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
+    
+    identity_stern = sparse.identity(dirichl_space_stern, dirichl_space_stern, dirichl_space_stern)
+    identity_stern_diag = identity_stern.weak_form().to_sparse().diagonal()
+    slp_in_stern_diag = laplace.single_layer(
+        neumann_space_stern, dirichl_space_stern, dirichl_space_stern, assembler="only_diagonal_part").weak_form().get_diagonal()
+    dlp_in_stern_diag = laplace.double_layer(
+        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern, assembler="only_diagonal_part").weak_form().get_diagonal()
+    slp_out_stern_diag = modified_helmholtz.single_layer(
+        neumann_space_stern, dirichl_space_stern, dirichl_space_stern, kappa, assembler="only_diagonal_part").weak_form().get_diagonal()
+    dlp_out_stern_diag = modified_helmholtz.double_layer(
+        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern, kappa, assembler="only_diagonal_part").weak_form().get_diagonal()
+
+    diag11 = 0.5 * identity_diel_diag + dlp_in_diel_diag
+    diag12 = -slp_in_diel_diag
+    diag21 = 0.5 * identity_diel_diag - dlp_out_diel_diag
+    diag22 = slp_out_diel_diag * e_hat_diel 
 
     d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
     diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
@@ -219,15 +244,27 @@ def block_diagonal_preconditioner(solute):
     diag21_inv = -d_aux * diag21 / diag11
     diag22_inv = d_aux
 
-    block_mat_precond = bmat(
-        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
-    ).tocsr()
+    diag33 = 0.5 * identity_stern_diag + dlp_in_stern_diag
+    diag34 = -slp_in_stern_diag
+    diag43 = 0.5 * identity_stern_diag - dlp_out_stern_diag
+    diag44 = slp_out_stern_diag * e_hat_stern 
+    
+    d_aux = 1 / (diag44 - diag43 * diag34 / diag33)
+    diag33_inv = 1 / diag33 + 1 / diag33 * diag34 * d_aux * diag43 / diag33
+    diag34_inv = -1 / diag33 * diag34 * d_aux
+    diag43_inv = -d_aux * diag43 / diag33
+    diag44_inv = d_aux
+
+    A = bmat([[diags(diag11_inv), diags(diag12_inv)],[diags(diag21_inv), diags(diag22_inv)]])
+    B = bmat([[diags(diag33_inv), diags(diag34_inv)],[diags(diag43_inv), diags(diag44_inv)]])
+              
+    block_mat_precond = block_diag((A,B),format = 'csr')
 
     solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
         block_mat_precond
     )
     solute.matrices["A_final"] = solute.matrices["A"]
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"], solute.rhs["rhs_3"], solute.rhs["rhs_4"]]
 
     solute.matrices["A_discrete"] = matrix_to_discrete_form(
         solute.matrices["A_final"], "weak"
@@ -236,52 +273,13 @@ def block_diagonal_preconditioner(solute):
         solute.rhs["rhs_final"], "weak", solute.matrices["A"]
     )
 
-    """
-    identity = sparse.identity(dirichl_space, dirichl_space, dirichl_space)
-    identity_diag = identity.weak_form().to_sparse().diagonal()
-    slp_in_diag = laplace.single_layer(neumann_space, dirichl_space, dirichl_space,
-                                       assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_in_diag = laplace.double_layer(dirichl_space, dirichl_space, dirichl_space,
-                                       assembler="only_diagonal_part").weak_form().get_diagonal()
-    slp_out_diag = modified_helmholtz.single_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_out_diag = modified_helmholtz.double_layer(neumann_space, dirichl_space, dirichl_space, kappa,
-                                                   assembler="only_diagonal_part").weak_form().get_diagonal()
-
-    #if permuted_rows:
-    diag11 = .5 * identity_diag - dlp_out_diag
-    diag12 = (ep_in / ep_ex) * slp_out_diag
-    diag21 = .5 * identity_diag + dlp_in_diag
-    diag22 = -slp_in_diag
-    """
 
 
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
-    # Option A:
-    """
-    from bempp.api.utils.helpers import get_inverse_mass_matrix
-    from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
-
-    matrix = solute.matrices["A"]
-    nrows = len(matrix.range_spaces)
-    range_ops = np.empty((nrows, nrows), dtype="O")
-
-    for index in range(nrows):
-        range_ops[index, index] = get_inverse_mass_matrix(matrix.range_spaces[index],
-                                                          matrix.dual_to_range_spaces[index])
-
-    preconditioner = BlockedDiscreteOperator(range_ops)
-    solute.matrices['preconditioning_matrix_gmres'] = preconditioner
     solute.matrices["A_final"] = solute.matrices["A"]
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
-
-    """
-    solute.matrices["A_final"] = solute.matrices["A"]
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"], solute.rhs["rhs_3"], solute.rhs["rhs_4"]]
     solute.matrices["A_discrete"] = matrix_to_discrete_form(
         solute.matrices["A_final"], "strong"
     )
