@@ -114,6 +114,13 @@ class Solute:
 
         self.pb_formulation_stern_width = 2.0
 
+        self.slic_alpha = 0.5
+        self.slic_beta = -60
+        self.slic_gamma = -0.5
+
+        self.slic_max_iterations = 20
+        self.slic_tolerance = 1e-5
+
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"
 
