@@ -276,14 +276,6 @@ def mass_matrix_preconditioner(solute):
         solute.rhs["rhs_final"], "strong", solute.matrices["A"]
     )
 
-def calculate_potential(self, rerun_all):
-    ep_stern_ = getattr(self, 'ep_stern', self.ep_ex)
-    self.ep_stern = ep_stern_
-    self.e_hat_diel = self.ep_in / self.ep_stern 
-    self.e_hat_stern = self.ep_stern / self.ep_ex
-    getattr(self, 'stern_object', create_stern_mesh(self))
-    calculate_potential_stern(self, rerun_all)
-
 def calculate_solvation_energy(self, rerun_all):
     ep_stern_ = getattr(self, 'ep_stern', self.ep_ex)
     self.ep_stern = ep_stern_

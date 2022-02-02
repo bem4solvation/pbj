@@ -221,8 +221,36 @@ class Solute:
 
 
     def calculate_solvation_energy(self, rerun_all=False):
-        if self.formulation_object.verify_parameters(self):
-            self.formulation_object.calculate_solvation_energy(self, rerun_all)
+        if rerun_all:
+            self.calculate_potential(rerun_all)
+
+        if "phi" not in self.results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_potential()
+
+        start_time = time.time()
+
+        solution_dirichl = self.results["phi"]
+        solution_neumann = self.results["d_phi"]
+
+        from bempp.api.operators.potential.laplace import single_layer, double_layer
+
+        slp_q = single_layer(self.neumann_space, self.x_q.transpose())
+        dlp_q = double_layer(self.dirichl_space, self.x_q.transpose())
+        phi_q = slp_q * solution_neumann - dlp_q * solution_dirichl
+
+        # total solvation energy applying constant to get units [kcal/mol]
+        total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
+        self.results["solvation_energy"] = total_energy
+        self.timings["time_calc_energy"] = time.time() - start_time
+
+        if self.print_times:
+            print(
+                "It took ",
+                self.timings["time_calc_energy"],
+                " seconds to compute the solvation energy",
+            )
+
 
 def get_name_from_pdb(pdb_path):
     pdb_file = open(pdb_path)

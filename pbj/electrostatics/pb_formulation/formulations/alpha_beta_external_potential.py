@@ -2,8 +2,7 @@ import numpy as np
 import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
-from .common import calculate_potential_one_surface, calculate_solvation_energy_one_surface
-
+from .common import calculate_potential_one_surface
 
 invert_potential = True
 
@@ -173,5 +172,3 @@ def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler)
 def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
 
-def calculate_solvation_energy(self, rerun_all):
-    calculate_solvation_energy_one_surface(self, rerun_all)
