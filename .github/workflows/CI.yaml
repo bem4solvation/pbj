@@ -8,6 +8,7 @@ on:
     branches:
       - "master"
       - "main"
+      - "solute_imp"
   pull_request:
     branches:
       - "master"
@@ -24,11 +25,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macOS-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
         python-version: [3.7, 3.8, 3.9]
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
 
     - name: Additional info about the build
       shell: bash
@@ -42,11 +43,11 @@ jobs:
     - uses: conda-incubator/setup-miniconda@v2
       with:
         python-version: ${{ matrix.python-version }}
-        environment-file: devtools/conda-envs/test_env.yaml
+        environment-file: environment.yaml
 
         channels: conda-forge,defaults
 
-        activate-environment: test
+        activate-environment: pbj
         auto-update-conda: false
         auto-activate-base: false
         show-channel-urls: true
