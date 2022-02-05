@@ -161,7 +161,11 @@ class Solute:
 
         print("Current formulation: " + self.pb_formulation)
         print("List of available formulations:")
-        for name, object_address in getmembers(pb_formulations, ismodule):
+        available = getmembers(pb_formulations, ismodule)
+        for element in available:
+            if element[0] == 'common':
+                available.remove(element)
+        for name, object_address in available:
             print(name)
 
     def display_available_preconditioners(self):

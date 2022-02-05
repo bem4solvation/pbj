@@ -6,7 +6,7 @@ import numpy as np
 from pbj import PBJ_PATH
 import os
 
-# run with: python -m pytest -q test_verification.py -s
+# run with: python -m pytest -qq test_verification.py -s
 
 
 def test_verification():
@@ -27,7 +27,11 @@ def test_verification():
 
     def values():
         values = {}
-        for formulation_name, object_address in getmembers(pb_formulations, ismodule):
+        available = getmembers(pb_formulations, ismodule)
+        for element in available:
+            if element[0] == 'common':
+                available.remove(element)
+        for formulation_name, object_address in available:
             formulation = getattr(pb_formulations, formulation_name, None)
             values[formulation_name] = {}
             values[formulation_name]["no_precond"] = np.array([])
