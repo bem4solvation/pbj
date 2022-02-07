@@ -36,7 +36,7 @@ def create_ehat_stern(self):
         result[:] = np.sum(q/nrm)
 
     d1_fun = bempp.api.GridFunction(neumann_space_stern, fun = d1_function) 
-    if np.sum(q) == 0:
+    if np.sum(q) < 1e-8:
         d1_mat = -(1/ep_stern) * d1_fun.coefficients
     else:
         d1_mat = -(np.sum(q)/ep_stern) * d1_fun.coefficients/np.mean(d1_fun.coefficients)
