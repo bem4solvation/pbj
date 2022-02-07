@@ -115,6 +115,15 @@ class Solute:
         self.pb_formulation_stern_width = 2.0
         self.stern_object = None
 
+        @property
+        def stern_mesh_density(self):
+            return self._stern_mesh_density
+
+        @stern_mesh_density.setter
+        def stern_mesh_density(self, value):
+            self._stern_mesh_density = value
+            pb_formulations.direct_stern.create_stern_mesh(self)
+
         self.slic_alpha = 0.5
         self.slic_beta = -60
         self.slic_gamma = -0.5

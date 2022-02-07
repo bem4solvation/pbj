@@ -36,7 +36,7 @@ def create_stern_mesh(self):
         external_mesh_file = None,
         save_mesh_build_files = self.save_mesh_build_files,
         mesh_build_files_dir = self.mesh_build_files_dir,
-        mesh_density = self.mesh_density,
+        mesh_density = getattr(self, 'stern_mesh_density' ,self.mesh_density)
         nanoshaper_grid_scale = getattr(self, 'nanoshaper_grid_scale', None),
         mesh_probe_radius = self.mesh_probe_radius,
         mesh_generator = self.mesh_generator,
