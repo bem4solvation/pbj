@@ -113,6 +113,7 @@ class Solute:
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
 
         self.pb_formulation_stern_width = 2.0
+        self.stern_object = None
 
         self.slic_alpha = 0.5
         self.slic_beta = -60
@@ -153,6 +154,7 @@ class Solute:
     def pb_formulation(self, value):
         self._pb_formulation = value
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
+        self.matrices["preconditioning_matrix_gmres"] = None
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
 

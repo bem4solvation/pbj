@@ -54,6 +54,16 @@ def test_verification():
         5,
         3,
     )
+    solvation_value_stern = an_P(
+        spheres[0].q,
+        spheres[0].x_q,
+        spheres[0].ep_in,
+        spheres[0].ep_ex,
+        5,
+        spheres[0].kappa,
+        7,
+        3,
+    )
     tol = 0.1
     file.write(
         "The expected value is: {}, with a tolerance of {}.\n\n".format(
@@ -66,6 +76,7 @@ def test_verification():
             sphere.pb_formulation = formulation
             for preconditioner in values[formulation].keys():
                 if preconditioner == "no_precond":
+                    print("No preconditioner")
                     sphere.pb_formulation_preconditioning = False
                     sphere.calculate_solvation_energy(rerun_all=True)
                     values[formulation]["no_precond"] = np.append(
@@ -75,6 +86,7 @@ def test_verification():
                 else:
                     sphere.pb_formulation_preconditioning = True
                     sphere.pb_formulation_preconditioning_type = preconditioner
+                    print(preconditioner)
                     sphere.calculate_solvation_energy(rerun_all=True)
                     values[formulation][preconditioner] = np.append(
                         values[formulation][preconditioner],
@@ -103,9 +115,14 @@ def test_verification():
                 solvation_energy_values_formulation_and_precond,
                 formulation + "_" + preconditioner,
             )
-            solvation_energy_expected_values = np.append(
-                solvation_energy_expected_values, solvation_value
-            )
+            if formulation in ['direct_stern','slic','slic_prop']:
+                solvation_energy_expected_values = np.append(
+                    solvation_energy_expected_values, solvation_value_stern
+                )
+            else:
+                solvation_energy_expected_values = np.append(
+                    solvation_energy_expected_values, solvation_value
+                )
 
     indexes = list(
         zip(

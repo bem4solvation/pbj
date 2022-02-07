@@ -30,7 +30,7 @@ def calculate_potential_one_surface(self, rerun_all):
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
-        if "preconditioning_matrix_gmres" in self.matrices:
+        if "preconditioning_matrix_gmres" in self.matrices and self.pb_formulation_preconditioning == True:
             x, info, it_count = utils.solver(
                 self.matrices["A_discrete"],
                 self.rhs["rhs_discrete"],
@@ -102,7 +102,7 @@ def calculate_potential_stern(self, rerun_all):
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
-        if "preconditioning_matrix_gmres" in self.matrices:
+        if "preconditioning_matrix_gmres" in self.matrices and self.pb_formulation_preconditioning == True:
             x, info, it_count = utils.solver(
                 self.matrices["A_discrete"],
                 self.rhs["rhs_discrete"],
@@ -157,7 +157,7 @@ def calculate_potential_slic(self):
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
-        if "preconditioning_matrix_gmres" in self.matrices:
+        if "preconditioning_matrix_gmres" in self.matrices and self.pb_formulation_preconditioning == True:
             x, info, it_count = utils.solver(
                 self.matrices["A_discrete"],
                 self.rhs["rhs_discrete"],
