@@ -152,7 +152,6 @@ def calculate_potential_slic(self):
 
         self.initialise_matrices()
         self.assemble_matrices()
-        self.initialise_rhs()
         self.apply_preconditioning()
 
         # Use GMRES to solve the system of equations
