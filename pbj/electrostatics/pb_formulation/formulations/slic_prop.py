@@ -72,6 +72,7 @@ def calculate_potential(self, rerun_all):
     time_matrix_initialisation = []
     time_matrix_assembly = []
     time_rhs_initialisation = []
+    time_preconditioning = []
 
     self.initialise_rhs()
     
@@ -98,7 +99,9 @@ def calculate_potential(self, rerun_all):
         time_matrix_initialisation.append(self.timings["time_matrix_initialisation"])
         time_matrix_assembly.append(self.timings["time_matrix_assembly"])
         time_rhs_initialisation.append(self.timings["time_rhs_initialisation"])
+        time_preconditioning.append(self.timings["time_preconditioning"])
 
     self.timings["time_matrix_initialisation"] = time_matrix_initialisation
     self.timings["time_matrix_assembly"] = time_matrix_assembly
     self.timings["time_rhs_initialisation"] = time_rhs_initialisation
+    self.timings["time_preconditioning"] = time_preconditioning
