@@ -19,8 +19,7 @@ def test_verification():
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "test.pqr")
-        #for mesh_dens in [0.85, 1.7, 3.4]:
-        for mesh_dens in [0.05,0.06,0.07]:
+        for mesh_dens in [0.85, 1.7, 3.4]:
             sphere = pbj.Solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
             sphere.x_q[0][0] = 0.1
             spheres.append(sphere)
@@ -30,8 +29,7 @@ def test_verification():
         histidines = []
         print("Creating histidine meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", 'his', "his.pqr")
-        #for mesh_dens in [1.4,1.82,2.366]:
-        for mesh_dens in [1.4,1.41,1.42]:
+        for mesh_dens in [1.4,1.82,2.366]:
             histidine = pbj.Solute(pqrpath, nanoshaper_grid_scale=mesh_dens, mesh_generator='nanoshaper')
             histidines.append(histidine)
         return histidines
@@ -79,8 +77,8 @@ def test_verification():
     his_1 = -25.812683243090387 
     his_2 = -24.48630195977033 
     his_3  = -23.875642908991132
-    solvation_value_his = richardson_extrapolation(his_3, his_2, his_1, 1.3)
-    tol = 0.1
+    _, solvation_value_his = richardson_extrapolation(his_3, his_2, his_1, 1.3)
+    tol = 0.5
     file.write(
         "The expected value for the solvation of the sphere is: {}, with a tolerance of {}.\n\n".format(
             solvation_value, tol
@@ -102,7 +100,6 @@ def test_verification():
             sphere.pb_formulation = formulation
             for preconditioner in values[formulation].keys():
                 if preconditioner == "no_precond":
-                    print("No preconditioner")
                     sphere.pb_formulation_preconditioning = False
                     sphere.calculate_solvation_energy(rerun_all=True)
                     values[formulation]["no_precond"] = np.append(
@@ -125,7 +122,6 @@ def test_verification():
             his.pb_formulation = formulation
             for preconditioner in values[formulation].keys():
                 if preconditioner == "no_precond":
-                    print("No preconditioner")
                     his.pb_formulation_preconditioning = False
                     his.calculate_solvation_energy(rerun_all=True)
                     values[formulation]["no_precond"] = np.append(
@@ -140,6 +136,7 @@ def test_verification():
                         values[formulation][preconditioner],
                         (his.results["solvation_energy"], his.nanoshaper_grid_scale),
                     )
+                    
 
     solvation_energy_values = np.array([])
     solvation_energy_expected_values = np.array([])
@@ -148,6 +145,8 @@ def test_verification():
     file.write(
         "Extrapolated values and p parameter for each formulation and preconditioner combination:\n"
     )
+
+
     for formulation in values.keys(): 
         for preconditioner in values[formulation].keys():
             val_array = values[formulation][preconditioner]
