@@ -1,0 +1,54 @@
+The expected value for the solvation of the sphere is: -8.049262832716853, with a tolerance of 0.1.
+
+The expected value for the solvation of an histidine aminoacid (used to verificate the SLIC and SLIC_PROP formulations) is: (2.956465469535249, -23.354624475660206), with a tolerance of 0.1.
+
+Extrapolated values and p parameter for each formulation and preconditioner combination:
+alpha_beta with no_precond: -10.205570671415991, -0.7689921175925212
+alpha_beta with block_diagonal: -10.205664001138807, -0.7688848272656615
+alpha_beta with mass_matrix: -10.205459287731665, -0.7691260208646078
+alpha_beta_external_potential with no_precond: -10.20552212971068, -0.7690782005791779
+alpha_beta_single_blocked with no_precond: -10.205570671415979, -0.7689921175925327
+direct with no_precond: -10.28904401056941, -0.7791301088166117
+direct with block_diagonal: -10.28902484230044, -0.7791544790329169
+direct with mass_matrix: -10.28911463962028, -0.7790595047148988
+direct_external with no_precond: -10.289001356148269, -0.7791558903244198
+direct_external_permuted with no_precond: -10.289043853315425, -0.7791297495406954
+direct_permuted with no_precond: -10.289049069715256, -0.7791198781478806
+direct_permuted with block_diagonal: -10.289024842300421, -0.7791544790329337
+direct_permuted with mass_matrix: -10.289114639620287, -0.7790595047148807
+direct_stern with no_precond: -10.266909974120635, -0.7732080082580133
+direct_stern with block_diagonal: -10.266896901904152, -0.7732379068027986
+direct_stern with mass_matrix: -10.26698668702293, -0.7731408617132299
+first_kind_external with no_precond: -10.289983969371066, -0.7806735378944143
+first_kind_external with calderon_exterior_operator: -10.289989685376817, -0.7806650666140558
+first_kind_external with calderon_exterior_operator_with_scaled_mass_matrix: -10.290570444713985, -0.7802626694085086
+first_kind_external with calderon_interior_operator_scaled: -10.293276770434472, -0.7784897188018178
+first_kind_external with calderon_interior_operator_scaled_with_scaled_mass_matrix: -10.289780962319435, -0.7809012615458958
+first_kind_external with calderon_squared_lowered_parameters: -10.289988615096584, -0.7806624849563811
+first_kind_external with calderon_squared: -10.289680736529354, -0.7808725835296598
+first_kind_external with mass_matrix: -10.289987855950573, -0.7806712084449027
+first_kind_internal with no_precond: -10.289981660514316, -0.7806761419945889
+first_kind_internal with calderon_exterior_operator_scaled: -10.289989266839504, -0.7806660012922643
+first_kind_internal with calderon_exterior_operator_scaled_with_scaled_mass_matrix: -10.289957070435896, -0.7806925850635765
+first_kind_internal with calderon_interior_operator: -10.289994546101852, -0.7806584372404989
+first_kind_internal with calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters: -10.290021165239054, -0.7806473222255174
+first_kind_internal with calderon_interior_operator_with_scaled_mass_matrix: -10.289953535969834, -0.7806789562459783
+first_kind_internal with calderon_squared_lowered_parameters: -10.289964785700281, -0.7806941609678617
+first_kind_internal with calderon_squared: -10.290023651863086, -0.780618506730676
+first_kind_internal with mass_matrix: -10.28998355058295, -0.7806742136568552
+juffer with no_precond: -10.18243691988651, -0.7596727142866757
+juffer with block_diagonal: -10.18243464151142, -0.7596557227865492
+juffer with mass_matrix: -10.182475650546548, -0.7596172796995809
+juffer with scaled_mass: -10.182471179290411, -0.759623579355498
+lu with no_precond: -10.18243542586956, -0.759655650892493
+lu with mass_matrix: -10.182435698187824, -0.7596479985661858
+muller_external with no_precond: -10.20836166134759, -0.7671214604224887
+muller_external with mass_matrix: -10.206593945684268, -0.7686594566319015
+muller_internal with no_precond: -10.205570671415956, -0.768992117592554
+muller_internal with mass_matrix: -10.205570954881646, -0.7689919991325964
+slic with no_precond: nan, nan
+slic with block_diagonal: nan, nan
+slic with mass_matrix: nan, nan
+slic_prop with no_precond: nan, nan
+slic_prop with block_diagonal: nan, nan
+slic_prop with mass_matrix: nan, nan
