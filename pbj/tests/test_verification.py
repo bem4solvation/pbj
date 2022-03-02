@@ -20,7 +20,7 @@ def test_verification():
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "test.pqr")
         #for mesh_dens in [0.85, 1.7, 3.4]:
-        for mesh_dens in [0.05,0.1,0,2]:
+        for mesh_dens in [0.05,0.06,0.07]:
             sphere = pbj.Solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
             sphere.x_q[0][0] = 0.1
             spheres.append(sphere)
@@ -30,7 +30,8 @@ def test_verification():
         histidines = []
         print("Creating histidine meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", 'his', "his.pqr")
-        for mesh_dens in [1.4,1.82,2.366]:
+        #for mesh_dens in [1.4,1.82,2.366]:
+        for mesh_dens in [1.4,1.41,1.42]:
             histidine = pbj.Solute(pqrpath, nanoshaper_grid_scale=mesh_dens, mesh_generator='nanoshaper')
             histidines.append(histidine)
         return histidines
