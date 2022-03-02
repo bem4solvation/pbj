@@ -31,18 +31,32 @@ def create_stern_mesh(self):
     if self.external_mesh_file is not None:
         raise RuntimeError("Solute was created using an external mesh file. For the stern layer mesh generation a pqr or pdb file must be used to create the solute mesh.")
     else:
-    """    
-    stern_solute_object = pbj.Solute(stern_pqr_file,
-        external_mesh_file = None,
-        save_mesh_build_files = self.save_mesh_build_files,
-        mesh_build_files_dir = self.mesh_build_files_dir,
-        mesh_density = getattr(self, 'stern_mesh_density' ,self.mesh_density),
-        nanoshaper_grid_scale = getattr(self, 'nanoshaper_grid_scale', None),
-        mesh_probe_radius = self.mesh_probe_radius,
-        mesh_generator = self.mesh_generator,
-        print_times = self.print_times,
-        force_field = self.force_field,
-        formulation = 'direct')
+    """
+    if hasattr(self, 'mesh_density'):
+        stern_solute_object = pbj.Solute(stern_pqr_file,
+            external_mesh_file = None,
+            save_mesh_build_files = self.save_mesh_build_files,
+            mesh_build_files_dir = self.mesh_build_files_dir,
+            mesh_density = getattr(self, 'stern_mesh_density' ,self.mesh_density),
+            nanoshaper_grid_scale = getattr(self, 'nanoshaper_grid_scale', None),
+            mesh_probe_radius = self.mesh_probe_radius,
+            mesh_generator = self.mesh_generator,
+            print_times = self.print_times,
+            force_field = self.force_field,
+            formulation = 'direct')
+
+    else:
+        stern_solute_object = pbj.Solute(stern_pqr_file,
+            external_mesh_file = None,
+            save_mesh_build_files = self.save_mesh_build_files,
+            mesh_build_files_dir = self.mesh_build_files_dir,
+            nanoshaper_grid_scale = getattr(self, 'nanoshaper_grid_scale', None),
+            mesh_probe_radius = self.mesh_probe_radius,
+            mesh_generator = self.mesh_generator,
+            print_times = self.print_times,
+            force_field = self.force_field,
+            formulation = 'direct')
+
 
     if not self.save_mesh_build_files:
         shutil.rmtree(stern_pqr_dir)
