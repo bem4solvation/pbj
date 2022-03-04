@@ -5,7 +5,11 @@ Poisson Boltzmann & Jupyter: Python based biomolecular electrostatics solver.
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/PBJ/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/PBJ/branch/master)
 
 
-Welcome! PBJ may not also be the acronym of your favorite sandwich, but also your favorite Poisson-Boltzmann solver. Poisson-Boltzmann and Jupyter (PBJ) is a boundary element solver based on the [Bempp-cl library](https://bempp.com/). It provides an easy API for electrostatics calculations from a Jupyter notebook, with full access to all the nice (and fast!) features in Bempp-cl. It is built to be easily extensible, like a playground for new models!
+Welcome! 
+
+Poisson-Boltzmann and Jupyter (PBJ) is a boundary element solver based on the [Bempp-cl library](https://bempp.com/). It provides an easy API for electrostatics calculations of biomolecules from a Jupyter notebook, with full access to all the nice (and fast!) features in Bempp-cl. It is built to be easily extensible, like a playground for new models!
+
+PBJ may not only be the acronym of your favorite sandwich, but also your favorite Poisson-Boltzmann solver! 
 
 Installation
 ================
