@@ -1,8 +1,8 @@
 Poisson Boltzmann & Jupyter: Python based biomolecular electrostatics solver.
 ==============================
 [//]: # (Badges)
-[![GitHub Actions Build Status](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/pbj/workflows/CI/badge.svg)](https://github.com/REPLACE_WITH_OWNER_ACCOUNT/pbj/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/PBJ/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/PBJ/branch/master)
+[![GitHub Actions Build Status](https://github.com/bem4solvation/pbj/workflows/CI/badge.svg)](https://github.com/bem4solvation/pbj/actions?query=workflow%3ACI)
+[![codecov](https://codecov.io/gh/bem4solvation/PBJ/branch/master/graph/badge.svg)](https://codecov.io/gh/bem4solvation/PBJ/branch/master)
 
 
 Welcome! 
