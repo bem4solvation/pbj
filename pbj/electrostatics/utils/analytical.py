@@ -22,11 +22,11 @@ def get_K(x, n):
     n_fact2 = factorial(2 * n)
     for s in range(n + 1):
         K += (
-            2 ** s
+            2**s
             * n_fact
             * factorial(2 * n - s)
             / (factorial(s) * n_fact2 * factorial(n - s))
-            * x ** s
+            * x**s
         )
 
     return K
@@ -75,7 +75,7 @@ def an_P(q, xq, E_1, E_2, R, kappa, a, N):
 
                     Enm += (
                         q[k]
-                        * rho_k ** n
+                        * rho_k**n
                         * factorial(n - numpy.abs(m))
                         / factorial(n + numpy.abs(m))
                         * P2
@@ -119,11 +119,11 @@ def an_P(q, xq, E_1, E_2, R, kappa, a, N):
                         - C1 * C2
                     )
 
-                phi += Bnm * rho ** n * P1 * numpy.exp(1j * m * azim)
+                phi += Bnm * rho**n * P1 * numpy.exp(1j * m * azim)
 
         PHI[K] = numpy.real(phi) / (4 * pi)
 
-    C0 = qe ** 2 * Na * 1e-3 * 1e10 / (cal2J)
+    C0 = qe**2 * Na * 1e-3 * 1e10 / (cal2J)
     E_P = 0.5 * C0 * numpy.sum(q * PHI)
 
     return E_P

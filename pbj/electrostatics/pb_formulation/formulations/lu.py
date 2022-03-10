@@ -105,7 +105,7 @@ def rhs(self):
                 + (x[2] - x_q[:, 2]) ** 2
             )
             const = -1.0 / (4.0 * np.pi * ep_ex)
-            result[:] = const * np.sum(q * np.dot(x - x_q, n) / (nrm ** 3))
+            result[:] = const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
 
         @bempp.api.real_callable
         def green_func(x, n, domain_index, result):

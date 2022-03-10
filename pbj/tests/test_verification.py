@@ -12,7 +12,7 @@ import os
 def test_verification():
     def richardson_extrapolation(f1, f2, f3, r):
         p = np.log((f3 - f2) / (f2 - f1)) / np.log(r)
-        f = f1 + (f1 - f2) / (r ** p - 1)
+        f = f1 + (f1 - f2) / (r**p - 1)
         return p, f
 
     def spheres():

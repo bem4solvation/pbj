@@ -168,7 +168,7 @@ def rhs(self):
                 -1.0
                 * (ep_in / ep_ex)
                 * const
-                * np.sum(q * np.dot(x - x_q, n) / (nrm ** 3))
+                * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
             )
 
         @bempp.api.real_callable

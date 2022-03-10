@@ -71,7 +71,7 @@ def rhs(self):
         )
         const = -1.0 / (4.0 * np.pi * ep_in)
         result[:] = (
-            (ep_in / ep_ex) * const * np.sum(q * np.dot(x - x_q, n) / (nrm ** 3))
+            (ep_in / ep_ex) * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
         )
 
     @bempp.api.real_callable

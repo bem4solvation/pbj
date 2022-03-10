@@ -362,6 +362,6 @@ def density_to_nanoshaper_grid_scale_conversion(mesh_density):
 
     """
     grid_scale = round(
-        0.797 * (mesh_density ** 0.507), 2
+        0.797 * (mesh_density**0.507), 2
     )  # Emperical relation found by creating meshes using nanoshaper and calculating their density
     return grid_scale
