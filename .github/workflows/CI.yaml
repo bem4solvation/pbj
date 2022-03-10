@@ -37,7 +37,7 @@ jobs:
         ulimit -a
 
     - name: Install fttw3
-      run: apt-get install libfftw3-dev
+      run: sudo apt-get install libfftw3-dev
 
 
     # More info on options: https://github.com/conda-incubator/setup-miniconda
