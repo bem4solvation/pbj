@@ -8,7 +8,6 @@ on:
     branches:
       - "master"
       - "main"
-      - "solute_imp"
   pull_request:
     branches:
       - "master"
@@ -21,11 +20,10 @@ on:
 
 jobs:
   test:
-    name: Test on ${{ matrix.os }}, Python ${{ matrix.python-version }}
-    runs-on: ${{ matrix.os }}
+    name: Test on ubuntu-latest, Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest]
         python-version: [3.7, 3.8, 3.9]
 
     steps:
@@ -37,6 +35,9 @@ jobs:
         uname -a
         df -h
         ulimit -a
+
+    - name: Install fttw3
+      run: apt-get install libfftw3-dev
 
 
     # More info on options: https://github.com/conda-incubator/setup-miniconda
