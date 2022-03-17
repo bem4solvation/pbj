@@ -2,6 +2,8 @@ import numpy as np
 import bempp.api
 import os
 from bempp.api.operators.boundary import laplace, modified_helmholtz
+from .common import calculate_potential_one_surface
+
 
 invert_potential = False
 
@@ -421,3 +423,7 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
     solute.rhs["rhs_discrete"] = solute.matrices[
         "preconditioning_matrix"
     ] * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
+
+def calculate_potential(self, rerun_all):
+    calculate_potential_one_surface(self, rerun_all)
+

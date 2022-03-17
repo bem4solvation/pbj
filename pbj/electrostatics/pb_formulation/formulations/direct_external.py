@@ -2,6 +2,7 @@ import numpy as np
 import bempp.api
 import os
 from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from .common import calculate_potential_one_surface
 
 invert_potential = True
 
@@ -91,3 +92,7 @@ def rhs(self):
         rhs_2 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
+
+def calculate_potential(self, rerun_all):
+    calculate_potential_one_surface(self, rerun_all)
+

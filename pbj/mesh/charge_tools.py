@@ -12,8 +12,8 @@ from .mesh_tools import (
 
 def import_charges_from_pqr(pqr_path):
     """
-    Given a pqr file, import the charges and the coordinates of them. Returns two arrays,
-    q with the charges and x_q with the coordinates.
+    Given a pqr file, import the charges and the coordinates of them. Returns three arrays,
+    q with the charges, x_q with the coordinates and r_q with the radii.
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ def import_charges_from_pqr(pqr_path):
     >>> import numpy as np
     >>> import pbj.mesh.charge_tools as ct
     >>> pqr_path = "methane.pqr"
-    >>> q, x_q = ct.import_charges_from_pqr(pqr_path)
+    >>> q, x_q, r_q = ct.import_charges_from_pqr(pqr_path)
     >>> print(q)
     [-0.1048  0.0262  0.0262  0.0262  0.0262]
     >>> print(x_q)
@@ -41,6 +41,8 @@ def import_charges_from_pqr(pqr_path):
      [ 0.     0.    -0.   ]
      [-1.462  0.44   0.923]
      [-1.142  1.201 -0.658]]
+    >>> print(r_q)
+    [0.0262 0.0262 0.0262 0.0262 0.0262]
     """
     # Read charges and coordinates from the .pqr file
     molecule_file = open(pqr_path, "r")
@@ -52,7 +54,7 @@ def import_charges_from_pqr(pqr_path):
             continue
         atom_count += 1
 
-    q, x_q = np.empty((atom_count,)), np.empty((atom_count, 3))
+    q, x_q, r_q = np.empty((atom_count,)), np.empty((atom_count, 3)), np.empty((atom_count,))
     count = 0
     for line in molecule_data:
         line = line.split()
@@ -60,9 +62,11 @@ def import_charges_from_pqr(pqr_path):
             continue
         q[count] = float(line[8])
         x_q[count, :] = line[5:8]
+        r_q[count] = float(line[9])
+
         count += 1
 
-    return q, x_q
+    return q, x_q, r_q
 
 
 def generate_msms_mesh_import_charges(solute):
@@ -83,6 +87,8 @@ def generate_msms_mesh_import_charges(solute):
             Array with the charges of the solute.
         x_q : numpy.array
             Array with the coordinates of the charges.
+        r_q : numpy.array
+            Array with the radii of the charges.
     """
     mesh_dir = os.path.abspath("mesh_temp/")
     if solute.save_mesh_build_files:
@@ -131,7 +137,7 @@ def generate_msms_mesh_import_charges(solute):
     # convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path)
 
     grid = import_msms_mesh(mesh_face_path, mesh_vert_path)
-    q, x_q = import_charges_from_pqr(mesh_pqr_path)
+    q, x_q, r_q = import_charges_from_pqr(mesh_pqr_path)
 
     if solute.save_mesh_build_files:
         if solute.imported_file_type == "pdb":
@@ -143,7 +149,7 @@ def generate_msms_mesh_import_charges(solute):
         solute.mesh_off_path = mesh_off_path
     else:
         shutil.rmtree(mesh_dir)
-    return grid, q, x_q
+    return grid, q, x_q, r_q
 
 
 def load_charges_to_solute(solute):
@@ -162,6 +168,8 @@ def load_charges_to_solute(solute):
             Array with the charges of the solute.
         x_q : numpy.array
             Array with the coordinates of the charges.
+        r_q : numpy.array
+            Array with the radii of the charges.
     """
 
     mesh_dir = os.path.abspath("mesh_temp/")
@@ -180,6 +188,6 @@ def load_charges_to_solute(solute):
     else:
         mesh_pqr_path = solute.pqr_path
 
-    q, x_q = import_charges_from_pqr(mesh_pqr_path)
+    q, x_q, r_q = import_charges_from_pqr(mesh_pqr_path)
 
-    return q, x_q
+    return q, x_q, r_q

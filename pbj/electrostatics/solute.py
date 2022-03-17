@@ -93,7 +93,7 @@ class Solute:
                 self.external_mesh_file_path = external_mesh_file
                 self.mesh = bempp.api.import_grid(self.external_mesh_file_path)
 
-            self.q, self.x_q = charge_tools.load_charges_to_solute(
+            self.q, self.x_q, self.r_q = charge_tools.load_charges_to_solute(
                 self
             )  # Import charges from given file
 
@@ -102,6 +102,7 @@ class Solute:
                 self.mesh,
                 self.q,
                 self.x_q,
+                self.r_q
             ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0
@@ -110,6 +111,16 @@ class Solute:
 
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
+
+        self.pb_formulation_stern_width = 2.0
+        self.stern_object = None
+
+        self.slic_alpha = 0.5
+        self.slic_beta = -60
+        self.slic_gamma = -0.5
+
+        self.slic_max_iterations = 20
+        self.slic_tolerance = 1e-5
 
         self.pb_formulation_preconditioning = False
         self.pb_formulation_preconditioning_type = "calderon_squared"
@@ -143,15 +154,29 @@ class Solute:
     def pb_formulation(self, value):
         self._pb_formulation = value
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
+        self.matrices["preconditioning_matrix_gmres"] = None
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
+
+    @property
+    def stern_mesh_density(self):
+        return self._stern_mesh_density
+
+    @stern_mesh_density.setter
+    def stern_mesh_density(self, value):
+        self._stern_mesh_density = value
+        pb_formulations.direct_stern.create_stern_mesh(self)
 
     def display_available_formulations(self):
         from inspect import getmembers, ismodule
 
         print("Current formulation: " + self.pb_formulation)
         print("List of available formulations:")
-        for name, object_address in getmembers(pb_formulations, ismodule):
+        available = getmembers(pb_formulations, ismodule)
+        for element in available:
+            if element[0] == 'common':
+                available.remove(element)
+        for name, object_address in available:
             print(name)
 
     def display_available_preconditioners(self):
@@ -201,7 +226,7 @@ class Solute:
                 )
         else:
             self.matrices["A_final"] = self.matrices["A"]
-            self.rhs["rhs_final"] = [self.rhs["rhs_1"], self.rhs["rhs_2"]]
+            self.rhs["rhs_final"] = [rhs for key,rhs in sorted(self.rhs.items())][:len(self.matrices["A"].domain_spaces)]
 
             self.matrices["A_discrete"] = matrix_to_discrete_form(
                 self.matrices["A_final"], "weak"
@@ -213,75 +238,9 @@ class Solute:
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
 
     def calculate_potential(self, rerun_all=False):
-        # Start the overall timing for the whole process
-        start_time = time.time()
+        if self.formulation_object.verify_parameters(self):
+            self.formulation_object.calculate_potential(self, rerun_all)
 
-        if rerun_all:
-            self.initialise_matrices()
-            self.assemble_matrices()
-            self.initialise_rhs()
-            self.apply_preconditioning()
-            # self.pass_to_discrete_form()
-
-        else:
-            if "A" not in self.matrices or "rhs_1" not in self.rhs:
-                # If matrix A or rhs_1 doesn't exist, it must first be created
-                self.initialise_matrices()
-                self.initialise_rhs()
-            if not self.matrices["A"]._cached:
-                self.assemble_matrices()
-            if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
-                # See if preconditioning needs to be applied if this hasn't been done
-                self.apply_preconditioning()
-            # if "A_discrete" not in self.matrices or "rhs_discrete" not in self.rhs:
-            #   # See if discrete form has been called
-            #  self.pass_to_discrete_form()
-
-        # Use GMRES to solve the system of equations
-        gmres_start_time = time.time()
-        if "preconditioning_matrix_gmres" in self.matrices:
-            x, info, it_count = utils.solver(
-                self.matrices["A_discrete"],
-                self.rhs["rhs_discrete"],
-                self.gmres_tolerance,
-                self.gmres_restart,
-                self.gmres_max_iterations,
-                precond=self.matrices["preconditioning_matrix_gmres"],
-            )
-        else:
-            x, info, it_count = utils.solver(
-                self.matrices["A_discrete"],
-                self.rhs["rhs_discrete"],
-                self.gmres_tolerance,
-                self.gmres_restart,
-                self.gmres_max_iterations,
-            )
-
-        self.timings["time_gmres"] = time.time() - gmres_start_time
-
-        # Split solution and generate corresponding grid functions
-        from bempp.api.assembly.blocked_operator import (
-            grid_function_list_from_coefficients,
-        )
-
-        (dirichlet_solution, neumann_solution) = grid_function_list_from_coefficients(
-            x.ravel(), self.matrices["A"].domain_spaces
-        )
-
-        # Save number of iterations taken and the solution of the system
-        self.results["solver_iteration_count"] = it_count
-        self.results["phi"] = dirichlet_solution
-        if self.formulation_object.invert_potential:
-            self.results["d_phi"] = (self.ep_ex / self.ep_in) * neumann_solution
-        else:
-            self.results["d_phi"] = neumann_solution
-
-        # Finished computing surface potential, register total time taken
-        self.timings["time_compute_potential"] = time.time() - start_time
-
-        # Print times, if this is desired
-        if self.print_times:
-            show_potential_calculation_times(self)
 
     def calculate_solvation_energy(self, rerun_all=False):
         if rerun_all:
@@ -352,43 +311,3 @@ def rhs_to_discrete_form(rhs_list, discrete_form_type, A):
     return rhs
 
 
-def show_potential_calculation_times(self):
-    if "phi" in self.results:
-        print(
-            "It took ",
-            self.timings["time_matrix_construction"],
-            " seconds to construct the matrices",
-        )
-        print(
-            "It took ",
-            self.timings["time_rhs_construction"],
-            " seconds to construct the rhs vectors",
-        )
-        print(
-            "It took ",
-            self.timings["time_matrix_to_discrete"],
-            " seconds to pass the main matrix to discrete form ("
-            + self.discrete_form_type
-            + ")",
-        )
-        print(
-            "It took ",
-            self.timings["time_preconditioning"],
-            " seconds to compute and apply the preconditioning ("
-            + str(self.pb_formulation_preconditioning)
-            + "("
-            + self.pb_formulation_preconditioning_type
-            + ")",
-        )
-        print(
-            "It took ",
-            self.timings["time_gmres"],
-            " seconds to resolve the system using GMRES",
-        )
-        print(
-            "It took ",
-            self.timings["time_compute_potential"],
-            " seconds in total to compute the surface potential",
-        )
-    else:
-        print("Potential must first be calculated to show times.")

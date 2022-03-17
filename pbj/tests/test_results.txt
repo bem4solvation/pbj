@@ -1,45 +1,54 @@
-The expected value is: -8.049262832716853, with a tolerance of 0.1.
+The expected value for the solvation of the sphere is: -8.049262832716853, with a tolerance of 0.5.
+
+The expected value for the solvation of an histidine aminoacid (used to verificate the SLIC and SLIC_PROP formulations) is: -23.354624475660206, with a tolerance of 0.5.
 
 Extrapolated values and p parameter for each formulation and preconditioner combination:
-alpha_beta with no_precond: -8.04368608355542, 0.9220871091097352
-alpha_beta with block_diagonal: -8.042709448336335, 0.9083102255319995
-alpha_beta with mass_matrix: -8.044359290706018, 0.9299552578688706
-alpha_beta_external_potential with no_precond: -8.043227795704146, 0.9143359547518575
-alpha_beta_single_blocked with no_precond: -8.042709448336444, 0.908310225533285
-direct with no_precond: -8.043819878828186, 0.9277290312289245
-direct with block_diagonal: -8.043815758904286, 0.9276516397671943
-direct with mass_matrix: -8.043830484097972, 0.9278792320565366
-direct_external with no_precond: -8.043816594945742, 0.9276561047331779
-direct_external_permuted with no_precond: -8.04382810348614, 0.9278024139013386
-direct_permuted with no_precond: -8.043818846705555, 0.9276858285143467
-direct_permuted with block_diagonal: -8.043815758904291, 0.927651639767145
-direct_permuted with mass_matrix: -8.04383048409799, 0.9278792320569
-first_kind_external with no_precond: -8.043856621550772, 0.9281012722295748
-first_kind_external with calderon_exterior_operator: -8.043806187837177, 0.927748627212506
-first_kind_external with calderon_exterior_operator_with_scaled_mass_matrix: -8.039965718380554, 0.905024363077674
-first_kind_external with calderon_interior_operator_scaled: -8.044509046894177, 0.9329689174349233
-first_kind_external with calderon_interior_operator_scaled_with_scaled_mass_matrix: -8.043714620463925, 0.9263390509936756
-first_kind_external with calderon_squared_lowered_parameters: -8.04384241037759, 0.9281401965152432
-first_kind_external with calderon_squared: -8.04382619855378, 0.9279459878991979
-first_kind_external with mass_matrix: -8.043862449706088, 0.9280958399851513
-first_kind_internal with no_precond: -8.043817669658248, 0.9278774338457099
-first_kind_internal with calderon_exterior_operator_scaled: -8.043821198743805, 0.9278959915928245
-first_kind_internal with calderon_exterior_operator_scaled_with_scaled_mass_matrix: -8.043820852719323, 0.9279227859704394
-first_kind_internal with calderon_interior_operator: -8.04385473513347, 0.9284346678137212
-first_kind_internal with calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters: -8.04385074420952, 0.9283512715969698
-first_kind_internal with calderon_interior_operator_with_scaled_mass_matrix: -8.043810662375897, 0.9279839596077043
-first_kind_internal with calderon_squared_lowered_parameters: -8.043824965317409, 0.9279274975307591
-first_kind_internal with calderon_squared: -8.043827189891392, 0.9279475993880288
-first_kind_internal with mass_matrix: -8.043828348063043, 0.9279646594308333
-juffer with no_precond: -8.043841128094074, 0.9207266307412554
-juffer with block_diagonal: -8.043618203191922, 0.9188138440377596
-juffer with mass_matrix: -8.04361845871134, 0.9188256349180166
-juffer with scaled_mass: -8.043623301827315, 0.9188546445433781
-lu with no_precond: -8.04361209621569, 0.9187535041328909
-lu with mass_matrix: -8.043615175502715, 0.9187882909472941
-muller_external with no_precond: -8.043723440830798, 0.9222238097040106
-muller_external with mass_matrix: -8.043710689025525, 0.9220529509759
-muller_internal with no_precond: -8.043683535353754, 0.9220539413800082
-muller_internal with mass_matrix: -8.043684910229745, 0.9220743971444629
-
-All values match the expected value.
+alpha_beta with no_precond: -8.051008548896728, 1.0855621444912626
+alpha_beta with block_diagonal: -8.051220237546536, 1.096029533808591
+alpha_beta with mass_matrix: -8.050723024734765, 1.0719593821906914
+alpha_beta_external_potential with no_precond: -8.050988995285515, 1.086274940849782
+alpha_beta_single_blocked with no_precond: -8.051008548896736, 1.0855621444912722
+direct with no_precond: -8.051045281778629, 1.0891743878451143
+direct with block_diagonal: -8.05104749951811, 1.0892698592565402
+direct with mass_matrix: -8.051046098459533, 1.0891761552880013
+direct_external with no_precond: -8.051046733542648, 1.0892025919598838
+direct_external_permuted with no_precond: -8.051045652607153, 1.0891801012457463
+direct_permuted with no_precond: -8.051045615440806, 1.0891886035912108
+direct_permuted with block_diagonal: -8.051047499518129, 1.0892698592568848
+direct_permuted with mass_matrix: -8.051046098459524, 1.0891761552878443
+direct_stern with no_precond: -8.029721253312747, 1.088869764163987
+direct_stern with block_diagonal: -8.029720408026895, 1.0888416329670814
+direct_stern with mass_matrix: -8.029729080795045, 1.0891959949966983
+first_kind_external with no_precond: -8.051045108142725, 1.0892969287336567
+first_kind_external with calderon_exterior_operator: -8.051041026257408, 1.088919372068548
+first_kind_external with calderon_exterior_operator_with_scaled_mass_matrix: -8.051165769646936, 1.0965933204687068
+first_kind_external with calderon_interior_operator_scaled: -8.050233457299033, 1.065089653629795
+first_kind_external with calderon_interior_operator_scaled_with_scaled_mass_matrix: -8.051050351617464, 1.089508513005006
+first_kind_external with calderon_squared_lowered_parameters: -8.051047525868563, 1.089355925977367
+first_kind_external with calderon_squared: -8.05104584306703, 1.089351911865393
+first_kind_external with mass_matrix: -8.051043335878758, 1.0892417514380621
+first_kind_internal with no_precond: -8.051047343424672, 1.0893455433751935
+first_kind_internal with calderon_exterior_operator_scaled: -8.051047739809396, 1.0893619855556471
+first_kind_internal with calderon_exterior_operator_scaled_with_scaled_mass_matrix: -8.051049114507407, 1.0894232293552468
+first_kind_internal with calderon_interior_operator: -8.051055547550995, 1.0890575852076092
+first_kind_internal with calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters: -8.051046935296457, 1.0893315041196148
+first_kind_internal with calderon_interior_operator_with_scaled_mass_matrix: -8.051054280213343, 1.0895327347468502
+first_kind_internal with calderon_squared_lowered_parameters: -8.051047374514969, 1.0893506901590153
+first_kind_internal with calderon_squared: -8.0510474560032, 1.0893539215435444
+first_kind_internal with mass_matrix: -8.051047529786224, 1.0893549570404897
+juffer with no_precond: -8.050993069284946, 1.0833089083845573
+juffer with block_diagonal: -8.050993228343065, 1.0832830420396162
+juffer with mass_matrix: -8.050992953648306, 1.0832835918688448
+juffer with scaled_mass: -8.050990760239504, 1.083144861822369
+lu with no_precond: -8.051003265684805, 1.0833369028943776
+lu with mass_matrix: -8.050994691839575, 1.0835251107036972
+muller_external with no_precond: -8.050965920333768, 1.085005171739539
+muller_external with mass_matrix: -8.050902310723817, 1.0820210606250116
+muller_internal with no_precond: -8.051008548896744, 1.085562144491529
+muller_internal with mass_matrix: -8.051003151046848, 1.0854055896681682
+slic with no_precond: -22.980293675612515, 2.285734184702803
+slic with block_diagonal: -22.980451259047157, 2.285990594428931
+slic with mass_matrix: -22.98040310395266, 2.2859126142137103
+slic_prop with no_precond: -22.905146475793288, 2.282837413128454
+slic_prop with block_diagonal: -22.90531704048152, 2.2831091847951073
+slic_prop with mass_matrix: -22.905264339328184, 2.28302253322982

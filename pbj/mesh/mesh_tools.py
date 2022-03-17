@@ -262,7 +262,7 @@ def generate_nanoshaper_mesh(
         os.chdir("..")
 
     except (OSError, FileNotFoundError):
-        print("El archivo no existe o no fue creado por NanoShaper")
+        print("The file doesn't exist or it wasn't created by NanoShaper")
 
 
 def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
