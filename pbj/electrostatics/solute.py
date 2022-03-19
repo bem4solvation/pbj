@@ -272,7 +272,8 @@ class Solute:
                 self.timings["time_calc_energy"],
                 " seconds to compute the solvation energy",
             )
-        def calculate_gradient_field(self, h=0.001, rerun_all=False):
+
+    def calculate_gradient_field(self, h=0.001, rerun_all=False):
 
         """
         Compute the first derivate of potential due to solvent
@@ -329,7 +330,7 @@ class Solute:
         dphidr[:,2] = dphidz
 
         self.results["dphidr_charges"] = dphidr
-        self.results["time_calc_gradient_field"] = time.time() - start_time
+        self.timings["time_calc_gradient_field"] = time.time() - start_time
 
         if self.print_times:
             print(
@@ -343,6 +344,7 @@ class Solute:
 
         if rerun_all:
             self.calculate_potential(rerun_all)
+            self.calculate_gradient_field()
 
         if "phi" not in self.results:
             # If surface potential has not been calculated, calculate it now
@@ -371,7 +373,7 @@ class Solute:
 
         self.results["f_qf_charges"] = f_reac
         self.results["f_qf"] = f_reactotal 
-        self.results["time_calc_solute_force"] = time.time() - start_time
+        self.timings["time_calc_solute_force"] = time.time() - start_time
 
         if self.print_times:
             print(
@@ -395,26 +397,26 @@ class Solute:
 
         start_time = time.time()
 
-        solution_dirichl = self.results["phi"]
-        solution_neumann = self.results["d_phi"]
+        phi = self.results['phi'].evaluate_on_element_centers()
+        d_phi = self.results['d_phi'].evaluate_on_element_centers()
 
-        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836 
+        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
 
+        #Dielectric boundary force
         f_db = np.zeros([3])
         for j in range(self.mesh.number_of_elements):
-            f_db += (self.ep_in/self.ep_ex)*(solution_neumann.coefficients[j]**2) \
-                *self.mesh.normals[j]*self.mesh.volumes[j]
-        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in) * f_db
+            f_db += (self.ep_in/self.ep_ex)*(d_phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
+        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in) *f_db
 
+        #Ionic boundary force
         f_ib = np.zeros([3])
         for j in range(self.mesh.number_of_elements):
-            f_ib += (self.kappa**2)*(solution_dirichl.coefficients[j]**2)*\
-                self.mesh.normals[j]*self.mesh.volumes[j]
-        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex) * f_ib
+            f_ib += (self.kappa**2)*(phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
+        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex)*f_ib
 
-        self.results["dielectric_boundary_force"] = f_db
-        self.results["ionic_boundary_force"] = f_ib
-        self.results["time_calc_boundary_force"] = time.time() - start_time
+        self.results["f_db"] = f_db
+        self.results["f_ib"] = f_ib
+        self.timings["time_calc_boundary_force"] = time.time() - start_time
 
         if self.print_times:
             print(
@@ -425,6 +427,43 @@ class Solute:
         return None
 
     def calculate_solvation_forces(self, rerun_all=False):
+
+        if rerun_all:
+            self.calculate_potential(rerun_all)
+            self.calculate_boundary_forces()
+            self.calculate_gradient_field()
+            self.calculate_charges_forces()
+
+        if "phi" not in self.results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_potential()
+        
+        if 'f_db' not in self.results:
+            self.calculate_boundary_forces()
+
+        if 'f_qf' not in self.results:
+            self.calculate_gradient_field()
+            self.calculate_charges_forces()
+        
+        start_time = time.time()
+        
+        f_solv = np.zeros([3])
+        f_qf = self.results["f_qf"] 
+        f_db = self.results["f_db"] 
+        f_ib = self.results["f_ib"]
+        f_solv = f_qf + f_db + f_ib
+
+        self.results['f_solv'] = f_solv
+        self.timings["time_calc_solvation_force"] = time.time() - start_time \
+            + self.timings['time_calc_boundary_force'] \
+            + self.timings['time_calc_solute_force'] \
+            + self.timings["time_calc_gradient_field"]
+        if self.print_times:
+            print(
+                "It took ",
+                self.timings["time_calc_solvation_force"],
+                " seconds to compute the solvation forces",
+            )
 
         return None
 
