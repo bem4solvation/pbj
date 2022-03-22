@@ -340,11 +340,11 @@ class Solute:
             )
         return None
     
-    def calculate_charges_forces(self, rerun_all=False):
+    def calculate_charges_forces(self, h=0.001, rerun_all=False):
 
         if rerun_all:
             self.calculate_potential(rerun_all)
-            self.calculate_gradient_field()
+            self.calculate_gradient_field(h=h)
 
         if "phi" not in self.results:
             # If surface potential has not been calculated, calculate it now
@@ -352,7 +352,7 @@ class Solute:
         
         if 'dphidr_charges' not in self.results:
             # If gradient field has not been calculated, calculate it now
-            self.calculate_gradient_field()
+            self.calculate_gradient_field(h=h)
         
         start_time = time.time()
 
@@ -360,16 +360,8 @@ class Solute:
     
         convert_to_kcalmolA = 4 * np.pi * 332.0636817823836 
 
-        f_reac = np.zeros([len(self.q),3])
-        for j in range(len(self.q)):
-            f_reac[j,:] = -self.q[j]*dphidr[j,:]
-        
-        f_reactotal = np.zeros([3])
-        for j in range(len(self.q)):
-            f_reactotal[:] = f_reactotal[:] + f_reac[j,:]
-        
-        f_reactotal[:] =  convert_to_kcalmolA * f_reactotal[:]
-        f_reac[:] = convert_to_kcalmolA * f_reac[:]
+        f_reac = convert_to_kcalmolA * -np.transpose(np.transpose(dphidr)*self.q)
+        f_reactotal = np.sum(f_reac,axis=0)
 
         self.results["f_qf_charges"] = f_reac
         self.results["f_qf"] = f_reactotal 
@@ -405,14 +397,14 @@ class Solute:
         #Dielectric boundary force
         f_db = np.zeros([3])
         for j in range(self.mesh.number_of_elements):
-            f_db += (self.ep_in/self.ep_ex)*(d_phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
-        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in) *f_db
+            f_db += (d_phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
+        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in)*(self.ep_in/self.ep_ex)*f_db
 
         #Ionic boundary force
         f_ib = np.zeros([3])
         for j in range(self.mesh.number_of_elements):
-            f_ib += (self.kappa**2)*(phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
-        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex)*f_ib
+            f_ib += (phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
+        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex)*(self.kappa**2)*f_ib
 
         self.results["f_db"] = f_db
         self.results["f_ib"] = f_ib
@@ -426,12 +418,12 @@ class Solute:
             )
         return None
 
-    def calculate_solvation_forces(self, rerun_all=False):
+    def calculate_solvation_forces(self, h=0.001, rerun_all=False):
 
         if rerun_all:
             self.calculate_potential(rerun_all)
             self.calculate_boundary_forces()
-            self.calculate_gradient_field()
+            self.calculate_gradient_field(h=h)
             self.calculate_charges_forces()
 
         if "phi" not in self.results:
@@ -442,7 +434,7 @@ class Solute:
             self.calculate_boundary_forces()
 
         if 'f_qf' not in self.results:
-            self.calculate_gradient_field()
+            self.calculate_gradient_field(h=h)
             self.calculate_charges_forces()
         
         start_time = time.time()
