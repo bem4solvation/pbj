@@ -393,18 +393,14 @@ class Solute:
         d_phi = self.results['d_phi'].evaluate_on_element_centers()
 
         convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+        dS = np.transpose(np.transpose(self.mesh.normals)*self.mesh.volumes)
 
         #Dielectric boundary force
-        f_db = np.zeros([3])
-        for j in range(self.mesh.number_of_elements):
-            f_db += (d_phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
-        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in)*(self.ep_in/self.ep_ex)*f_db
-
+        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in) * (self.ep_in/self.ep_ex) * \
+             np.sum(np.transpose(np.transpose(dS)*d_phi[0]**2),axis=0)
         #Ionic boundary force
-        f_ib = np.zeros([3])
-        for j in range(self.mesh.number_of_elements):
-            f_ib += (phi[0][j]**2)*self.mesh.normals[j]*self.mesh.volumes[j]
-        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex)*(self.kappa**2)*f_ib
+        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex)*(self.kappa**2) * \
+             np.sum(np.transpose(np.transpose(dS)*phi[0]**2),axis=0)
 
         self.results["f_db"] = f_db
         self.results["f_ib"] = f_ib
@@ -422,20 +418,21 @@ class Solute:
 
         if rerun_all:
             self.calculate_potential(rerun_all)
-            self.calculate_boundary_forces()
             self.calculate_gradient_field(h=h)
             self.calculate_charges_forces()
+            self.calculate_boundary_forces()
 
         if "phi" not in self.results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_potential()
         
-        if 'f_db' not in self.results:
-            self.calculate_boundary_forces()
-
         if 'f_qf' not in self.results:
             self.calculate_gradient_field(h=h)
             self.calculate_charges_forces()
+        
+        if 'f_db' not in self.results:
+            self.calculate_boundary_forces()
+            
         
         start_time = time.time()
         
