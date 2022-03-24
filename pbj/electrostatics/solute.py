@@ -278,16 +278,6 @@ class Solute:
         """
         Compute the first derivate of potential due to solvent
         in the position of the points
-        Inputs:
-        -------
-            xq: Array size (Nx3) whit positions to calculate the derivate.
-            h: Float number, distance for the central difference.
-            neumann_space: Bempp Function space
-            dirichl_space: Bempp Function space
-            solution_neumann: Data of dphi in boundary
-            solution_dirichl: Data of phi in boundary
-        Return:
-        dpdr: Derivate of the potential in the points positions.
         """
 
         if rerun_all:
