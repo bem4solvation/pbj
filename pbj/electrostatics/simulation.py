@@ -46,7 +46,7 @@ class Simulation:
         else:
             raise ValueError("Given object is not of the 'Solute' class.")
 
-    def calculate_potentials(self):
+    def create_and_assemble_matrix(self):
         surface_count = len(self.solutes)
         A = bempp.api.BlockedOperator(surface_count, surface_count)
 
@@ -61,6 +61,8 @@ class Simulation:
             solute.apply_preconditioning()
 
             A[index, index] = solute.matrices["A_discrete"]
+            self.rhs["rhs_"+str((index*2)+1)] = solute.rhs["rhs_1"]
+            self.rhs["rhs_" + str((index * 2)+2)] = solute.rhs["rhs_2"]
 
         # Calculate matrix elements for interactions between solutes
         for i in range(surface_count):
@@ -71,6 +73,9 @@ class Simulation:
                     A[i, j] = self.formulation_object.inter_solute_interactions()
 
         self.matrices["A_discrete"] = A
+
+    def calculate_potentials(self):
+        self.create_and_assemble_matrix()
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
