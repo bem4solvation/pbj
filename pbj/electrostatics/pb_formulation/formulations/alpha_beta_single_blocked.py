@@ -168,5 +168,6 @@ def mod_helm_multitrace(dirichl_space, neumann_space, kappa, operator_assembler)
 
     return A
 
+
 def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)

@@ -54,7 +54,11 @@ def import_charges_from_pqr(pqr_path):
             continue
         atom_count += 1
 
-    q, x_q, r_q = np.empty((atom_count,)), np.empty((atom_count, 3)), np.empty((atom_count,))
+    q, x_q, r_q = (
+        np.empty((atom_count,)),
+        np.empty((atom_count, 3)),
+        np.empty((atom_count,)),
+    )
     count = 0
     for line in molecule_data:
         line = line.split()

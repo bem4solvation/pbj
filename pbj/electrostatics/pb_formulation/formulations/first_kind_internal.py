@@ -424,6 +424,6 @@ def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_precon
         "preconditioning_matrix"
     ] * rhs_to_discrete_form(solute.rhs["rhs_final"], "strong", solute.matrices["A"])
 
+
 def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
-

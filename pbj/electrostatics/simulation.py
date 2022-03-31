@@ -7,7 +7,6 @@ import pbj.electrostatics.utils as utils
 
 
 class Simulation:
-
     def __init__(self, formulation="direct"):
 
         self._pb_formulation = formulation

@@ -102,7 +102,7 @@ class Solute:
                 self.mesh,
                 self.q,
                 self.x_q,
-                self.r_q
+                self.r_q,
             ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0
@@ -174,7 +174,7 @@ class Solute:
         print("List of available formulations:")
         available = getmembers(pb_formulations, ismodule)
         for element in available:
-            if element[0] == 'common':
+            if element[0] == "common":
                 available.remove(element)
         for name, object_address in available:
             print(name)
@@ -226,7 +226,9 @@ class Solute:
                 )
         else:
             self.matrices["A_final"] = self.matrices["A"]
-            self.rhs["rhs_final"] = [rhs for key,rhs in sorted(self.rhs.items())][:len(self.matrices["A"].domain_spaces)]
+            self.rhs["rhs_final"] = [rhs for key, rhs in sorted(self.rhs.items())][
+                : len(self.matrices["A"].domain_spaces)
+            ]
 
             self.matrices["A_discrete"] = matrix_to_discrete_form(
                 self.matrices["A_final"], "weak"
@@ -240,7 +242,6 @@ class Solute:
     def calculate_potential(self, rerun_all=False):
         if self.formulation_object.verify_parameters(self):
             self.formulation_object.calculate_potential(self, rerun_all)
-
 
     def calculate_solvation_energy(self, rerun_all=False):
         if rerun_all:
@@ -292,32 +293,46 @@ class Solute:
         solution_dirichl = self.results["phi"]
         solution_neumann = self.results["d_phi"]
 
-        dphidr = np.zeros([len(self.x_q), 3]) 
-        dist = np.diag([h,h,h]) #matriz 3x3 diagonal de h
-        
+        dphidr = np.zeros([len(self.x_q), 3])
+        dist = np.diag([h, h, h])  # matriz 3x3 diagonal de h
+
         # x axis derivate
-        dx = np.concatenate((self.x_q[:] + dist[0], self.x_q[:] - dist[0])) # vector x+h y luego x-h
-        slpo = bempp.api.operators.potential.laplace.single_layer(self.neumann_space, dx.transpose()) 
-        dlpo = bempp.api.operators.potential.laplace.double_layer(self.dirichl_space, dx.transpose())
-        phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(solution_dirichl) 
-        dphidx = 0.5*(phi[0,:len(self.x_q)] - phi[0,len(self.x_q):])/h
-        dphidr[:,0] = dphidx
+        dx = np.concatenate(
+            (self.x_q[:] + dist[0], self.x_q[:] - dist[0])
+        )  # vector x+h y luego x-h
+        slpo = bempp.api.operators.potential.laplace.single_layer(
+            self.neumann_space, dx.transpose()
+        )
+        dlpo = bempp.api.operators.potential.laplace.double_layer(
+            self.dirichl_space, dx.transpose()
+        )
+        phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(solution_dirichl)
+        dphidx = 0.5 * (phi[0, : len(self.x_q)] - phi[0, len(self.x_q) :]) / h
+        dphidr[:, 0] = dphidx
 
-        #y axis derivate
+        # y axis derivate
         dy = np.concatenate((self.x_q[:] + dist[1], self.x_q[:] - dist[1]))
-        slpo = bempp.api.operators.potential.laplace.single_layer(self.neumann_space, dy.transpose())
-        dlpo = bempp.api.operators.potential.laplace.double_layer(self.dirichl_space, dy.transpose())
+        slpo = bempp.api.operators.potential.laplace.single_layer(
+            self.neumann_space, dy.transpose()
+        )
+        dlpo = bempp.api.operators.potential.laplace.double_layer(
+            self.dirichl_space, dy.transpose()
+        )
         phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(solution_dirichl)
-        dphidy = 0.5*(phi[0,:len(self.x_q)] - phi[0,len(self.x_q):])/h
-        dphidr[:,1] = dphidy
+        dphidy = 0.5 * (phi[0, : len(self.x_q)] - phi[0, len(self.x_q) :]) / h
+        dphidr[:, 1] = dphidy
 
-        #z axis derivate
+        # z axis derivate
         dz = np.concatenate((self.x_q[:] + dist[2], self.x_q[:] - dist[2]))
-        slpo = bempp.api.operators.potential.laplace.single_layer(self.neumann_space, dz.transpose())
-        dlpo = bempp.api.operators.potential.laplace.double_layer(self.dirichl_space, dz.transpose())
+        slpo = bempp.api.operators.potential.laplace.single_layer(
+            self.neumann_space, dz.transpose()
+        )
+        dlpo = bempp.api.operators.potential.laplace.double_layer(
+            self.dirichl_space, dz.transpose()
+        )
         phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(solution_dirichl)
-        dphidz = 0.5*(phi[0,:len(self.x_q)] - phi[0,len(self.x_q):])/h
-        dphidr[:,2] = dphidz
+        dphidz = 0.5 * (phi[0, : len(self.x_q)] - phi[0, len(self.x_q) :]) / h
+        dphidr[:, 2] = dphidz
 
         self.results["dphidr_charges"] = dphidr
         self.timings["time_calc_gradient_field"] = time.time() - start_time
@@ -329,7 +344,7 @@ class Solute:
                 " seconds to compute the gradient field on solute charges",
             )
         return None
-    
+
     def calculate_charges_forces(self, h=0.001, rerun_all=False):
 
         if rerun_all:
@@ -339,22 +354,22 @@ class Solute:
         if "phi" not in self.results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_potential()
-        
-        if 'dphidr_charges' not in self.results:
+
+        if "dphidr_charges" not in self.results:
             # If gradient field has not been calculated, calculate it now
             self.calculate_gradient_field(h=h)
-        
+
         start_time = time.time()
 
         dphidr = self.results["dphidr_charges"]
-    
-        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836 
 
-        f_reac = convert_to_kcalmolA * -np.transpose(np.transpose(dphidr)*self.q)
-        f_reactotal = np.sum(f_reac,axis=0)
+        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+
+        f_reac = convert_to_kcalmolA * -np.transpose(np.transpose(dphidr) * self.q)
+        f_reactotal = np.sum(f_reac, axis=0)
 
         self.results["f_qf_charges"] = f_reac
-        self.results["f_qf"] = f_reactotal 
+        self.results["f_qf"] = f_reactotal
         self.timings["time_calc_solute_force"] = time.time() - start_time
 
         if self.print_times:
@@ -365,9 +380,7 @@ class Solute:
             )
 
         return None
- 
 
-    
     def calculate_boundary_forces(self, rerun_all=False):
 
         if rerun_all:
@@ -379,18 +392,28 @@ class Solute:
 
         start_time = time.time()
 
-        phi = self.results['phi'].evaluate_on_element_centers()
-        d_phi = self.results['d_phi'].evaluate_on_element_centers()
+        phi = self.results["phi"].evaluate_on_element_centers()
+        d_phi = self.results["d_phi"].evaluate_on_element_centers()
 
         convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
-        dS = np.transpose(np.transpose(self.mesh.normals)*self.mesh.volumes)
+        dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
-        #Dielectric boundary force
-        f_db = - 0.5 * convert_to_kcalmolA * (self.ep_ex-self.ep_in) * (self.ep_in/self.ep_ex) * \
-             np.sum(np.transpose(np.transpose(dS)*d_phi[0]**2),axis=0)
-        #Ionic boundary force
-        f_ib = - 0.5 * convert_to_kcalmolA * (self.ep_ex)*(self.kappa**2) * \
-             np.sum(np.transpose(np.transpose(dS)*phi[0]**2),axis=0)
+        # Dielectric boundary force
+        f_db = (
+            -0.5
+            * convert_to_kcalmolA
+            * (self.ep_ex - self.ep_in)
+            * (self.ep_in / self.ep_ex)
+            * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
+        )
+        # Ionic boundary force
+        f_ib = (
+            -0.5
+            * convert_to_kcalmolA
+            * (self.ep_ex)
+            * (self.kappa**2)
+            * np.sum(np.transpose(np.transpose(dS) * phi[0] ** 2), axis=0)
+        )
 
         self.results["f_db"] = f_db
         self.results["f_ib"] = f_ib
@@ -415,28 +438,30 @@ class Solute:
         if "phi" not in self.results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_potential()
-        
-        if 'f_qf' not in self.results:
+
+        if "f_qf" not in self.results:
             self.calculate_gradient_field(h=h)
             self.calculate_charges_forces()
-        
-        if 'f_db' not in self.results:
+
+        if "f_db" not in self.results:
             self.calculate_boundary_forces()
-            
-        
+
         start_time = time.time()
-        
+
         f_solv = np.zeros([3])
-        f_qf = self.results["f_qf"] 
-        f_db = self.results["f_db"] 
+        f_qf = self.results["f_qf"]
+        f_db = self.results["f_db"]
         f_ib = self.results["f_ib"]
         f_solv = f_qf + f_db + f_ib
 
-        self.results['f_solv'] = f_solv
-        self.timings["time_calc_solvation_force"] = time.time() - start_time \
-            + self.timings['time_calc_boundary_force'] \
-            + self.timings['time_calc_solute_force'] \
+        self.results["f_solv"] = f_solv
+        self.timings["time_calc_solvation_force"] = (
+            time.time()
+            - start_time
+            + self.timings["time_calc_boundary_force"]
+            + self.timings["time_calc_solute_force"]
             + self.timings["time_calc_gradient_field"]
+        )
         if self.print_times:
             print(
                 "It took ",
@@ -482,5 +507,3 @@ def rhs_to_discrete_form(rhs_list, discrete_form_type, A):
         raise ValueError("Unexpected discrete form: %s" % discrete_form_type)
 
     return rhs
-
-

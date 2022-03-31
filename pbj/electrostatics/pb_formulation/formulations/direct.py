@@ -206,4 +206,3 @@ def mass_matrix_preconditioner(solute):
 
 def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
-
