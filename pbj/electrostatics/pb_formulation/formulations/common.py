@@ -1,5 +1,5 @@
-import bempp.api
-import numpy as np
+# import bempp.api
+# import numpy as np
 import time
 import pbj.electrostatics.utils as utils
 
@@ -33,7 +33,7 @@ def calculate_potential_one_surface(self, rerun_all):
     gmres_start_time = time.time()
     if (
         "preconditioning_matrix_gmres" in self.matrices
-        and self.pb_formulation_preconditioning == True
+        and self.pb_formulation_preconditioning is True
     ):
         x, info, it_count = utils.solver(
             self.matrices["A_discrete"],
@@ -109,7 +109,7 @@ def calculate_potential_stern(self, rerun_all):
     gmres_start_time = time.time()
     if (
         "preconditioning_matrix_gmres" in self.matrices
-        and self.pb_formulation_preconditioning == True
+        and self.pb_formulation_preconditioning is True
     ):
         x, info, it_count = utils.solver(
             self.matrices["A_discrete"],
@@ -172,7 +172,7 @@ def calculate_potential_slic(self):
     gmres_start_time = time.time()
     if (
         "preconditioning_matrix_gmres" in self.matrices
-        and self.pb_formulation_preconditioning == True
+        and self.pb_formulation_preconditioning is True
     ):
         x, info, it_count = utils.solver(
             self.matrices["A_discrete"],

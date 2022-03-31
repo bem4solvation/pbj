@@ -115,7 +115,7 @@ def calculate_potential(self, rerun_all):
     ep_stern = getattr(self, "ep_stern", self.ep_ex)
     self.ep_stern = ep_stern
 
-    if self.stern_object == None:
+    if self.stern_object is None:
         pbj.electrostatics.pb_formulation.formulations.direct_stern.create_stern_mesh(
             self
         )

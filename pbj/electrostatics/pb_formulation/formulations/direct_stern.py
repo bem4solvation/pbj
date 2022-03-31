@@ -451,6 +451,6 @@ def calculate_potential(self, rerun_all):
     self.ep_stern = ep_stern
     self.e_hat_diel = self.ep_in / self.ep_stern
     self.e_hat_stern = self.ep_stern / self.ep_ex
-    if self.stern_object == None:
+    if self.stern_object is None:
         create_stern_mesh(self)
     calculate_potential_stern(self, rerun_all)
