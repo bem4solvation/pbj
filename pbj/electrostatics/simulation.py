@@ -61,8 +61,8 @@ class Simulation:
             solute.apply_preconditioning()
 
             A[index, index] = solute.matrices["A_discrete"]
-            self.rhs["rhs_"+str((index*2)+1)] = solute.rhs["rhs_1"]
-            self.rhs["rhs_" + str((index * 2)+2)] = solute.rhs["rhs_2"]
+            self.rhs["rhs_" + str((index * 2) + 1)] = solute.rhs["rhs_1"]
+            self.rhs["rhs_" + str((index * 2) + 2)] = solute.rhs["rhs_2"]
 
         # Calculate matrix elements for interactions between solutes
         for i in range(surface_count):
