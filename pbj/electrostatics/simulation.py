@@ -1,5 +1,6 @@
 import bempp.api
 import time
+
 # import numpy as np
 import pbj.electrostatics.solute
 import pbj.electrostatics.pb_formulation.formulations as pb_formulations
