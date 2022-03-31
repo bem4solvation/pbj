@@ -42,7 +42,10 @@ class Simulation:
     def add_solute(self, solute):
 
         if isinstance(solute, pbj.electrostatics.solute.Solute):
-            self.solutes.append(solute)
+            if solute in self.solutes:
+                print("Solute object is already added to this simulation. Ignoring this add command.")
+            else:
+                self.solutes.append(solute)
         else:
             raise ValueError("Given object is not of the 'Solute' class.")
 
