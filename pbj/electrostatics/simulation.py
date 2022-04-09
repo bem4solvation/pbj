@@ -105,7 +105,6 @@ class Simulation:
             if count >= len(self.matrices["A"].domain_spaces) / 2:
                 break
             else:
-                print(solute_rhs)
                 rhs_final.extend(solute_rhs)
                 count += 1
 
