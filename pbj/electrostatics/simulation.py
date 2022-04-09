@@ -89,10 +89,10 @@ class Simulation:
             for j in range(surface_count * 2):
                 if [i, j] in diag_block_indexes:
                     continue
-                else:
-                    A[i, j] = self.formulation_object.inter_solute_interactions(
-                        self, i, j
-                    )
+                # else: ##NEEDS MORE WORK TO IMPLEMENT
+                #     A[i, j] = self.formulation_object.inter_solute_interactions(
+                #         self, i, j
+                #     )
 
         self.matrices["A"] = A
 
