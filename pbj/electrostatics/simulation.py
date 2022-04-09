@@ -100,8 +100,14 @@ class Simulation:
         self.matrices["A_final"] = self.matrices["A"]
 
         rhs_final = []
-        for solute_rhs in self.rhs:
-            rhs_final.extend(solute_rhs)
+        count = 0
+        for key, solute_rhs in self.rhs.items():
+            if count >= len(self.matrices["A"].domain_spaces) / 2:
+                break
+            else:
+                print(solute_rhs)
+                rhs_final.extend(solute_rhs)
+                count += 1
 
         self.rhs["rhs_final"] = rhs_final
 
