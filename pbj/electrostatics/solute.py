@@ -6,8 +6,7 @@ import time
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
 import pbj.electrostatics.pb_formulation.formulations as pb_formulations
-
-# import pbj.electrostatics.utils as utils
+import pbj.electrostatics.utils as utils
 
 
 class Solute:
@@ -231,10 +230,10 @@ class Solute:
                 : len(self.matrices["A"].domain_spaces)
             ]
 
-            self.matrices["A_discrete"] = matrix_to_discrete_form(
+            self.matrices["A_discrete"] = utils.matrix_to_discrete_form(
                 self.matrices["A_final"], "weak"
             )
-            self.rhs["rhs_discrete"] = rhs_to_discrete_form(
+            self.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
                 self.rhs["rhs_final"], "weak", self.matrices["A"]
             )
 
@@ -481,30 +480,3 @@ def get_name_from_pdb(pdb_path):
     pdb_file.close()
 
     return solute_name
-
-
-def matrix_to_discrete_form(matrix, discrete_form_type):
-    if discrete_form_type == "strong":
-        matrix_discrete = matrix.strong_form()
-    elif discrete_form_type == "weak":
-        matrix_discrete = matrix.weak_form()
-    else:
-        raise ValueError("Unexpected discrete type: %s" % discrete_form_type)
-
-    return matrix_discrete
-
-
-def rhs_to_discrete_form(rhs_list, discrete_form_type, A):
-    from bempp.api.assembly.blocked_operator import (
-        coefficients_from_grid_functions_list,
-        projections_from_grid_functions_list,
-    )
-
-    if discrete_form_type == "strong":
-        rhs = coefficients_from_grid_functions_list(rhs_list)
-    elif discrete_form_type == "weak":
-        rhs = projections_from_grid_functions_list(rhs_list, A.dual_to_range_spaces)
-    else:
-        raise ValueError("Unexpected discrete form: %s" % discrete_form_type)
-
-    return rhs

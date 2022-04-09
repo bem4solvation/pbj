@@ -206,3 +206,8 @@ def mass_matrix_preconditioner(solute):
 
 def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
+
+
+def inter_solute_interactions(simulation, i, j):
+    print("Got Test")
+    return simulation.solutes[0].matrices["A"][0, 0]

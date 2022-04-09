@@ -43,7 +43,9 @@ class Simulation:
 
         if isinstance(solute, pbj.electrostatics.solute.Solute):
             if solute in self.solutes:
-                print("Solute object is already added to this simulation. Ignoring this add command.")
+                print(
+                    "Solute object is already added to this simulation. Ignoring this add command."
+                )
             else:
                 self.solutes.append(solute)
         else:
@@ -51,7 +53,8 @@ class Simulation:
 
     def create_and_assemble_matrix(self):
         surface_count = len(self.solutes)
-        A = bempp.api.BlockedOperator(surface_count, surface_count)
+        A = bempp.api.BlockedOperator(surface_count * 2, surface_count * 2)
+        diag_block_indexes = []
 
         # Get self interactions of each solute
         for index, solute in enumerate(self.solutes):
@@ -61,24 +64,57 @@ class Simulation:
             solute.initialise_matrices()
             solute.initialise_rhs()
             solute.assemble_matrices()
-            solute.apply_preconditioning()
 
-            A[index, index] = solute.matrices["A_discrete"]
-            self.rhs["rhs_" + str((index * 2) + 1)] = solute.rhs["rhs_1"]
-            self.rhs["rhs_" + str((index * 2) + 2)] = solute.rhs["rhs_2"]
+            A[index * 2, index * 2] = solute.matrices["A"][0, 0]
+            A[(index * 2) + 1, index * 2] = solute.matrices["A"][1, 0]
+            A[index * 2, (index * 2) + 1] = solute.matrices["A"][0, 1]
+            A[(index * 2) + 1, (index * 2) + 1] = solute.matrices["A"][1, 1]
+
+            self.rhs["rhs_" + str(index + 1)] = [
+                solute.rhs["rhs_1"],
+                solute.rhs["rhs_2"],
+            ]
+
+            diag_block_indexes.extend(
+                [
+                    [index * 2, index * 2],
+                    [(index * 2) + 1, index * 2],
+                    [index * 2, (index * 2) + 1],
+                    [(index * 2) + 1, (index * 2) + 1],
+                ]
+            )
 
         # Calculate matrix elements for interactions between solutes
-        for i in range(surface_count):
-            for j in range(surface_count):
-                if i == j:
+        for i in range(surface_count * 2):
+            for j in range(surface_count * 2):
+                if [i, j] in diag_block_indexes:
                     continue
                 else:
-                    A[i, j] = self.formulation_object.inter_solute_interactions()
+                    A[i, j] = self.formulation_object.inter_solute_interactions(
+                        self, i, j
+                    )
 
-        self.matrices["A_discrete"] = A
+        self.matrices["A"] = A
+
+    def apply_preconditioning(self):
+        self.matrices["A_final"] = self.matrices["A"]
+
+        rhs_final = []
+        for solute_rhs in self.rhs:
+            rhs_final.extend(solute_rhs)
+
+        self.rhs["rhs_final"] = rhs_final
+
+        self.matrices["A_discrete"] = utils.matrix_to_discrete_form(
+            self.matrices["A_final"], "weak"
+        )
+        self.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+            self.rhs["rhs_final"], "weak", self.matrices["A"]
+        )
 
     def calculate_potentials(self):
         self.create_and_assemble_matrix()
+        self.apply_preconditioning()
 
         # Use GMRES to solve the system of equations
         gmres_start_time = time.time()
