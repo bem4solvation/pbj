@@ -208,6 +208,43 @@ def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
 
 
-def inter_solute_interactions(simulation, i, j):
-    print("Got Test")
-    return simulation.solutes[0].matrices["A"][0, 0]
+def inter_solute_interactions(self, solute_target, solute_source):
+
+   
+    dirichl_space_target = solute_target.dirichl_space
+    neumann_space_target = solute_target.neumann_space
+    dirichl_space_source = solute_source.dirichl_space
+    neumann_space_source = solute_source.neumann_space
+
+    ep_in = solute_source.ep_in
+    ep_out = self.ep_ex
+    kappa = self.kappa
+    operator_assembler = self.operator_assembler
+
+
+
+    dlp = modified_helmholtz.double_layer(
+        dirichl_space_source, dirichl_space_target, dirichl_space_target, kappa, assembler=operator_assembler
+    )
+    slp = modified_helmholtz.single_layer(
+        neumann_space_source, neumann_space_target, neumann_space_target, kappa,  assembler=operator_assembler
+    )
+
+    zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+        dirichl_space_source, dirichl_space_target, dirichl_space_target
+    )
+    
+    zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+        neumann_space_source, neumann_space_target, neumann_space_target
+    )
+    
+    A_inter = bempp.api.BlockedOperator(2, 2)
+
+    
+    A_inter[0, 0] = zero_00
+    A_inter[0, 1] = zero_01 
+    A_inter[1, 0] = - dlp
+    A_inter[1, 1] = (ep_in / ep_out) * slp
+
+    
+    return A_inter

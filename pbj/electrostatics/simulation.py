@@ -26,6 +26,11 @@ class Simulation:
         self.matrices = dict()
         self.rhs = dict()
         self.timings = dict()
+        
+        self.ep_ex = 80.0
+        self.kappa = 0.125
+        
+        self.operator_assembler = "dense"
 
     @property
     def pb_formulation(self):
@@ -47,6 +52,9 @@ class Simulation:
                     "Solute object is already added to this simulation. Ignoring this add command."
                 )
             else:
+                solute.ep_ex = self.ep_ex
+                solute.kappa = self.kappa
+                solute.operator_assembler = self.operator_assembler
                 self.solutes.append(solute)
         else:
             raise ValueError("Given object is not of the 'Solute' class.")
@@ -85,14 +93,20 @@ class Simulation:
             )
 
         # Calculate matrix elements for interactions between solutes
-        for i in range(surface_count * 2):
-            for j in range(surface_count * 2):
-                if [i, j] in diag_block_indexes:
-                    continue
-                # else: ##NEEDS MORE WORK TO IMPLEMENT
-                #     A[i, j] = self.formulation_object.inter_solute_interactions(
-                #         self, i, j
-                #     )
+
+        for index_target, solute_target in enumerate(self.solutes):
+            i = index_target*2
+            for index_source, solute_source in enumerate(self.solutes):
+                j = index_source*2
+
+                A_inter = self.formulation_object.inter_solute_interactions(
+                    self, solute_target, solute_source        
+                )
+                
+                A[i    , j    ] = A_inter[0,0]
+                A[i    , j + 1] = A_inter[0,1]
+                A[i + 1, j    ] = A_inter[1,0]
+                A[i + 1, j + 1] = A_inter[1,1]
 
         self.matrices["A"] = A
 
