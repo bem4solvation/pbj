@@ -4,31 +4,28 @@ channels:
   - defaults
   - eumetsat
 dependencies:
+  - python=3.9
   - fftw3
-  - git
-  - ipython
   - jupyter
   - llvmlite
-  - llvmlite
-  - mako
-  - notebook
-  - numba
-  - numpy
   - matplotlib
+  - numpy
+  - numba
   - ocl-icd
   - openblas=0.3.9
   - pdb2pqr
   - pip
   - plotly
-  - pocl
+  - pocl=1.7
   - pybind11
   - pyopencl
-  - python
   - scipy
   - tbb
   - pip:
     - meshio
+    - gmsh
     - trimesh
     - pytest
     - "git+https://github.com/bempp/bempp-cl.git"
     - "git+https://github.com/exafmm/exafmm-t.git"
+    - "git+https://github.com/bem4solvation/pbj.git"
