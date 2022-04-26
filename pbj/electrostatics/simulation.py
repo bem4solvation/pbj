@@ -8,7 +8,7 @@ import pbj.electrostatics.utils as utils
 
 
 class Simulation:
-    def __init__(self, formulation="direct"):
+    def __init__(self, formulation="direct", print_times=False):
 
         self._pb_formulation = formulation
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
@@ -59,10 +59,9 @@ class Simulation:
         else:
             raise ValueError("Given object is not of the 'Solute' class.")
 
-    def create_and_assemble_matrix(self):
+    def create_and_assemble_linear_system(self):
         surface_count = len(self.solutes)
         A = bempp.api.BlockedOperator(surface_count * 2, surface_count * 2)
-        diag_block_indexes = []
 
         # Get self interactions of each solute
         for index, solute in enumerate(self.solutes):
@@ -83,15 +82,6 @@ class Simulation:
                 solute.rhs["rhs_2"],
             ]
 
-            diag_block_indexes.extend(
-                [
-                    [index * 2, index * 2],
-                    [(index * 2) + 1, index * 2],
-                    [index * 2, (index * 2) + 1],
-                    [(index * 2) + 1, (index * 2) + 1],
-                ]
-            )
-
         # Calculate matrix elements for interactions between solutes
 
         for index_target, solute_target in enumerate(self.solutes):
@@ -99,14 +89,16 @@ class Simulation:
             for index_source, solute_source in enumerate(self.solutes):
                 j = index_source*2
 
-                A_inter = self.formulation_object.inter_solute_interactions(
-                    self, solute_target, solute_source        
-                )
-                
-                A[i    , j    ] = A_inter[0,0]
-                A[i    , j + 1] = A_inter[0,1]
-                A[i + 1, j    ] = A_inter[1,0]
-                A[i + 1, j + 1] = A_inter[1,1]
+                if i!=j:
+
+                    A_inter = self.formulation_object.lhs_inter_solute_interactions(
+                        self, solute_target, solute_source        
+                    )
+                    
+                    A[i    , j    ] = A_inter[0,0]
+                    A[i    , j + 1] = A_inter[0,1]
+                    A[i + 1, j    ] = A_inter[1,0]
+                    A[i + 1, j + 1] = A_inter[1,1]
 
         self.matrices["A"] = A
 
@@ -131,8 +123,12 @@ class Simulation:
             self.rhs["rhs_final"], "weak", self.matrices["A"]
         )
 
+    
     def calculate_potentials(self):
-        self.create_and_assemble_matrix()
+
+        start_time = time.time()
+
+        self.create_and_assemble_linear_system()
         self.apply_preconditioning()
 
         # Use GMRES to solve the system of equations
@@ -146,3 +142,41 @@ class Simulation:
         )
 
         self.timings["time_gmres"] = time.time() - gmres_start_time
+
+        from bempp.api.assembly.blocked_operator import (
+            grid_function_list_from_coefficients,
+        )
+
+        solution = grid_function_list_from_coefficients(
+            x.ravel(), self.matrices["A"].domain_spaces
+        )
+
+        for index, solute in enumerate(self.solutes):
+
+            N_dirichl = solute.dirichl_space.global_dof_count
+            N_neumann = solute.neumann_space.global_dof_count
+
+            solute.results["phi"]  = solution[2*index]
+            solute.results["d_phi"] = solution[2*index+1] 
+
+        self.timings["time_compute_potential"] = time.time() - start_time
+
+        # Print times, if this is desired
+#if self.print_times:
+#           show_potential_calculation_times(self)
+
+    
+    def calculate_solvation_energy(self, rerun_all=False):
+
+        if rerun_all:
+            self.calculate_potential(rerun_all)
+
+        if "phi" not in self.solutes[0].results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_potentials()
+        
+    
+        for index, solute in enumerate(self.solutes):
+            solute.calculate_solvation_energy()
+
+

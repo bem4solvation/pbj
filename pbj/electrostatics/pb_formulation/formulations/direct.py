@@ -208,7 +208,7 @@ def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
 
 
-def inter_solute_interactions(self, solute_target, solute_source):
+def lhs_inter_solute_interactions(self, solute_target, solute_source):
 
    
     dirichl_space_target = solute_target.dirichl_space
