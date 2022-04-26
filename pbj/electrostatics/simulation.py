@@ -180,3 +180,14 @@ class Simulation:
             solute.calculate_solvation_energy()
 
 
+    def calculate_solvation_forces(self, h=0.001, rerun_all=False):
+
+        if "phi" not in self.solutes[0].results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_potentials()
+        
+    
+        for index, solute in enumerate(self.solutes):
+            solute.calculate_solvation_forces()
+
+
