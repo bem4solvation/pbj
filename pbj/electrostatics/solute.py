@@ -77,8 +77,13 @@ class Solute:
             self.pqr_path = solute_file_path
             self.solute_name = os.path.split(solute_file_path.split(".")[-2])[-1]
 
+        elif file_extension == "xyz"
+            self.imported_file_type = "xyz"
+            self.xyz_path = solute_file_path
+            self.solute_name = os.path.split(solute_file_path.split(".")[-2])[-1]
+
         else:
-            print("File is not pdb or pqr -> Cannot start")
+            print("File is not pdb, pqr, or Tinker xyz -> Cannot start")
 
         if external_mesh_file is not None:
             filename, file_extension = os.path.splitext(external_mesh_file)
@@ -93,17 +98,59 @@ class Solute:
                 self.external_mesh_file_path = external_mesh_file
                 self.mesh = bempp.api.import_grid(self.external_mesh_file_path)
 
-            self.q, self.x_q, self.r_q = charge_tools.load_charges_to_solute(
-                self
-            )  # Import charges from given file
+            if force_field == "amoeba":
+                (
+                    self.x_q, 
+                    self.q, 
+                    self.d, 
+                    self.Q, 
+                    self.alpha, 
+                    self.r_q,
+                    self.mass, 
+                    self.polar_group, 
+                    self.thole, 
+                    self.connections_12, 
+                    self.connections_13, 
+                    self.pointer_connections_12, 
+                    self.pointer_connections_13, 
+                    self.p12scale, 
+                    self.p13scale, 
+                ) = charge_tools.load_tinker_multipoles_to_solute(self)
+            else: 
+                self.q, self.x_q, self.r_q = charge_tools.load_charges_to_solute(
+                    self
+                )  # Import charges from given file
 
         else:  # Generate mesh from given pdb or pqr, and import charges at the same time
-            (
-                self.mesh,
-                self.q,
-                self.x_q,
-                self.r_q,
-            ) = charge_tools.generate_msms_mesh_import_charges(self)
+
+            if force_field == "amoeba":
+                (
+                    self.mesh,
+                    self.x_q, 
+                    self.q, 
+                    self.d, 
+                    self.Q, 
+                    self.alpha, 
+                    self.r_q,
+                    self.mass, 
+                    self.polar_group, 
+                    self.thole, 
+                    self.connections_12, 
+                    self.connections_13, 
+                    self.pointer_connections_12, 
+                    self.pointer_connections_13, 
+                    self.p12scale, 
+                    self.p13scale, 
+                ) = charge_tools.generate_msms_mesh_import_tinker_multipoles(self)
+
+
+            else:
+                (
+                    self.mesh,
+                    self.q,
+                    self.x_q,
+                    self.r_q,
+                ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0
         self.ep_ex = 80.0
