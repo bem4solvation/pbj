@@ -33,6 +33,10 @@ class Solute:
             print("file does not exist -> Cannot start")
             return
 
+        if force_field == "amoeba" and formulation != "direct":
+            print("AMOEBA force field is only available with the direct formulation -> Changing to direct")
+            formulation = "direct"
+
         self._pb_formulation = formulation
 
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
@@ -102,7 +106,7 @@ class Solute:
                 (
                     self.x_q, 
                     self.q, 
-                    self.d, 
+                    self.d,
                     self.Q, 
                     self.alpha, 
                     self.r_q,
@@ -116,6 +120,9 @@ class Solute:
                     self.p12scale, 
                     self.p13scale, 
                 ) = charge_tools.load_tinker_multipoles_to_solute(self)
+
+                self.d_induced = np.zeros_like(self.d)
+                self.d_induced_prev = np.zeros_like(self.d)
             else: 
                 self.q, self.x_q, self.r_q = charge_tools.load_charges_to_solute(
                     self
@@ -142,6 +149,9 @@ class Solute:
                     self.p12scale, 
                     self.p13scale, 
                 ) = charge_tools.generate_msms_mesh_import_tinker_multipoles(self)
+
+                self.d_induced = np.zeros_like(self.d)
+                self.d_induced_prev = np.zeros_like(self.d)
 
 
             else:
@@ -381,7 +391,7 @@ class Solute:
         dphidz = 0.5 * (phi[0, : len(self.x_q)] - phi[0, len(self.x_q) :]) / h
         dphidr[:, 2] = dphidz
 
-        self.results["dphidr_charges"] = dphidr
+        self.results["gradphir_charges"] = dphidr
         self.timings["time_calc_gradient_field"] = time.time() - start_time
 
         if self.print_times:
@@ -402,13 +412,13 @@ class Solute:
             # If surface potential has not been calculated, calculate it now
             self.calculate_potential()
 
-        if "dphidr_charges" not in self.results:
+        if "gradphir_charges" not in self.results:
             # If gradient field has not been calculated, calculate it now
             self.calculate_gradient_field(h=h)
 
         start_time = time.time()
 
-        dphidr = self.results["dphidr_charges"]
+        dphidr = self.results["gradphir_charges"]
 
         convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
 
@@ -518,6 +528,398 @@ class Solute:
 
         return None
 
+    def compute_induced_dipole(self):
+        
+        N = len(xq)
+        
+        u12scale = 1.0
+        u13scale = 1.0
+
+        
+        flag_polar_group = True
+        
+        
+        self.compute_coulomb_dphi_multipole()
+        
+        self.compute_coulomb_dphi_multipole_Thole()
+        
+        dphi_coul = self.results["d_phi_coulomb_multipole"] + self.results["d_phi_coulomb_multipole_Thole"]
+        
+        dphi_reac = self.results["gradphir_charges"] 
+        
+        d_induced = self.results["induced_dipole"]
+
+        SOR = self.SOR
+        for i in range(N):
+            
+            E_total = (dphi_coul[i]/self.ep_in + 4*np.pi*dphi_reac[i])*-1
+            d_induced[i] = d_induced[i]*(1 - SOR) + np.dot(alphaxx[i], E_total)*SOR
+        
+       self.results["induced_dipole"] = d_induced
+
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def compute_coulomb_dphi_multipole(self):
+
+        xq = self.xq
+        q = self.q
+        p = self.p
+        Q = self.Q
+        alphaxx = self.alpha[:,0,0]
+        thole = self.thole
+        polar_group = self.polar_group
+        flag_polar_group = self.flag_polar_group
+
+        
+        N = len(xq)
+        T1 = np.zeros((3))
+        T2 = np.zeros((3,3))
+        eps = 1e-15
+        
+        scale3 = 1.0
+        scale5 = 1.0
+        scale7 = 1.0
+        
+        dphi = np.zeros((N,3))
+        
+        for i in range(N):
+            
+            aux = np.zeros((3))
+            
+            Ri = xq[i] - xq
+            Rnorm = np.sqrt(np.sum((Ri*Ri), axis = 1) + eps*eps)
+            
+            for j in np.where(Rnorm>1e-12)[0]:
+                
+                R3 = Rnorm[j]**3
+                R5 = Rnorm[j]**5
+                R7 = Rnorm[j]**7
+                
+                if flag_polar_group==False:
+                    
+                    not_same_polar_group = True
+                    
+                else:
+                    
+                    gamma = min(thole[i], thole[j])
+                    damp = (alpha[i]*alpha[j])**0.16666667
+                    damp += 1e-12
+                    damp = -1*gamma * (R3/(damp*damp*damp))
+                    expdamp = np.exp(damp)
+                    
+                    scale3 = 1 - expdamp
+                    scale5 = 1 - expdamp*(1-damp)
+                    scale7 = 1 - expdamp*(1-damp+0.6*damp*damp)
+                    
+                    if polar_group[i]!=polar_group[j]:
+                        
+                        not_same_polar_group = True
+                        
+                    else:
+                        
+                        not_same_polar_group = False
+                        
+                if not_same_polar_group==True:
+                    
+                    for k in range(3):
+                        
+                        T0 = -Ri[j,k]/R3 * scale3
+                        
+                        for l in range(3):
+                            
+                            dkl = (k==l)*1.0
+                            
+                            T1[l] = dkl/R3 * scale3 - 3*Ri[j,k]*Ri[j,l]/R5 * scale5
+                            
+                            for m in range(3):
+                                
+                                dkm = (k==m)*1.0
+                                T2[l][m] = (dkm*Ri[j,l]+dkl*Ri[j,m])/R5 * scale5 - 5*Ri[j,l]*Ri[j,m]*Ri[j,k]/R7 * scale7
+             
+                        
+                        aux[k] += T0*q[j] + np.sum(T1*p[j]) + 0.5*np.sum(np.sum(T2[:,:]*Q[j,:,:], axis = 1), axis = 0)
+                    
+            dphi[i,:] += aux[:]
+            
+        self.results["d_phi_coulomb_multipole"] = dphi
+
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def coulomb_ddphi_multipole(xq, q, p, Q):
+        
+        T1 = np.zeros((3))
+        T2 = np.zeros((3,3))
+        
+        eps = 1e-15
+        
+        N = len(xq)
+        
+        ddphi = np.zeros((N,3,3))
+        
+        for i in range(N):
+            
+            aux = np.zeros((3,3))
+            
+            Ri = xq[i] - xq
+            Rnorm = np.sqrt(np.sum((Ri*Ri), axis = 1) + eps*eps)
+            
+            for j in np.where(Rnorm>1e-12)[0]:
+                
+                R3 = Rnorm[j]**3
+                R5 = Rnorm[j]**5
+                R7 = Rnorm[j]**7
+                R9 = R3**3
+                
+                for k in range(3):
+                    
+                    for l in range(3):
+                        
+                        dkl = (k==l)*1.0
+                        T0 = -dkl/R3 + 3*Ri[j,k]*Ri[j,l]/R5
+                        
+                        for m in range(3):
+                            
+                            dkm = (k==m)*1.0
+                            dlm = (l==m)*1.0
+                            
+                            T1[m] = -3*(dkm*Ri[j,l]+dkl*Ri[j,m]+dlm*Ri[j,k])/R5 + 15*Ri[j,l]*Ri[j,m]*Ri[j,k]/R7
+                            
+                            for n in range(3):
+                                
+                                dkn = (k==n)*1.0
+                                dln = (l==n)*1.0
+                                
+                                T2[m][n] = 35*Ri[j,k]*Ri[j,l]*Ri[j,m]*Ri[j,n]/R9 - 5*(Ri[j,m]*Ri[j,n]*dkl \
+                                                                              + Ri[j,l]*Ri[j,n]*dkm \
+                                                                              + Ri[j,m]*Ri[j,l]*dkn \
+                                                                              + Ri[j,k]*Ri[j,n]*dlm \
+                                                                              + Ri[j,m]*Ri[j,k]*dln)/R7 + (dkm*dln + dlm*dkn)/R5
+                                
+                        aux[k][l] += T0*q[j] + np.sum(T1[:]*p[j,:]) +  0.5*np.sum(np.sum(T2[:,:]*Q[j,:,:], axis = 1), axis = 0)
+                        
+            ddphi[i,:,:] += aux[:,:]
+            
+        return ddphi
+
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def coulomb_phi_multipole_Thole(xq, p, alpha, thole, polar_group, connections_12, pointer_connections_12, \
+                                    connections_13, pointer_connections_13, p12scale, p13scale):
+        
+        eps = 1e-15
+        T1 = np.zeros((3))
+        
+        N = len(xq)
+        
+        phi = np.zeros((N))
+        
+        for i in range(N):
+            
+            aux = 0.
+            start_12 = pointer_connections_12[i]
+            stop_12 = pointer_connections_12[i+1]
+            start_13 = pointer_connections_13[i]
+            stop_13 = pointer_connections_13[i+1]
+            
+            Ri = xq[i] - xq
+            
+            r = 1./np.sqrt(np.sum((Ri*Ri), axis = 1) + eps*eps)
+            
+            for j in np.where(r<1e12)[0]:
+                
+                pscale = 1.0
+                
+                for ii in range(start_12, stop_12):
+                    
+                    if connections_12[ii]==j:
+                        
+                        pscale = p12scale
+                        
+                for ii in range(start_13, stop_13):
+                    
+                    if connections_13[ii]==j:
+                        
+                        pscale = p13scale
+                        
+                r3 = r[j]**3
+                
+                gamma = min(thole[i], thole[j])
+                damp = (alpha[i]*alpha[j])**0.16666667
+                damp += 1e-12
+                damp = -gamma * (1/(r3*damp**3))
+                expdamp = np.exp(damp)
+                
+                scale3 = 1 - expdamp
+                
+                for k in range(3):
+                    
+                    T1[k] = Ri[j,k]*r3*scale3*pscale
+                    
+                aux += np.sum(T1[:]*p[j,:])
+                
+            phi[i] += aux
+        
+        return phi
+
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def compute_coulomb_dphi_multipole_Thole(self)
+
+        
+        xq = self.xq
+        q = self.q
+        p = self.p
+        Q = self.Q
+        alphaxx = self.alpha[:,0,0]
+        thole = self.thole
+        polar_group = self.polar_group
+        flag_polar_group = self.flag_polar_group
+        connections_12 = self.connections_12
+        pointer_connections_12 = self.pointer_connections_12
+        connections_13 = self.connections_13
+        pointer_connections_13 = self.pointer_connections_13
+        p12scale = self.p12scale
+        p13scale = self.p13scale
+
+        
+        eps = 1e-15
+        T1 = np.zeros((3))
+        
+        N = len(xq)
+        
+        dphi = np.zeros((N,3))
+        
+        for i in range(N):
+            
+            aux = np.zeros((3))
+            
+            start_12 = pointer_connections_12[i]
+            stop_12 = pointer_connections_12[i+1]
+            start_13 = pointer_connections_13[i]
+            stop_13 = pointer_connections_13[i+1]
+            
+            Ri = xq[i] - xq
+            r = 1./np.sqrt(np.sum((Ri*Ri), axis = 1) + eps*eps)
+            
+            for j in np.where(r<1e12)[0]:
+                
+                pscale = 1.0
+                
+                for ii in range(start_12, stop_12):
+                    
+                    if connections_12[ii]==j:
+                        
+                        pscale = p12scale
+                        
+                for ii in range(start_13, stop_13):
+                    
+                    if connections_13[ii]==j:
+                        
+                        pscale = p13scale
+                        
+                r3 = r[j]**3
+                r5 = r[j]**5
+                
+                gamma = min(thole[i], thole[j])
+                damp = (alpha[i]*alpha[j])**0.16666667
+                damp += 1e-12
+                damp = -gamma * (1/(r3*damp**3))
+                expdamp = np.exp(damp)
+                
+                scale3 = 1 - expdamp
+                scale5 = 1 - expdamp*(1 - damp)
+                
+                for k in range(3):
+                    
+                    for l in range(3):
+                        
+                        dkl = (k==l)*1.0
+                        T1[l] = scale3*dkl*r3*pscale - scale5*3*Ri[j,k]*Ri[j,l]*r5*pscale
+                        
+                    aux[k] += np.sum(T1[:] * p[j,:])
+                    
+            dphi[i,:] += aux[:]
+
+        self.results["d_phi_coulomb_multipole_Thole"] = dphi
+
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def coulomb_ddphi_multipole_Thole(xq, p, alpha, thole, polar_group, connections_12, pointer_connections_12, \
+                                     connections_13, pointer_connections_13, p12scale, p13scale):
+        
+        eps = 1e-15
+        T1 = np.zeros((3))
+        
+        N = len(xq)
+        
+        ddphi = np.zeros((N,3,3))
+        
+        for i in range(N):
+            
+            aux = np.zeros((3,3))
+            
+            start_12 = pointer_connections_12[i]
+            stop_12 = pointer_connections_12[i+1]
+            start_13 = pointer_connections_13[i]
+            stop_13 = pointer_connections_13[i+1]
+            
+            Ri = xq[i] - xq
+            r = 1./np.sqrt(np.sum((Ri*Ri), axis = 1) + eps*eps)
+            
+            for j in np.where(r<1e12)[0]:
+                
+                pscale = 1.0
+                
+                for ii in range(start_12, stop_12):
+                    
+                    if connections_12[ii]==j:
+                        
+                        pscale = p12scale
+                        
+                for ii in range(start_13, stop_13):
+                    
+                    if connections_13[ii]==j:
+                        
+                        pscale = p13scale
+                        
+                r3 = r[j]**3
+                r5 = r[j]**5
+                r7 = r[j]**7
+                
+                gamma = min(thole[i], thole[j])
+                damp = (alpha[i]*alpha[j])**0.16666667
+                damp += 1e-12
+                damp = -gamma * (1/(r3*damp**3))
+                expdamp = np.exp(damp)
+                
+                scale5 = 1 - expdamp*(1 - damp)
+                scale7 = 1 - expdamp*(1 - damp + 0.6*damp**2)
+                
+                for k in range(3):
+                    
+                    for l in range(3):
+                        
+                        dkl = (k==l)*1.0
+                        
+                        for m in range(3):
+                            
+                            dkm = (k==m)*1.0
+                            dlm = (l==m)*1.0
+                            
+                            T1[m] = -3*(dkm*Ri[j,l] + dkl*Ri[j,m] + dlm*Ri[j,k])*r5*scale5*pscale \
+                            + 15*Ri[j,l]*Ri[j,m]*Ri[j,k]*r7*scale7*pscale
+                            
+                        aux[k][l] += np.sum(T1[:]*p[j,:])
+                        
+            ddphi[i,:,:] += aux[:,:]
+            
+        return ddphi
+            
 
 def get_name_from_pdb(pdb_path):
     pdb_file = open(pdb_path)

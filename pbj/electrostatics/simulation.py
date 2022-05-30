@@ -32,6 +32,8 @@ class Simulation:
         
         self.operator_assembler = "dense"
 
+        self.SOR = 0.7
+
     @property
     def pb_formulation(self):
         return self._pb_formulation
@@ -54,6 +56,7 @@ class Simulation:
             else:
                 solute.ep_ex = self.ep_ex
                 solute.kappa = self.kappa
+                solute.SOR = self.SOR
                 solute.operator_assembler = self.operator_assembler
                 self.solutes.append(solute)
         else:
@@ -159,7 +162,58 @@ class Simulation:
             solute.results["phi"]  = solution[2*index]
             solute.results["d_phi"] = solution[2*index+1] 
 
+            solute.results
+
         self.timings["time_compute_potential"] = time.time() - start_time
+
+    def calculate_potentials_polarizable(self):
+
+        start_time = time.time()
+
+        self.results["induced_dipole"] = np.zeros_like(self.d)
+
+        self.create_and_assemble_linear_system()
+        self.apply_preconditioning()
+
+        # Use GMRES to solve the system of equations
+        gmres_start_time = time.time()
+        x, info, it_count = utils.solver(
+            self.matrices["A_discrete"],
+            self.rhs["rhs_discrete"],
+            self.gmres_tolerance,
+            self.gmres_restart,
+            self.gmres_max_iterations,
+        )
+
+        self.timings["time_gmres"] = time.time() - gmres_start_time
+
+        from bempp.api.assembly.blocked_operator import (
+            grid_function_list_from_coefficients,
+        )
+
+        solution = grid_function_list_from_coefficients(
+            x.ravel(), self.matrices["A"].domain_spaces
+        )
+
+        for index, solute in enumerate(self.solutes):
+
+            N_dirichl = solute.dirichl_space.global_dof_count
+            N_neumann = solute.neumann_space.global_dof_count
+
+            solute.results["phi"]  = solution[2*index]
+            solute.results["d_phi"] = solution[2*index+1] 
+
+            solute.calculate_gradient_field()
+
+            solute.d_induced_prev[:,:] = solute.d_induced[:,:]
+
+            solute.compute_induced_dipole()
+
+            
+
+        self.timings["time_compute_potential"] = time.time() - start_time
+
+
 
         # Print times, if this is desired
 #if self.print_times:
