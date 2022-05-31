@@ -22,6 +22,8 @@ class Simulation:
         self.gmres_restart = 1000
         self.gmres_max_iterations = 1000
 
+        self.induced_dipole_iter_tol = 1e-2
+
         self.solutes = list()
         self.matrices = dict()
         self.rhs = dict()
@@ -57,6 +59,7 @@ class Simulation:
                 solute.ep_ex = self.ep_ex
                 solute.kappa = self.kappa
                 solute.SOR = self.SOR
+                solute.induced_dipole_iter_tol = self.induced_dipole_iter_tol
                 solute.operator_assembler = self.operator_assembler
                 self.solutes.append(solute)
         else:
@@ -105,6 +108,16 @@ class Simulation:
 
         self.matrices["A"] = A
 
+    def create_and_assemble_rhs(self):
+
+        for index, solute in enumerate(self.solutes):
+
+            self.rhs["rhs_" + str(index + 1)] = [
+                solute.rhs["rhs_1"],
+                solute.rhs["rhs_2"],
+            ]
+
+
     def apply_preconditioning(self):
         self.matrices["A_final"] = self.matrices["A"]
 
@@ -126,45 +139,66 @@ class Simulation:
             self.rhs["rhs_final"], "weak", self.matrices["A"]
         )
 
+    def apply_preconditioning_rhs(self):
+
+        rhs_final = []
+        count = 0
+        for key, solute_rhs in self.rhs.items():
+            if count >= len(self.matrices["A"].domain_spaces) / 2:
+                break
+            else:
+                rhs_final.extend(solute_rhs)
+                count += 1
+
+        self.rhs["rhs_final"] = rhs_final
+
+        self.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+            self.rhs["rhs_final"], "weak", self.matrices["A"]
+        )
+        
     
     def calculate_potentials(self):
 
-        start_time = time.time()
+        if self.force_field == "amoeba":
+            self.calculate_potentials_polarizable()
 
-        self.create_and_assemble_linear_system()
-        self.apply_preconditioning()
+        else:
+            start_time = time.time()
 
-        # Use GMRES to solve the system of equations
-        gmres_start_time = time.time()
-        x, info, it_count = utils.solver(
-            self.matrices["A_discrete"],
-            self.rhs["rhs_discrete"],
-            self.gmres_tolerance,
-            self.gmres_restart,
-            self.gmres_max_iterations,
-        )
+            self.create_and_assemble_linear_system()
+            self.apply_preconditioning()
 
-        self.timings["time_gmres"] = time.time() - gmres_start_time
+            # Use GMRES to solve the system of equations
+            gmres_start_time = time.time()
+            x, info, it_count = utils.solver(
+                self.matrices["A_discrete"],
+                self.rhs["rhs_discrete"],
+                self.gmres_tolerance,
+                self.gmres_restart,
+                self.gmres_max_iterations,
+            )
 
-        from bempp.api.assembly.blocked_operator import (
-            grid_function_list_from_coefficients,
-        )
+            self.timings["time_gmres"] = time.time() - gmres_start_time
 
-        solution = grid_function_list_from_coefficients(
-            x.ravel(), self.matrices["A"].domain_spaces
-        )
+            from bempp.api.assembly.blocked_operator import (
+                grid_function_list_from_coefficients,
+            )
 
-        for index, solute in enumerate(self.solutes):
+            solution = grid_function_list_from_coefficients(
+                x.ravel(), self.matrices["A"].domain_spaces
+            )
 
-            N_dirichl = solute.dirichl_space.global_dof_count
-            N_neumann = solute.neumann_space.global_dof_count
+            for index, solute in enumerate(self.solutes):
 
-            solute.results["phi"]  = solution[2*index]
-            solute.results["d_phi"] = solution[2*index+1] 
+                N_dirichl = solute.dirichl_space.global_dof_count
+                N_neumann = solute.neumann_space.global_dof_count
 
-            solute.results
+                solute.results["phi"]  = solution[2*index]
+                solute.results["d_phi"] = solution[2*index+1] 
 
-        self.timings["time_compute_potential"] = time.time() - start_time
+                solute.results
+
+            self.timings["time_compute_potential"] = time.time() - start_time
 
     def calculate_potentials_polarizable(self):
 
@@ -175,41 +209,72 @@ class Simulation:
         self.create_and_assemble_linear_system()
         self.apply_preconditioning()
 
-        # Use GMRES to solve the system of equations
-        gmres_start_time = time.time()
-        x, info, it_count = utils.solver(
-            self.matrices["A_discrete"],
-            self.rhs["rhs_discrete"],
-            self.gmres_tolerance,
-            self.gmres_restart,
-            self.gmres_max_iterations,
-        )
+        induced_dipole_residual = 1.
 
-        self.timings["time_gmres"] = time.time() - gmres_start_time
+        dipole_diff = np.zeros(len(self.solutes))
 
-        from bempp.api.assembly.blocked_operator import (
-            grid_function_list_from_coefficients,
-        )
+        self.results["dipole_iter_count"] = 0
 
-        solution = grid_function_list_from_coefficients(
-            x.ravel(), self.matrices["A"].domain_spaces
-        )
 
-        for index, solute in enumerate(self.solutes):
 
-            N_dirichl = solute.dirichl_space.global_dof_count
-            N_neumann = solute.neumann_space.global_dof_count
+        while induced_dipole_residual > self.induced_dipole_iter_tol:
 
-            solute.results["phi"]  = solution[2*index]
-            solute.results["d_phi"] = solution[2*index+1] 
+            if self.results["dipole_iter_count"] != 0:
+                self.create_and_assemble_rhs()
+                self.apply_preconditioning_rhs()
+                
 
-            solute.calculate_gradient_field()
+            # Use GMRES to solve the system of equations
+            gmres_start_time = time.time()
+            x, info, it_count = utils.solver(
+                self.matrices["A_discrete"],
+                self.rhs["rhs_discrete"],
+                self.gmres_tolerance,
+                self.gmres_restart,
+                self.gmres_max_iterations,
+            )
 
-            solute.d_induced_prev[:,:] = solute.d_induced[:,:]
+            self.timings["time_gmres"] = time.time() - gmres_start_time
 
-            solute.compute_induced_dipole()
+            from bempp.api.assembly.blocked_operator import (
+                grid_function_list_from_coefficients,
+            )
 
-            
+            solution = grid_function_list_from_coefficients(
+                x.ravel(), self.matrices["A"].domain_spaces
+            )
+
+            for index, solute in enumerate(self.solutes):
+
+                N_dirichl = solute.dirichl_space.global_dof_count
+                N_neumann = solute.neumann_space.global_dof_count
+
+                solute.results["phi"]  = solution[2*index]
+                solute.results["d_phi"] = solution[2*index+1] 
+
+                solute.calculate_gradient_field()
+
+                d_induced_prev = solute.results["induced_dipole"].copy()
+                
+                solute.compute_induced_dipole_dissolved()
+
+                d_induced = solute.results["induced_dipole"]
+
+                dipole_diff[index] = np.max(np.sqrt(np.sum(
+                                (np.linalg.norm(d_induced_prev-d_induced,axis=1))**2)/len(d_induced)
+                            )
+                        )
+
+            induced_dipole_residual = np.max(dipole_diff)
+
+            print("Induced dipole iteration %i -> residual: %s"%(
+                        self.results["dipole_iter_count"], induced_dipole_residual
+                        )
+                    )
+
+            self.results["dipole_iter_count"] += 1
+
+             
 
         self.timings["time_compute_potential"] = time.time() - start_time
 
@@ -231,7 +296,12 @@ class Simulation:
         
     
         for index, solute in enumerate(self.solutes):
-            solute.calculate_solvation_energy()
+            
+            if self.force_field == "amoeba":
+                solute.calculate_solvation_energy_polarizable()
+
+            else:
+                solute.calculate_solvation_energy()
 
 
     def calculate_solvation_forces(self, h=0.001, rerun_all=False):
@@ -243,5 +313,3 @@ class Simulation:
     
         for index, solute in enumerate(self.solutes):
             solute.calculate_solvation_forces()
-
-
