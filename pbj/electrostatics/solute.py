@@ -3,7 +3,7 @@ import bempp.api
 import os
 import numpy as np
 import time
-#from numba import jit
+from numba import jit
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
 import pbj.electrostatics.pb_formulation.formulations as pb_formulations
@@ -712,10 +712,12 @@ class Solute:
             self.results["d_phi_coulomb_multipole"] = dphi_perm
         
         d_induced = np.zeros_like(self.d)
+        self.results["induced_dipole_vacuum"] = d_induced
 
         self.results["dipole_iter_count_vacuum"] = 0 
 
         induced_dipole_residual = 1.
+        dipole_iter_count_vacuum = 1
 
         while induced_dipole_residual > self.induced_dipole_iter_tol:
     
@@ -723,12 +725,12 @@ class Solute:
             
             dphi_coul = self.results["d_phi_coulomb_multipole"] + dphi_Thole
             
-            d_induced_dipole_prev = d_induced.copy()
+            d_induced_prev = d_induced.copy()
 
             SOR = self.SOR
             for i in range(N):
                 
-                E_total = (dphi_coul[i]/self.ep_in + 4*np.pi*dphi_reac[i])*-1
+                E_total = (dphi_coul[i]/self.ep_in)*-1
                 d_induced[i] = d_induced[i]*(1 - SOR) + np.dot(alphaxx[i], E_total)*SOR
         
             induced_dipole_residual = np.max(np.sqrt(np.sum(
@@ -737,15 +739,14 @@ class Solute:
                         )
 
             print("Vacuum induced dipole iteration %i -> residual: %s"%(
-                        self.results["dipole_iter_count"], induced_dipole_residual
+                        dipole_iter_count_vacuum, induced_dipole_residual
                         )
                     )
 
-            self.results["dipole_iter_count_vacuum"] += 1
+            dipole_iter_count_vacuum += 1
         
         self.results["induced_dipole_vacuum"] = d_induced
 
-    #@jit(nopython=True)
     def calculate_coulomb_phi_multipole(self):
         """
         Calculate the potential due to the permanent multipoles
@@ -755,6 +756,16 @@ class Solute:
         d = self.d
         Q = self.Q
 
+        phi = self._calculate_coulomb_phi_multipole(xq, q, d, Q)
+
+        return phi 
+
+    @staticmethod
+    @jit(nopython=True)
+    def _calculate_coulomb_phi_multipole(xq, q, d, Q):
+        """
+        Performs calculation of potencial due to permanent multipoles with jit
+        """
         N = len(xq)
         eps = 1e-15
         phi = np.zeros(N)
@@ -778,12 +789,9 @@ class Solute:
                         np.transpose(np.ones((N-1,3,3))*Ri.reshape((N-1,1,3)), (0,2,1))/ \
                         Rnorm.reshape((N-1,1,1))**5
             phi[i] = np.sum(q_temp[:]*T0[:]) + np.sum(T1[:]*d_temp[:]) + 0.5*np.sum(np.sum(T2[:]*Q_temp[:],axis=1))
-                
-        return phi 
 
-    #@jit(
-    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
-    #)
+        return phi
+                
     def calculate_coulomb_dphi_multipole(self, flag_polar_group=True):
         """
         Calculates the first derivative of the potential due to the permanent multipoles
@@ -800,7 +808,23 @@ class Solute:
         thole = self.thole
         polar_group = self.polar_group
 
-        
+        dphi = self._calculate_coulomb_dphi_multipole(xq, q, d, Q, alphaxx, thole, polar_group, flag_polar_group)
+
+        return dphi
+
+
+    @staticmethod
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def _calculate_coulomb_dphi_multipole(xq, q, d, Q, alphaxx, thole, polar_group, flag_polar_group):
+        """
+        Calculates the first derivative of the potential due to the permanent multipoles
+        with numba jit
+
+        flag_polar_group: (bool) consider polar groups in calculation
+        """
+
         N = len(xq)
         T1 = np.zeros((3))
         T2 = np.zeros((3,3))
@@ -873,9 +897,6 @@ class Solute:
             
         return dphi
 
-    #@jit(
-    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
-    #)
     def calculate_coulomb_ddphi_multipole(self):
         
         """
@@ -886,6 +907,20 @@ class Solute:
         d = self.d
         Q = self.Q
 
+        ddphi = self._calculate_coulomb_ddphi_multipole(xq, q, d, Q)
+
+        return ddphi
+
+    @staticmethod
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def _calculate_coulomb_ddphi_multipole(xq, q, d, Q):
+        
+        """
+        Calculates the second derivative of the electrostatic potential of the permantent multipoles
+        with numba jit
+        """
         T1 = np.zeros((3))
         T2 = np.zeros((3,3))
         
@@ -940,9 +975,6 @@ class Solute:
             
         return ddphi
 
-    #@jit(
-    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
-    #)
     def calculate_coulomb_phi_multipole_Thole(self, state):
         """
         Calculates the potential due to the induced dipoles according to Thole
@@ -965,6 +997,21 @@ class Solute:
         p12scale = self.p12scale
         p13scale = self.p13scale
 
+        phi = self._calculate_coulomb_phi_multipole_Thole(xq, induced_dipole, thole, alphaxx, connections_12, pointer_connections_12, connections_13, pointer_connections_13, p12scale, p13scale)
+
+        return phi
+
+    @staticmethod
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def _calculate_coulomb_phi_multipole_Thole(xq, induced_dipole, thole, alphaxx, connections_12, pointer_connections_12, connections_13, pointer_connections_13, p12scale, p13scale):
+        """
+        Calculates the potential due to the induced dipoles according to Thole
+        with numba jit
+
+        """
+        
         eps = 1e-15
         T1 = np.zeros((3))
         
@@ -1020,9 +1067,6 @@ class Solute:
         
         return phi
 
-    #@jit(
-    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
-    #)
     def calculate_coulomb_dphi_multipole_Thole(self, state):
 
         """
@@ -1045,7 +1089,21 @@ class Solute:
         p12scale = self.p12scale
         p13scale = self.p13scale
         alphaxx = self.alpha[:,0,0]
+        
+        dphi = self._calculate_coulomb_dphi_multipole_Thole(xq, induced_dipole, thole, alphaxx, connections_12, pointer_connections_12, connections_13, pointer_connections_13, p12scale, p13scale)
 
+        return dphi
+
+    @staticmethod
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def _calculate_coulomb_dphi_multipole_Thole(xq, induced_dipole, thole, alphaxx, connections_12, pointer_connections_12, connections_13, pointer_connections_13, p12scale, p13scale):
+
+        """
+        Calculates the derivative of the potential due to the induced dipoles according to Thole
+        with numba jit
+        """
         
         eps = 1e-15
         T1 = np.zeros((3))
@@ -1107,9 +1165,6 @@ class Solute:
 
         return dphi
 
-    #@jit(
-    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
-    #)
     def calculate_coulomb_ddphi_multipole_Thole(self, state):
         """
         Calculates the second derivative of the potential due to the induced dipoles according to Thole
@@ -1132,6 +1187,21 @@ class Solute:
         p12scale = self.p12scale
         p13scale = self.p13scale
         alphaxx = self.alpha[:,0,0]
+
+        ddphi = self._calculate_coulomb_ddphi_multipole_Thole(xq, induced_dipole, thole, alphaxx, connections_12, pointer_connections_12, connections_13, pointer_connections_13, p12scale, p13scale)
+
+        return ddphi
+
+    @staticmethod
+    @jit(
+        nopython=True, parallel=False, error_model="numpy", fastmath=True
+    )
+    def _calculate_coulomb_ddphi_multipole_Thole(xq, induced_dipole, thole, alphaxx, connections_12, pointer_connections_12, connections_13, pointer_connections_13, p12scale, p13scale):
+
+        """
+        Calculates the second derivative of the potential due to the induced dipoles according to Thole
+        with numba jit
+        """
 
         eps = 1e-15
         T1 = np.zeros((3))
