@@ -48,6 +48,8 @@ def rhs(self):
     neumann_space = self.neumann_space
     q = self.q
     x_q = self.x_q
+    d = self.d
+    Q = self.Q
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
     force_field = self.force_field
@@ -76,7 +78,7 @@ def rhs(self):
             T1 = np.transpose(dist.transpose()/norm**3)
             T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
             np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*p[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
             result[0] = (phi/(4*np.pi*ep_in))
 
         # @bempp.api.real_callable
@@ -119,7 +121,7 @@ def rhs(self):
             T1 = np.transpose(dist.transpose()/norm**3)
             T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
             np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*p[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
             result[0] = (phi/(4*np.pi*ep_in))
     
         if force_field == "amoeba":

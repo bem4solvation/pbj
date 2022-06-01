@@ -3,6 +3,7 @@ import bempp.api
 import os
 import numpy as np
 import time
+#from numba import jit
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
 import pbj.electrostatics.pb_formulation.formulations as pb_formulations
@@ -81,7 +82,7 @@ class Solute:
             self.pqr_path = solute_file_path
             self.solute_name = os.path.split(solute_file_path.split(".")[-2])[-1]
 
-        elif file_extension == "xyz"
+        elif file_extension == "xyz":
             self.imported_file_type = "xyz"
             self.xyz_path = solute_file_path
             self.solute_name = os.path.split(solute_file_path.split(".")[-2])[-1]
@@ -339,6 +340,10 @@ class Solute:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
 
+        q = self.q
+        d = self.d
+        Q = self.Q
+
         solution_dirichl = self.results["phi"]
         solution_neumann = self.results["d_phi"]
 
@@ -348,25 +353,31 @@ class Solute:
         dlp_q = double_layer(self.dirichl_space, self.x_q.transpose())
         phi_q = slp_q * solution_neumann - dlp_q * solution_dirichl
 
-        self.results["phir_charges"] = phi_q
+        self.results["phir_charges"] = phi_q[0,:]
+
+        if "gradphir_charges" not in self.results:
+            self.calculate_gradgrad_field()
 
         self.calculate_gradgrad_field()
 
         # total solvation energy applying constant to get units [kcal/mol]
         q_aux = 0
-        p_aux = 0
+        d_aux = 0
         Q_aux = 0
         
+        dphi_q = self.results["gradphir_charges"]
+        ddphi_q = self.results["gradgradphir_charges"]
+        
         for i in range(len(q)):
-            q_aux += q[i]*phi[i]
+            q_aux += q[i]*phi_q[0,i]
             
             for j in range(3):
-                p_aux += p[i,j]*dphi[i,j]
+                d_aux += d[i,j]*dphi_q[i,j]
                 
                 for k in range(3):
-                    Q_aux += Q[i,j,k]*ddphi[i,j,k]/6.
+                    Q_aux += Q[i,j,k]*ddphi_q[i,j,k]/6.
 
-        solvent_energy = 2 * np.pi * 332.064 * (q_aux + p_aux + Q_aux)
+        solvent_energy = 2 * np.pi * 332.064 * (q_aux + d_aux + Q_aux)
         coulomb_energy_dissolved = self.calculate_coulomb_energy_multipole(state="dissolved")
 
 
@@ -390,9 +401,12 @@ class Solute:
         state: (string) dissolved or vacuum, to choose which induced dipole to use
         """
     
-        N = len(xq)
+        N = len(self.x_q)
         
-        
+        q = self.q
+        d = self.d
+        Q = self.Q
+
         #phi, dphi and ddphi from permanent multipoles
         phi_perm   = self.calculate_coulomb_phi_multipole()
         flag_polar_group = False
@@ -408,7 +422,7 @@ class Solute:
         dphi  = dphi_perm + dphi_thole
         ddphi = ddphi_perm + ddphi_thole
         
-        point_energy = q[:]*phi[:] + np.sum(p[:] * dphi[:], axis = 1) + (np.sum(np.sum(Q[:]*ddphi[:], axis = 1), axis = 1))/6.
+        point_energy = q[:]*phi[:] + np.sum(d[:] * dphi[:], axis = 1) + (np.sum(np.sum(Q[:]*ddphi[:], axis = 1), axis = 1))/6.
 
         coulomb_energy = 2 * np.pi * 332.064 * sum(point_energy) 
         
@@ -504,7 +518,7 @@ class Solute:
         x_q = self.x_q
         neumann_space = self.neumann_space
         dirichl_space = self.dirichl_space
-        solution_neumann = self.results["dphi"]
+        solution_neumann = self.results["d_phi"]
         solution_dirichl = self.results["phi"]
 
         ddphi = np.zeros((len(x_q),3,3))
@@ -655,12 +669,12 @@ class Solute:
 
     def calculate_induced_dipole_dissolved(self):
         
-        N = len(xq)
+        N = len(self.x_q)
         
         u12scale = 1.0
         u13scale = 1.0
 
-        
+        alphaxx = self.alpha[:,0,0]
         
         if "d_phi_coulomb_multipole" not in self.results:
             dphi_perm = self.calculate_coulomb_dphi_multipole()
@@ -680,26 +694,29 @@ class Solute:
             E_total = (dphi_coul[i]/self.ep_in + 4*np.pi*dphi_reac[i])*-1
             d_induced[i] = d_induced[i]*(1 - SOR) + np.dot(alphaxx[i], E_total)*SOR
         
-       self.results["induced_dipole"] = d_induced
+        self.results["induced_dipole"] = d_induced
 
 
     def calculate_induced_dipole_vacuum(self):
         
-        N = len(xq)
+        N = len(self.x_q)
         
         u12scale = 1.0
         u13scale = 1.0
 
-        
+        alphaxx = self.alpha[:,0,0]
         
         
         if "d_phi_coulomb_multipole" not in self.results:
             dphi_perm = self.calculate_coulomb_dphi_multipole()
             self.results["d_phi_coulomb_multipole"] = dphi_perm
         
-        d_induced = np.zeros_like(self.p)
+        d_induced = np.zeros_like(self.d)
 
         self.results["dipole_iter_count_vacuum"] = 0 
+
+        induced_dipole_residual = 1.
+
         while induced_dipole_residual > self.induced_dipole_iter_tol:
     
             dphi_Thole = self.calculate_coulomb_dphi_multipole_Thole(state = "vacuum")
@@ -725,17 +742,17 @@ class Solute:
                     )
 
             self.results["dipole_iter_count_vacuum"] += 1
+        
+        self.results["induced_dipole_vacuum"] = d_induced
 
-       self.results["induced_dipole_vacuum"] = d_induced
-
-    @jit(nopython=True)
+    #@jit(nopython=True)
     def calculate_coulomb_phi_multipole(self):
         """
         Calculate the potential due to the permanent multipoles
         """
         xq = self.x_q
         q = self.q
-        p = self.p
+        d = self.d
         Q = self.Q
 
         N = len(xq)
@@ -752,7 +769,7 @@ class Solute:
             Ri = np.delete(Ri, (3*i, 3*i+1, 3*i+2)).reshape((N-1,3))
             Rnorm = np.delete(Rnorm, i)
             q_temp = np.delete(q, i)
-            p_temp = np.delete(p, (3*i, 3*i+1, 3*i+2)).reshape((N-1,3))
+            d_temp = np.delete(d, (3*i, 3*i+1, 3*i+2)).reshape((N-1,3))
             Q_temp = np.delete(Q, (9*i, 9*i+1, 9*i+2, 9*i+3, 9*i+4, 9*i+5, 9*i+6, 9*i+7, 9*i+8)).reshape((N-1,3,3))
             
             T0 = 1./Rnorm[:]
@@ -760,13 +777,13 @@ class Solute:
             T2[:,:,:] = np.ones((N-1,3,3))[:] * Ri.reshape((N-1,1,3)) * \
                         np.transpose(np.ones((N-1,3,3))*Ri.reshape((N-1,1,3)), (0,2,1))/ \
                         Rnorm.reshape((N-1,1,1))**5
-            phi[i] = np.sum(q_temp[:]*T0[:]) + np.sum(T1[:]*p_temp[:]) + 0.5*np.sum(np.sum(T2[:]*Q_temp[:],axis=1))
+            phi[i] = np.sum(q_temp[:]*T0[:]) + np.sum(T1[:]*d_temp[:]) + 0.5*np.sum(np.sum(T2[:]*Q_temp[:],axis=1))
                 
         return phi 
 
-    @jit(
-        nopython=True, parallel=False, error_model="numpy", fastmath=True
-    )
+    #@jit(
+    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
+    #)
     def calculate_coulomb_dphi_multipole(self, flag_polar_group=True):
         """
         Calculates the first derivative of the potential due to the permanent multipoles
@@ -775,9 +792,9 @@ class Solute:
         """
 
 
-        xq = self.xq
+        xq = self.x_q
         q = self.q
-        p = self.p
+        d = self.d
         Q = self.Q
         alphaxx = self.alpha[:,0,0]
         thole = self.thole
@@ -815,7 +832,7 @@ class Solute:
                 else:
                     
                     gamma = min(thole[i], thole[j])
-                    damp = (alpha[i]*alpha[j])**0.16666667
+                    damp = (alphaxx[i]*alphaxx[j])**0.16666667
                     damp += 1e-12
                     damp = -1*gamma * (R3/(damp*damp*damp))
                     expdamp = np.exp(damp)
@@ -850,15 +867,15 @@ class Solute:
                                 T2[l][m] = (dkm*Ri[j,l]+dkl*Ri[j,m])/R5 * scale5 - 5*Ri[j,l]*Ri[j,m]*Ri[j,k]/R7 * scale7
              
                         
-                        aux[k] += T0*q[j] + np.sum(T1*p[j]) + 0.5*np.sum(np.sum(T2[:,:]*Q[j,:,:], axis = 1), axis = 0)
+                        aux[k] += T0*q[j] + np.sum(T1*d[j]) + 0.5*np.sum(np.sum(T2[:,:]*Q[j,:,:], axis = 1), axis = 0)
                     
             dphi[i,:] += aux[:]
             
         return dphi
 
-    @jit(
-        nopython=True, parallel=False, error_model="numpy", fastmath=True
-    )
+    #@jit(
+    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
+    #)
     def calculate_coulomb_ddphi_multipole(self):
         
         """
@@ -866,7 +883,7 @@ class Solute:
         """
         xq = self.x_q
         q = self.q
-        p = self.p
+        d = self.d
         Q = self.Q
 
         T1 = np.zeros((3))
@@ -917,15 +934,15 @@ class Solute:
                                                                               + Ri[j,k]*Ri[j,n]*dlm \
                                                                               + Ri[j,m]*Ri[j,k]*dln)/R7 + (dkm*dln + dlm*dkn)/R5
                                 
-                        aux[k][l] += T0*q[j] + np.sum(T1[:]*p[j,:]) +  0.5*np.sum(np.sum(T2[:,:]*Q[j,:,:], axis = 1), axis = 0)
+                        aux[k][l] += T0*q[j] + np.sum(T1[:]*d[j,:]) +  0.5*np.sum(np.sum(T2[:,:]*Q[j,:,:], axis = 1), axis = 0)
                         
             ddphi[i,:,:] += aux[:,:]
             
         return ddphi
 
-    @jit(
-        nopython=True, parallel=False, error_model="numpy", fastmath=True
-    )
+    #@jit(
+    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
+    #)
     def calculate_coulomb_phi_multipole_Thole(self, state):
         """
         Calculates the potential due to the induced dipoles according to Thole
@@ -933,13 +950,14 @@ class Solute:
         state: (string) dissolved or vacuum, to choose which induced dipole to use
         """
         
-        xq = self.xq
-        if state == "dissolved"
+        xq = self.x_q
+        if state == "dissolved":
             induced_dipole = self.results["induced_dipole"]
         else:
             induced_dipole = self.results["induced_dipole_vacuum"]
         
         thole = self.thole
+        alphaxx = self.alpha[:,0,0]
         connections_12 = self.connections_12
         pointer_connections_12 = self.pointer_connections_12
         connections_13 = self.connections_13
@@ -985,7 +1003,7 @@ class Solute:
                 r3 = r[j]**3
                 
                 gamma = min(thole[i], thole[j])
-                damp = (alpha[i]*alpha[j])**0.16666667
+                damp = (alphaxx[i]*alphaxx[j])**0.16666667
                 damp += 1e-12
                 damp = -gamma * (1/(r3*damp**3))
                 expdamp = np.exp(damp)
@@ -1002,10 +1020,10 @@ class Solute:
         
         return phi
 
-    @jit(
-        nopython=True, parallel=False, error_model="numpy", fastmath=True
-    )
-    def calculate_coulomb_dphi_multipole_Thole(self, state)
+    #@jit(
+    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
+    #)
+    def calculate_coulomb_dphi_multipole_Thole(self, state):
 
         """
         Calculates the derivative of the potential due to the induced dipoles according to Thole
@@ -1014,7 +1032,7 @@ class Solute:
         """
         
         xq = self.x_q
-        if state == "dissolved"
+        if state == "dissolved":
             induced_dipole = self.results["induced_dipole"]
         else:
             induced_dipole = self.results["induced_dipole_vacuum"]
@@ -1026,6 +1044,7 @@ class Solute:
         pointer_connections_13 = self.pointer_connections_13
         p12scale = self.p12scale
         p13scale = self.p13scale
+        alphaxx = self.alpha[:,0,0]
 
         
         eps = 1e-15
@@ -1067,7 +1086,7 @@ class Solute:
                 r5 = r[j]**5
                 
                 gamma = min(thole[i], thole[j])
-                damp = (alpha[i]*alpha[j])**0.16666667
+                damp = (alphaxx[i]*alphaxx[j])**0.16666667
                 damp += 1e-12
                 damp = -gamma * (1/(r3*damp**3))
                 expdamp = np.exp(damp)
@@ -1088,9 +1107,9 @@ class Solute:
 
         return dphi
 
-    @jit(
-        nopython=True, parallel=False, error_model="numpy", fastmath=True
-    )
+    #@jit(
+    #    nopython=True, parallel=False, error_model="numpy", fastmath=True
+    #)
     def calculate_coulomb_ddphi_multipole_Thole(self, state):
         """
         Calculates the second derivative of the potential due to the induced dipoles according to Thole
@@ -1098,9 +1117,9 @@ class Solute:
         state: (string) dissolved or vacuum, to choose which induced dipole to use
         """
         
-        xq = self.xq
+        xq = self.x_q
         
-        if state == "dissolved"
+        if state == "dissolved":
             induced_dipole = self.results["induced_dipole"]
         else:
             induced_dipole = self.results["induced_dipole_vacuum"]
@@ -1112,6 +1131,7 @@ class Solute:
         pointer_connections_13 = self.pointer_connections_13
         p12scale = self.p12scale
         p13scale = self.p13scale
+        alphaxx = self.alpha[:,0,0]
 
         eps = 1e-15
         T1 = np.zeros((3))
@@ -1153,7 +1173,7 @@ class Solute:
                 r7 = r[j]**7
                 
                 gamma = min(thole[i], thole[j])
-                damp = (alpha[i]*alpha[j])**0.16666667
+                damp = (alphaxx[i]*alphaxx[j])**0.16666667
                 damp += 1e-12
                 damp = -gamma * (1/(r3*damp**3))
                 expdamp = np.exp(damp)

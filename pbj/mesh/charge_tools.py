@@ -351,7 +351,7 @@ def load_tinker_multipoles_to_solute(solute):
     alpha: array size Nx3x3 with polarizabilities
             (tinker considers an isotropic value, not tensor)
     """
-    filename = solute.solute_name
+    filename = solute.xyz_path[:-4] # remove extension
     
     file_xyz = filename+'.xyz'
     file_key = filename+'.key'
@@ -671,7 +671,7 @@ def load_tinker_multipoles_to_solute(solute):
     return pos, q, p, Q, alpha, r, mass, polar_group, thole, \
            connections_12, connections_13, \
            pointer_connections_12, pointer_connections_13, \
-           p12scale, p13scale, N
+           p12scale, p13scale
 
 
 def generate_msms_mesh_import_tinker_multipoles(solute):

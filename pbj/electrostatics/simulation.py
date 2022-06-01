@@ -1,7 +1,7 @@
 import bempp.api
 import time
 
-# import numpy as np
+import numpy as np
 import pbj.electrostatics.solute
 import pbj.electrostatics.pb_formulation.formulations as pb_formulations
 import pbj.electrostatics.utils as utils
@@ -159,7 +159,7 @@ class Simulation:
     
     def calculate_potentials(self):
 
-        if self.force_field == "amoeba":
+        if self.solutes[0].force_field == "amoeba":
             self.calculate_potentials_polarizable()
 
         else:
@@ -204,7 +204,8 @@ class Simulation:
 
         start_time = time.time()
 
-        self.results["induced_dipole"] = np.zeros_like(self.d)
+        for index, solute in enumerate(self.solutes):
+            solute.results["induced_dipole"] = np.zeros_like(solute.d)
 
         self.create_and_assemble_linear_system()
         self.apply_preconditioning()
@@ -213,13 +214,14 @@ class Simulation:
 
         dipole_diff = np.zeros(len(self.solutes))
 
-        self.results["dipole_iter_count"] = 0
+        dipole_iter_count = 0
+        #self.results["dipole_iter_count"] = 0 # find better place to store this
 
 
 
         while induced_dipole_residual > self.induced_dipole_iter_tol:
 
-            if self.results["dipole_iter_count"] != 0:
+            if dipole_iter_count != 0:
                 self.create_and_assemble_rhs()
                 self.apply_preconditioning_rhs()
                 
@@ -256,7 +258,7 @@ class Simulation:
 
                 d_induced_prev = solute.results["induced_dipole"].copy()
                 
-                solute.compute_induced_dipole_dissolved()
+                solute.calculate_induced_dipole_dissolved()
 
                 d_induced = solute.results["induced_dipole"]
 
@@ -268,11 +270,11 @@ class Simulation:
             induced_dipole_residual = np.max(dipole_diff)
 
             print("Induced dipole iteration %i -> residual: %s"%(
-                        self.results["dipole_iter_count"], induced_dipole_residual
+                        dipole_iter_count, induced_dipole_residual
                         )
                     )
 
-            self.results["dipole_iter_count"] += 1
+            dipole_iter_count += 1
 
              
 
@@ -297,7 +299,7 @@ class Simulation:
     
         for index, solute in enumerate(self.solutes):
             
-            if self.force_field == "amoeba":
+            if self.solutes[0].force_field == "amoeba":
                 solute.calculate_solvation_energy_polarizable()
 
             else:
