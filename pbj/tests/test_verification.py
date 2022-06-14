@@ -28,9 +28,11 @@ def test_verification():
     def histidines():
         histidines = []
         print("Creating histidine meshes")
-        pqrpath = os.path.join(PBJ_PATH, "tests", 'his', "his.pqr")
-        for mesh_dens in [1.4,1.82,2.366]:
-            histidine = pbj.Solute(pqrpath, nanoshaper_grid_scale=mesh_dens, mesh_generator='nanoshaper')
+        pqrpath = os.path.join(PBJ_PATH, "tests", "his", "his.pqr")
+        for mesh_dens in [1.4, 1.82, 2.366]:
+            histidine = pbj.Solute(
+                pqrpath, nanoshaper_grid_scale=mesh_dens, mesh_generator="nanoshaper"
+            )
             histidines.append(histidine)
         return histidines
 
@@ -38,7 +40,7 @@ def test_verification():
         values = {}
         available = getmembers(pb_formulations, ismodule)
         for element in available:
-            if element[0] == 'common':
+            if element[0] == "common":
                 available.remove(element)
         for formulation_name, object_address in available:
             formulation = getattr(pb_formulations, formulation_name, None)
@@ -74,9 +76,9 @@ def test_verification():
         7,
         3,
     )
-    his_1 = -25.812683243090387 
-    his_2 = -24.48630195977033 
-    his_3  = -23.875642908991132
+    his_1 = -25.812683243090387
+    his_2 = -24.48630195977033
+    his_3 = -23.875642908991132
     _, solvation_value_his = richardson_extrapolation(his_3, his_2, his_1, 1.3)
     tol = 0.5
     file.write(
@@ -87,9 +89,8 @@ def test_verification():
     file.write(
         "The expected value for the solvation of an histidine aminoacid (used to verificate the SLIC and SLIC_PROP formulations) is: {}, with a tolerance of {}.\n\n".format(
             solvation_value_his, tol
-        )    
+        )
     )
-
 
     for sphere in spheres:
         formulations = list(values.keys())
@@ -116,9 +117,13 @@ def test_verification():
                     )
 
     for his in histidines:
-        formulations = ['slic', 'slic_prop']
+        formulations = ["slic", "slic_prop"]
         for formulation in formulations:
-            print("Computing for histidine, {} with {}".format(formulation, his.nanoshaper_grid_scale))
+            print(
+                "Computing for histidine, {} with {}".format(
+                    formulation, his.nanoshaper_grid_scale
+                )
+            )
             his.pb_formulation = formulation
             for preconditioner in values[formulation].keys():
                 if preconditioner == "no_precond":
@@ -136,7 +141,6 @@ def test_verification():
                         values[formulation][preconditioner],
                         (his.results["solvation_energy"], his.nanoshaper_grid_scale),
                     )
-                    
 
     solvation_energy_values = np.array([])
     solvation_energy_expected_values = np.array([])
@@ -146,13 +150,12 @@ def test_verification():
         "Extrapolated values and p parameter for each formulation and preconditioner combination:\n"
     )
 
-
-    for formulation in values.keys(): 
+    for formulation in values.keys():
         for preconditioner in values[formulation].keys():
             val_array = values[formulation][preconditioner]
-            if formulation in ['slic', 'slic_prop']:
+            if formulation in ["slic", "slic_prop"]:
                 p, val = richardson_extrapolation(
-                val_array[4], val_array[2], val_array[0], 1.3
+                    val_array[4], val_array[2], val_array[0], 1.3
                 )
             else:
                 p, val = richardson_extrapolation(
@@ -167,11 +170,11 @@ def test_verification():
                 solvation_energy_values_formulation_and_precond,
                 formulation + "_" + preconditioner,
             )
-            if formulation in ['direct_stern']:
+            if formulation in ["direct_stern"]:
                 solvation_energy_expected_values = np.append(
                     solvation_energy_expected_values, solvation_value_stern
                 )
-            elif formulation in ['slic', 'slic_prop']:
+            elif formulation in ["slic", "slic_prop"]:
                 solvation_energy_expected_values = np.append(
                     solvation_energy_expected_values, solvation_value_his
                 )

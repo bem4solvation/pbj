@@ -28,3 +28,30 @@ def solver(A, rhs, tolerance, restart_value, max_iterations, precond=None):
         )
 
     return x, info, callback.count
+
+
+def matrix_to_discrete_form(matrix, discrete_form_type):
+    if discrete_form_type == "strong":
+        matrix_discrete = matrix.strong_form()
+    elif discrete_form_type == "weak":
+        matrix_discrete = matrix.weak_form()
+    else:
+        raise ValueError("Unexpected discrete type: %s" % discrete_form_type)
+
+    return matrix_discrete
+
+
+def rhs_to_discrete_form(rhs_list, discrete_form_type, A):
+    from bempp.api.assembly.blocked_operator import (
+        coefficients_from_grid_functions_list,
+        projections_from_grid_functions_list,
+    )
+
+    if discrete_form_type == "strong":
+        rhs = coefficients_from_grid_functions_list(rhs_list)
+    elif discrete_form_type == "weak":
+        rhs = projections_from_grid_functions_list(rhs_list, A.dual_to_range_spaces)
+    else:
+        raise ValueError("Unexpected discrete form: %s" % discrete_form_type)
+
+    return rhs

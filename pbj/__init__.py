@@ -2,6 +2,7 @@
 # Add imports here
 import os
 from pbj.electrostatics.solute import Solute
+from pbj.electrostatics.simulation import Simulation
 
 PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 

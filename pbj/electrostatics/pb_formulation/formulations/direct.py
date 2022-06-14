@@ -48,8 +48,11 @@ def rhs(self):
     neumann_space = self.neumann_space
     q = self.q
     x_q = self.x_q
+    d = self.d
+    Q = self.Q
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
+    force_field = self.force_field
 
     if rhs_constructor == "fmm":
 
@@ -65,13 +68,30 @@ def rhs(self):
             os.remove(".rhs.tmp")
             result[:] = values[:, 0] / ep_in
 
+        @bempp.api.real_callable
+        def multipolar_charges_fun(x, n, i, result): # not using fmm
+            T2 = np.zeros((len(x_q),3,3))
+            phi = 0
+            dist = x - x_q
+            norm = np.sqrt(np.sum((dist*dist), axis = 1))
+            T0 = 1/norm[:]
+            T1 = np.transpose(dist.transpose()/norm**3)
+            T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
+            np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
+            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+            result[0] = (phi/(4*np.pi*ep_in))
+
         # @bempp.api.real_callable
         # def zero(x, n, domain_index, result):
         #     result[0] = 0
 
         coefs = np.zeros(neumann_space.global_dof_count)
 
-        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
+        if force_field == "amoeba":
+            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
+        else:
+            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
+
         # rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
         rhs_2 = bempp.api.GridFunction(neumann_space, coefficients=coefs)
 
@@ -91,7 +111,24 @@ def rhs(self):
         def zero(x, n, domain_index, result):
             result[0] = 0
 
-        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
+        @bempp.api.real_callable
+        def multipolar_charges_fun(x, n, i, result):
+            T2 = np.zeros((len(x_q),3,3))
+            phi = 0
+            dist = x - x_q
+            norm = np.sqrt(np.sum((dist*dist), axis = 1))
+            T0 = 1/norm[:]
+            T1 = np.transpose(dist.transpose()/norm**3)
+            T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
+            np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
+            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+            result[0] = (phi/(4*np.pi*ep_in))
+    
+        if force_field == "amoeba":
+            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
+        else:
+            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
+
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
@@ -207,3 +244,44 @@ def mass_matrix_preconditioner(solute):
 def calculate_potential(self, rerun_all):
     calculate_potential_one_surface(self, rerun_all)
 
+
+def lhs_inter_solute_interactions(self, solute_target, solute_source):
+
+   
+    dirichl_space_target = solute_target.dirichl_space
+    neumann_space_target = solute_target.neumann_space
+    dirichl_space_source = solute_source.dirichl_space
+    neumann_space_source = solute_source.neumann_space
+
+    ep_in = solute_source.ep_in
+    ep_out = self.ep_ex
+    kappa = self.kappa
+    operator_assembler = self.operator_assembler
+
+
+
+    dlp = modified_helmholtz.double_layer(
+        dirichl_space_source, dirichl_space_target, dirichl_space_target, kappa, assembler=operator_assembler
+    )
+    slp = modified_helmholtz.single_layer(
+        neumann_space_source, neumann_space_target, neumann_space_target, kappa,  assembler=operator_assembler
+    )
+
+    zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+        dirichl_space_source, dirichl_space_target, dirichl_space_target
+    )
+    
+    zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+        neumann_space_source, neumann_space_target, neumann_space_target
+    )
+    
+    A_inter = bempp.api.BlockedOperator(2, 2)
+
+    
+    A_inter[0, 0] = zero_00
+    A_inter[0, 1] = zero_01 
+    A_inter[1, 0] = - dlp
+    A_inter[1, 1] = (ep_in / ep_out) * slp
+
+    
+    return A_inter

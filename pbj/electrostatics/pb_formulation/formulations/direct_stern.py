@@ -6,10 +6,12 @@ from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 import pbj
 from .common import calculate_potential_stern
 
+
 def verify_parameters(self):
     return True
 
-#Creation of stern layer mesh:
+
+# Creation of stern layer mesh:
 def create_stern_mesh(self):
 
     stern_pqr_dir = os.path.abspath("pqr_temp/")
@@ -24,45 +26,63 @@ def create_stern_mesh(self):
 
     stern_pqr_file = os.path.join(stern_pqr_dir, "stern_pqr.pqr")
     with open(stern_pqr_file, "w") as f:
-        f.write("# This is a dummy pqr file generated solely for the creation of the Stern layer, atoms' position and charge are similar to the molecule's original pqr. The rest of the info shouldn't be used as reference for the molecule's composition.\n")
+        f.write(
+            "# This is a dummy pqr file generated solely for the creation of the Stern layer, atoms' position and charge are similar to the molecule's original pqr. The rest of the info shouldn't be used as reference for the molecule's composition.\n"
+        )
         for index in range(len(self.r_q)):
-            f.write("ATOM      #  #   ###     #      "+str(self.x_q[index][0]) + " " + str(self.x_q[index][1]) + " " + str(self.x_q[index][2]) + " " + str(self.q[index]) + " " + str(self.r_q[index]+self.pb_formulation_stern_width) + "\n") 
+            f.write(
+                "ATOM      #  #   ###     #      "
+                + str(self.x_q[index][0])
+                + " "
+                + str(self.x_q[index][1])
+                + " "
+                + str(self.x_q[index][2])
+                + " "
+                + str(self.q[index])
+                + " "
+                + str(self.r_q[index] + self.pb_formulation_stern_width)
+                + "\n"
+            )
     """
     if self.external_mesh_file is not None:
         raise RuntimeError("Solute was created using an external mesh file. For the stern layer mesh generation a pqr or pdb file must be used to create the solute mesh.")
     else:
     """
-    if hasattr(self, 'mesh_density'):
-        stern_solute_object = pbj.Solute(stern_pqr_file,
-            external_mesh_file = None,
-            save_mesh_build_files = self.save_mesh_build_files,
-            mesh_build_files_dir = self.mesh_build_files_dir,
-            mesh_density = getattr(self, 'stern_mesh_density' ,self.mesh_density),
-            nanoshaper_grid_scale = getattr(self, 'nanoshaper_grid_scale', None),
-            mesh_probe_radius = self.mesh_probe_radius,
-            mesh_generator = self.mesh_generator,
-            print_times = self.print_times,
-            force_field = self.force_field,
-            formulation = 'direct')
+    if hasattr(self, "mesh_density"):
+        stern_solute_object = pbj.Solute(
+            stern_pqr_file,
+            external_mesh_file=None,
+            save_mesh_build_files=self.save_mesh_build_files,
+            mesh_build_files_dir=self.mesh_build_files_dir,
+            mesh_density=getattr(self, "stern_mesh_density", self.mesh_density),
+            nanoshaper_grid_scale=getattr(self, "nanoshaper_grid_scale", None),
+            mesh_probe_radius=self.mesh_probe_radius,
+            mesh_generator=self.mesh_generator,
+            print_times=self.print_times,
+            force_field=self.force_field,
+            formulation="direct",
+        )
 
     else:
-        stern_solute_object = pbj.Solute(stern_pqr_file,
-            external_mesh_file = None,
-            save_mesh_build_files = self.save_mesh_build_files,
-            mesh_build_files_dir = self.mesh_build_files_dir,
-            nanoshaper_grid_scale = getattr(self, 'nanoshaper_grid_scale', None),
-            mesh_probe_radius = self.mesh_probe_radius,
-            mesh_generator = self.mesh_generator,
-            print_times = self.print_times,
-            force_field = self.force_field,
-            formulation = 'direct')
-
+        stern_solute_object = pbj.Solute(
+            stern_pqr_file,
+            external_mesh_file=None,
+            save_mesh_build_files=self.save_mesh_build_files,
+            mesh_build_files_dir=self.mesh_build_files_dir,
+            nanoshaper_grid_scale=getattr(self, "nanoshaper_grid_scale", None),
+            mesh_probe_radius=self.mesh_probe_radius,
+            mesh_generator=self.mesh_generator,
+            print_times=self.print_times,
+            force_field=self.force_field,
+            formulation="direct",
+        )
 
     if not self.save_mesh_build_files:
         shutil.rmtree(stern_pqr_dir)
 
     self.stern_object = stern_solute_object
-    #return stern_solute_object
+    # return stern_solute_object
+
 
 def lhs(self):
     dirichl_space_diel = self.dirichl_space
@@ -75,44 +95,85 @@ def lhs(self):
     dirichl_space_stern = self.stern_object.dirichl_space
     neumann_space_stern = self.stern_object.neumann_space
 
-    
-    identity_diel = sparse.identity(dirichl_space_diel, dirichl_space_diel, dirichl_space_diel)
+    identity_diel = sparse.identity(
+        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel
+    )
     slp_in_diel = laplace.single_layer(
-        neumann_space_diel, dirichl_space_diel, dirichl_space_diel, assembler=operator_assembler
+        neumann_space_diel,
+        dirichl_space_diel,
+        dirichl_space_diel,
+        assembler=operator_assembler,
     )
     dlp_in_diel = laplace.double_layer(
-        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler=operator_assembler
+        dirichl_space_diel,
+        dirichl_space_diel,
+        dirichl_space_diel,
+        assembler=operator_assembler,
     )
     slp_out_diel = laplace.single_layer(
-        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler=operator_assembler
+        dirichl_space_diel,
+        dirichl_space_diel,
+        dirichl_space_diel,
+        assembler=operator_assembler,
     )
     dlp_out_diel = laplace.double_layer(
-        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler=operator_assembler
+        dirichl_space_diel,
+        dirichl_space_diel,
+        dirichl_space_diel,
+        assembler=operator_assembler,
     )
     slp_stern_diel = laplace.single_layer(
-        neumann_space_stern, dirichl_space_diel, dirichl_space_diel, assembler=operator_assembler
-    ) #stern to diel
+        neumann_space_stern,
+        dirichl_space_diel,
+        dirichl_space_diel,
+        assembler=operator_assembler,
+    )  # stern to diel
     dlp_stern_diel = laplace.double_layer(
-        dirichl_space_stern, dirichl_space_diel, dirichl_space_diel, assembler=operator_assembler
-    ) #stern to diel
+        dirichl_space_stern,
+        dirichl_space_diel,
+        dirichl_space_diel,
+        assembler=operator_assembler,
+    )  # stern to diel
     slp_diel_stern = laplace.single_layer(
-        neumann_space_diel, dirichl_space_stern, dirichl_space_stern, assembler=operator_assembler
-    ) #diel to stern
+        neumann_space_diel,
+        dirichl_space_stern,
+        dirichl_space_stern,
+        assembler=operator_assembler,
+    )  # diel to stern
     dlp_diel_stern = laplace.double_layer(
-        dirichl_space_diel, dirichl_space_stern, dirichl_space_stern, assembler=operator_assembler
-    ) #diel to stern
-    identity_stern = sparse.identity(dirichl_space_stern, dirichl_space_stern, dirichl_space_stern)
+        dirichl_space_diel,
+        dirichl_space_stern,
+        dirichl_space_stern,
+        assembler=operator_assembler,
+    )  # diel to stern
+    identity_stern = sparse.identity(
+        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern
+    )
     slp_in_stern = laplace.single_layer(
-        neumann_space_stern, dirichl_space_stern, dirichl_space_stern, assembler=operator_assembler
+        neumann_space_stern,
+        dirichl_space_stern,
+        dirichl_space_stern,
+        assembler=operator_assembler,
     )
     dlp_in_stern = laplace.double_layer(
-        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern, assembler=operator_assembler
+        dirichl_space_stern,
+        dirichl_space_stern,
+        dirichl_space_stern,
+        assembler=operator_assembler,
     )
     slp_out_stern = modified_helmholtz.single_layer(
-        neumann_space_stern, dirichl_space_stern, dirichl_space_stern, kappa, assembler=operator_assembler
+        neumann_space_stern,
+        dirichl_space_stern,
+        dirichl_space_stern,
+        kappa,
+        assembler=operator_assembler,
     )
     dlp_out_stern = modified_helmholtz.double_layer(
-        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern, kappa, assembler=operator_assembler
+        dirichl_space_stern,
+        dirichl_space_stern,
+        dirichl_space_stern,
+        kappa,
+        assembler=operator_assembler,
     )
 
     A = bempp.api.BlockedOperator(4, 4)
@@ -167,9 +228,15 @@ def rhs(self):
         coefs_neumann_stern = np.zeros(neumann_space_stern.global_dof_count)
 
         rhs_1 = bempp.api.GridFunction(dirichl_space_diel, fun=fmm_green_func)
-        rhs_2 = bempp.api.GridFunction(neumann_space_diel, coefficients=coefs_neumann_diel)
-        rhs_3 = bempp.api.GridFunction(dirichl_space_stern, coefficients=coefs_dirichl_stern)
-        rhs_4 = bempp.api.GridFunction(neumann_space_stern, coefficients=coefs_neumann_stern)
+        rhs_2 = bempp.api.GridFunction(
+            neumann_space_diel, coefficients=coefs_neumann_diel
+        )
+        rhs_3 = bempp.api.GridFunction(
+            dirichl_space_stern, coefficients=coefs_dirichl_stern
+        )
+        rhs_4 = bempp.api.GridFunction(
+            neumann_space_stern, coefficients=coefs_neumann_stern
+        )
 
     else:
 
@@ -192,7 +259,12 @@ def rhs(self):
         rhs_3 = bempp.api.GridFunction(dirichl_space_stern, fun=zero)
         rhs_4 = bempp.api.GridFunction(neumann_space_stern, fun=zero)
 
-    self.rhs["rhs_1"], self.rhs["rhs_2"], self.rhs["rhs_3"], self.rhs["rhs_4"] = rhs_1, rhs_2, rhs_3, rhs_4
+    self.rhs["rhs_1"], self.rhs["rhs_2"], self.rhs["rhs_3"], self.rhs["rhs_4"] = (
+        rhs_1,
+        rhs_2,
+        rhs_3,
+        rhs_4,
+    )
 
 
 def block_diagonal_preconditioner(solute):
@@ -214,32 +286,102 @@ def block_diagonal_preconditioner(solute):
     if not (isinstance(e_hat_stern, float) or isinstance(e_hat_stern, int)):
         e_hat_stern = e_hat_stern.weak_form().to_sparse().diagonal()
 
-    identity_diel = sparse.identity(dirichl_space_diel, dirichl_space_diel, dirichl_space_diel)
+    identity_diel = sparse.identity(
+        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel
+    )
     identity_diel_diag = identity_diel.weak_form().to_sparse().diagonal()
-    slp_in_diel_diag = laplace.single_layer(
-        neumann_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_in_diel_diag = laplace.double_layer(
-        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
-    slp_out_diel_diag = laplace.single_layer(
-        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_out_diel_diag = laplace.double_layer(
-        dirichl_space_diel, dirichl_space_diel, dirichl_space_diel, assembler="only_diagonal_part").weak_form().get_diagonal()
-    
-    identity_stern = sparse.identity(dirichl_space_stern, dirichl_space_stern, dirichl_space_stern)
+    slp_in_diel_diag = (
+        laplace.single_layer(
+            neumann_space_diel,
+            dirichl_space_diel,
+            dirichl_space_diel,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    dlp_in_diel_diag = (
+        laplace.double_layer(
+            dirichl_space_diel,
+            dirichl_space_diel,
+            dirichl_space_diel,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    slp_out_diel_diag = (
+        laplace.single_layer(
+            dirichl_space_diel,
+            dirichl_space_diel,
+            dirichl_space_diel,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    dlp_out_diel_diag = (
+        laplace.double_layer(
+            dirichl_space_diel,
+            dirichl_space_diel,
+            dirichl_space_diel,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+
+    identity_stern = sparse.identity(
+        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern
+    )
     identity_stern_diag = identity_stern.weak_form().to_sparse().diagonal()
-    slp_in_stern_diag = laplace.single_layer(
-        neumann_space_stern, dirichl_space_stern, dirichl_space_stern, assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_in_stern_diag = laplace.double_layer(
-        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern, assembler="only_diagonal_part").weak_form().get_diagonal()
-    slp_out_stern_diag = modified_helmholtz.single_layer(
-        neumann_space_stern, dirichl_space_stern, dirichl_space_stern, kappa, assembler="only_diagonal_part").weak_form().get_diagonal()
-    dlp_out_stern_diag = modified_helmholtz.double_layer(
-        dirichl_space_stern, dirichl_space_stern, dirichl_space_stern, kappa, assembler="only_diagonal_part").weak_form().get_diagonal()
+    slp_in_stern_diag = (
+        laplace.single_layer(
+            neumann_space_stern,
+            dirichl_space_stern,
+            dirichl_space_stern,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    dlp_in_stern_diag = (
+        laplace.double_layer(
+            dirichl_space_stern,
+            dirichl_space_stern,
+            dirichl_space_stern,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    slp_out_stern_diag = (
+        modified_helmholtz.single_layer(
+            neumann_space_stern,
+            dirichl_space_stern,
+            dirichl_space_stern,
+            kappa,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
+    dlp_out_stern_diag = (
+        modified_helmholtz.double_layer(
+            dirichl_space_stern,
+            dirichl_space_stern,
+            dirichl_space_stern,
+            kappa,
+            assembler="only_diagonal_part",
+        )
+        .weak_form()
+        .get_diagonal()
+    )
 
     diag11 = 0.5 * identity_diel_diag + dlp_in_diel_diag
     diag12 = -slp_in_diel_diag
     diag21 = 0.5 * identity_diel_diag - dlp_out_diel_diag
-    diag22 = slp_out_diel_diag * e_hat_diel 
+    diag22 = slp_out_diel_diag * e_hat_diel
 
     d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
     diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
@@ -250,24 +392,33 @@ def block_diagonal_preconditioner(solute):
     diag33 = 0.5 * identity_stern_diag + dlp_in_stern_diag
     diag34 = -slp_in_stern_diag
     diag43 = 0.5 * identity_stern_diag - dlp_out_stern_diag
-    diag44 = slp_out_stern_diag * e_hat_stern 
-    
+    diag44 = slp_out_stern_diag * e_hat_stern
+
     d_aux = 1 / (diag44 - diag43 * diag34 / diag33)
     diag33_inv = 1 / diag33 + 1 / diag33 * diag34 * d_aux * diag43 / diag33
     diag34_inv = -1 / diag33 * diag34 * d_aux
     diag43_inv = -d_aux * diag43 / diag33
     diag44_inv = d_aux
 
-    A = bmat([[diags(diag11_inv), diags(diag12_inv)],[diags(diag21_inv), diags(diag22_inv)]])
-    B = bmat([[diags(diag33_inv), diags(diag34_inv)],[diags(diag43_inv), diags(diag44_inv)]])
-              
-    block_mat_precond = block_diag((A,B),format = 'csr')
+    A = bmat(
+        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    )
+    B = bmat(
+        [[diags(diag33_inv), diags(diag34_inv)], [diags(diag43_inv), diags(diag44_inv)]]
+    )
+
+    block_mat_precond = block_diag((A, B), format="csr")
 
     solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
         block_mat_precond
     )
     solute.matrices["A_final"] = solute.matrices["A"]
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"], solute.rhs["rhs_3"], solute.rhs["rhs_4"]]
+    solute.rhs["rhs_final"] = [
+        solute.rhs["rhs_1"],
+        solute.rhs["rhs_2"],
+        solute.rhs["rhs_3"],
+        solute.rhs["rhs_4"],
+    ]
 
     solute.matrices["A_discrete"] = matrix_to_discrete_form(
         solute.matrices["A_final"], "weak"
@@ -277,12 +428,16 @@ def block_diagonal_preconditioner(solute):
     )
 
 
-
 def mass_matrix_preconditioner(solute):
     from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
 
     solute.matrices["A_final"] = solute.matrices["A"]
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"], solute.rhs["rhs_3"], solute.rhs["rhs_4"]]
+    solute.rhs["rhs_final"] = [
+        solute.rhs["rhs_1"],
+        solute.rhs["rhs_2"],
+        solute.rhs["rhs_3"],
+        solute.rhs["rhs_4"],
+    ]
     solute.matrices["A_discrete"] = matrix_to_discrete_form(
         solute.matrices["A_final"], "strong"
     )
@@ -292,10 +447,10 @@ def mass_matrix_preconditioner(solute):
 
 
 def calculate_potential(self, rerun_all):
-    ep_stern = getattr(self, 'ep_stern', self.ep_ex)
+    ep_stern = getattr(self, "ep_stern", self.ep_ex)
     self.ep_stern = ep_stern
-    self.e_hat_diel = self.ep_in / self.ep_stern 
+    self.e_hat_diel = self.ep_in / self.ep_stern
     self.e_hat_stern = self.ep_stern / self.ep_ex
-    if self.stern_object == None:
+    if self.stern_object is None:
         create_stern_mesh(self)
     calculate_potential_stern(self, rerun_all)
