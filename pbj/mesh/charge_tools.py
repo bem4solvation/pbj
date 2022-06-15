@@ -197,8 +197,17 @@ def load_charges_to_solute(solute):
     return q, x_q, r_q
 
 
-def read_tinker_radius(filename):
-    
+def read_tinker_radius(filename, radius_keyword='solute', solute_radius_type = 'PB'):
+    """
+    Read atomic radius from a Tinker prm file.
+    Input:
+    ------
+    filename: (string) prm file name
+    radius_keyword: (string) 'vdw' (default) or 'solute' depending on the radius to be used. Radii under the 'solute'
+                     keyword have been optimized for implicit solvent calculations
+    radius_type: (string) 'PB' (default), 'DDCOSMO' or 'GK'. The radius read from the 'solute' keyword has three alternatives
+                     depending on the tool used to optimize.
+    """
     file_xyz = filename + ".xyz"
     file_key = filename + ".key"
     
@@ -236,6 +245,9 @@ def read_tinker_radius(filename):
     
     atom_class = {}
     vdw_radii = {}
+    solute_radii_PB = {}
+    solute_radii_DD = {}
+    solute_radii_GK = {}
     
     with open(file_key, 'r') as f:
         
@@ -262,12 +274,33 @@ def read_tinker_radius(filename):
             if line[0].lower()=='vdw' and line[1] not in vdw_radii:
                 
                 vdw_radii[line[1]] = np.float64(line[2])/2.
+
+            if line[0].lower()=='solute' and line[1] not in solute_radii_PB:
+                
+                solute_radii_PB[line[1]] = np.float64(line[2])/2.
+                solute_radii_DD[line[1]] = np.float64(line[3])/2.
+                solute_radii_GK[line[1]] = np.float64(line[4])/2.
+
                 
     key_file.close()
                 
     for i in range(N):
         
-        r[i] = vdw_radii[atom_class[atom_type[i].decode()]]
+        if radius_keyword == 'vdw':
+            r[i] = vdw_radii[atom_class[atom_type[i].decode()]]
+        elif radius_keyword == 'solute':
+            if solute_radius_type == 'PB':
+                r[i] = solute_radii_PB[atom_type[i].decode()]
+            elif solute_radius_type == 'DDCOSMO':
+                r[i] = solute_radii_DD[atom_type[i].decode()]
+            elif solute_radius_type == 'GK':
+                r[i] = solute_radii_GK[atom_type[i].decode()]
+            else:
+                print('Unrecognized solute type radius. Choose between PB, DDCOSMO, and GK.')
+                return
+        else:
+            print('Unrecognized keyword for radius. Choose between vdw and solute.')
+            return
         
     return r 
 
@@ -340,8 +373,7 @@ def load_tinker_multipoles_to_solute(solute):
     Reads input file from tinker
     Input:
     -----
-    filename: (string) file name without xyz or key extension
-    float    : (string) precision, double or float
+    solute: (class) 
     Returns:
     -------
     pos: Nx3 array with position of multipoles
@@ -666,7 +698,9 @@ def load_tinker_multipoles_to_solute(solute):
     else:
         connections_13 = np.zeros(N) # this avoids a GPU error later
         
-    r = read_tinker_radius(filename)
+    r = read_tinker_radius(filename, 
+                        radius_keyword = solute.radius_keyword, 
+                        solute_radius_type = solute.solute_radius_type)
 
     return pos, q, p, Q, alpha, r, mass, polar_group, thole, \
            connections_12, connections_13, \

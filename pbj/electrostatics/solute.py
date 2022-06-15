@@ -28,6 +28,8 @@ class Solute:
         print_times=False,
         force_field="amber",
         formulation="direct",
+        radius_keyword="solute",
+        solute_radius_type="PB"
     ):
 
         if not os.path.isfile(solute_file_path):
@@ -45,6 +47,9 @@ class Solute:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
 
         self.force_field = force_field
+
+        self.radius_keyword = radius_keyword
+        self.solute_radius_type = solute_radius_type
 
         self.save_mesh_build_files = save_mesh_build_files
         self.mesh_build_files_dir = os.path.abspath(mesh_build_files_dir)
