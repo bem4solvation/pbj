@@ -44,15 +44,17 @@ def lhs(self):
 
 
 def rhs(self):
+    
+    force_field = self.force_field
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     q = self.q
     x_q = self.x_q
-    d = self.d
-    Q = self.Q
+    if force_field == "amoeba":
+        d = self.d
+        Q = self.Q
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
-    force_field = self.force_field
 
     if rhs_constructor == "fmm":
 
@@ -68,18 +70,6 @@ def rhs(self):
             os.remove(".rhs.tmp")
             result[:] = values[:, 0] / ep_in
 
-        @bempp.api.real_callable
-        def multipolar_charges_fun(x, n, i, result): # not using fmm
-            T2 = np.zeros((len(x_q),3,3))
-            phi = 0
-            dist = x - x_q
-            norm = np.sqrt(np.sum((dist*dist), axis = 1))
-            T0 = 1/norm[:]
-            T1 = np.transpose(dist.transpose()/norm**3)
-            T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
-            np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
-            result[0] = (phi/(4*np.pi*ep_in))
 
         # @bempp.api.real_callable
         # def zero(x, n, domain_index, result):
@@ -88,6 +78,20 @@ def rhs(self):
         coefs = np.zeros(neumann_space.global_dof_count)
 
         if force_field == "amoeba":
+            
+            @bempp.api.real_callable
+            def multipolar_charges_fun(x, n, i, result): # not using fmm
+                T2 = np.zeros((len(x_q),3,3))
+                phi = 0
+                dist = x - x_q
+                norm = np.sqrt(np.sum((dist*dist), axis = 1))
+                T0 = 1/norm[:]
+                T1 = np.transpose(dist.transpose()/norm**3)
+                T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
+                np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
+                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+                result[0] = (phi/(4*np.pi*ep_in))
+            
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
         else:
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
@@ -110,22 +114,24 @@ def rhs(self):
         @bempp.api.real_callable
         def zero(x, n, domain_index, result):
             result[0] = 0
-
-        @bempp.api.real_callable
-        def multipolar_charges_fun(x, n, i, result):
-            T2 = np.zeros((len(x_q),3,3))
-            phi = 0
-            dist = x - x_q
-            norm = np.sqrt(np.sum((dist*dist), axis = 1))
-            T0 = 1/norm[:]
-            T1 = np.transpose(dist.transpose()/norm**3)
-            T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
-            np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-            phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
-            result[0] = (phi/(4*np.pi*ep_in))
     
         if force_field == "amoeba":
+            
+            @bempp.api.real_callable
+            def multipolar_charges_fun(x, n, i, result):
+                T2 = np.zeros((len(x_q),3,3))
+                phi = 0
+                dist = x - x_q
+                norm = np.sqrt(np.sum((dist*dist), axis = 1))
+                T0 = 1/norm[:]
+                T1 = np.transpose(dist.transpose()/norm**3)
+                T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
+                np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
+                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+                result[0] = (phi/(4*np.pi*ep_in))
+            
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
+            
         else:
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
 
