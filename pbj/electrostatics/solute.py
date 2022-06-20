@@ -21,7 +21,7 @@ class Solute:
         external_mesh_file=None,
         save_mesh_build_files=False,
         mesh_build_files_dir="mesh_files/",
-        mesh_density=1.0,
+        mesh_density=2.0,
         nanoshaper_grid_scale=None,
         mesh_probe_radius=1.4,
         mesh_generator="nanoshaper",
@@ -186,7 +186,7 @@ class Solute:
         self.slic_tolerance = 1e-5
 
         self.pb_formulation_preconditioning = False
-        self.pb_formulation_preconditioning_type = "calderon_squared"
+        self.pb_formulation_preconditioning_type = "block_diagonal"
 
         self.discrete_form_type = "strong"
 
@@ -323,7 +323,7 @@ class Solute:
         dlp_q = double_layer(self.dirichl_space, self.x_q.transpose())
         phi_q = slp_q * solution_neumann - dlp_q * solution_dirichl
 
-        self.results["phir"] = phi_q
+        self.results["phir_charges"] = phi_q
 
         # total solvation energy applying constant to get units [kcal/mol]
         total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
@@ -361,9 +361,9 @@ class Solute:
         self.results["phir_charges"] = phi_q[0,:]
 
         if "gradphir_charges" not in self.results:
-            self.calculate_gradgrad_field()
+            self.calculate_gradient_field()
 
-        self.calculate_gradgrad_field()
+        self.calculate_gradgradient_field()
 
         # total solvation energy applying constant to get units [kcal/mol]
         q_aux = 0
@@ -385,13 +385,13 @@ class Solute:
         solvent_energy = 2 * np.pi * 332.064 * (q_aux + d_aux + Q_aux)
         coulomb_energy_dissolved = self.calculate_coulomb_energy_multipole(state="dissolved")
 
-
+        
         self.calculate_induced_dipole_vacuum() 
         coulomb_energy_vacuum = self.calculate_coulomb_energy_multipole(state="vacuum")
 
         self.results["solvation_energy"] = solvent_energy + coulomb_energy_dissolved - coulomb_energy_vacuum
         self.timings["time_calc_energy"] = time.time() - start_time
-
+        
         if self.print_times:
             print(
                 "It took ",
@@ -417,6 +417,7 @@ class Solute:
         flag_polar_group = False
         dphi_perm  = self.calculate_coulomb_dphi_multipole(flag_polar_group) # Recalculate for energy as flag = False
         ddphi_perm = self.calculate_coulomb_ddphi_multipole()
+       
         
         #phi, dphi and ddphi from induced dipoles
         phi_thole = self.calculate_coulomb_phi_multipole_Thole(state)
@@ -429,7 +430,13 @@ class Solute:
         
         point_energy = q[:]*phi[:] + np.sum(d[:] * dphi[:], axis = 1) + (np.sum(np.sum(Q[:]*ddphi[:], axis = 1), axis = 1))/6.
 
-        coulomb_energy = 2 * np.pi * 332.064 * sum(point_energy) 
+        cal2J = 4.184
+        ep_vacc = 8.854187818e-12
+        qe = 1.60217646e-19
+        Na = 6.0221415e+23
+        C0 = qe**2*Na*1e-3*1e10/(cal2J*ep_vacc)
+        
+        coulomb_energy = sum(point_energy) * 0.5*C0/(4*np.pi*self.ep_in) 
         
         return coulomb_energy
 
@@ -503,7 +510,7 @@ class Solute:
             )
         return None
 
-    def calculate_gradgrad_field(self, h=0.001):
+    def calculate_gradgradient_field(self, h=0.001):
 
         """
         Compute the second derivate of potential due to solvent

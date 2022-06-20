@@ -102,16 +102,6 @@ def rhs(self):
     else:
 
         @bempp.api.real_callable
-        def charges_fun(x, n, domain_index, result):
-            nrm = np.sqrt(
-                (x[0] - x_q[:, 0]) ** 2
-                + (x[1] - x_q[:, 1]) ** 2
-                + (x[2] - x_q[:, 2]) ** 2
-            )
-            aux = np.sum(q / nrm)
-            result[0] = aux / (4 * np.pi * ep_in)
-
-        @bempp.api.real_callable
         def zero(x, n, domain_index, result):
             result[0] = 0
     
@@ -122,7 +112,12 @@ def rhs(self):
                 T2 = np.zeros((len(x_q),3,3))
                 phi = 0
                 dist = x - x_q
-                norm = np.sqrt(np.sum((dist*dist), axis = 1))
+                #norm = np.sqrt(np.sum((dist*dist), axis = 1))
+                norm = np.sqrt(
+                    (x[0] - x_q[:, 0]) ** 2
+                    + (x[1] - x_q[:, 1]) ** 2
+                    + (x[2] - x_q[:, 2]) ** 2
+                )
                 T0 = 1/norm[:]
                 T1 = np.transpose(dist.transpose()/norm**3)
                 T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
@@ -133,6 +128,17 @@ def rhs(self):
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
             
         else:
+            
+            @bempp.api.real_callable
+            def charges_fun(x, n, domain_index, result):
+                nrm = np.sqrt(
+                    (x[0] - x_q[:, 0]) ** 2
+                    + (x[1] - x_q[:, 1]) ** 2
+                    + (x[2] - x_q[:, 2]) ** 2
+                )
+                aux = np.sum(q / nrm)
+                result[0] = aux / (4 * np.pi * ep_in)
+                
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
 
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)

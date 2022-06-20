@@ -28,6 +28,7 @@ class Simulation:
         self.matrices = dict()
         self.rhs = dict()
         self.timings = dict()
+        self.run_info = dict()
         
         self.ep_ex = 80.0
         self.kappa = 0.125
@@ -72,11 +73,13 @@ class Simulation:
         # Get self interactions of each solute
         for index, solute in enumerate(self.solutes):
             solute.pb_formulation = self.pb_formulation
-            solute.pb_formulation_preconditioning = False
+            #solute.pb_formulation_preconditioning = False
+
 
             solute.initialise_matrices()
             solute.initialise_rhs()
             solute.assemble_matrices()
+            solute.apply_preconditioning()
 
             A[index * 2, index * 2] = solute.matrices["A"][0, 0]
             A[(index * 2) + 1, index * 2] = solute.matrices["A"][1, 0]
@@ -188,15 +191,18 @@ class Simulation:
                 x.ravel(), self.matrices["A"].domain_spaces
             )
 
+            self.run_info["solver_iteration_count"] = it_count
             for index, solute in enumerate(self.solutes):
 
                 N_dirichl = solute.dirichl_space.global_dof_count
                 N_neumann = solute.neumann_space.global_dof_count
 
                 solute.results["phi"]  = solution[2*index]
-                solute.results["d_phi"] = solution[2*index+1] 
-
-                solute.results
+                
+                if self.formulation_object.invert_potential:
+                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[2*index+1] 
+                else:  
+                    solute.results["d_phi"] = solution[2*index+1] 
 
             self.timings["time_compute_potential"] = time.time() - start_time
 
@@ -218,7 +224,8 @@ class Simulation:
         #self.results["dipole_iter_count"] = 0 # find better place to store this
 
 
-
+        initial_guess = np.zeros_like(self.rhs["rhs_discrete"])
+        
         while induced_dipole_residual > self.induced_dipole_iter_tol:
 
             if dipole_iter_count != 0:
@@ -234,9 +241,12 @@ class Simulation:
                 self.gmres_tolerance,
                 self.gmres_restart,
                 self.gmres_max_iterations,
+                initial_guess = initial_guess,
             )
 
             self.timings["time_gmres"] = time.time() - gmres_start_time
+            
+            initial_guess = x.copy()
 
             from bempp.api.assembly.blocked_operator import (
                 grid_function_list_from_coefficients,
@@ -252,7 +262,12 @@ class Simulation:
                 N_neumann = solute.neumann_space.global_dof_count
 
                 solute.results["phi"]  = solution[2*index]
-                solute.results["d_phi"] = solution[2*index+1] 
+                
+                if self.formulation_object.invert_potential:
+                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[2*index+1] 
+                else:  
+                    solute.results["d_phi"] = solution[2*index+1]
+                    
 
                 solute.calculate_gradient_field()
 
