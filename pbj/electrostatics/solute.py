@@ -683,8 +683,14 @@ class Solute:
         
         N = len(self.x_q)
         
+        p12scale_temp = self.p12scale
+        p13scale_temp = self.p13scale
+        
         u12scale = 1.0
         u13scale = 1.0
+        
+        self.p12scale = u12scale
+        self.p13scale = u13scale  # scaling for induced dipole calculation
 
         alphaxx = self.alpha[:,0,0]
         
@@ -693,6 +699,11 @@ class Solute:
             self.results["d_phi_coulomb_multipole"] = dphi_perm
         
         dphi_Thole = self.calculate_coulomb_dphi_multipole_Thole(state="dissolved")    
+        
+        
+        self.p12scale = p12scale_temp
+        self.p13scale = p13scale_temp
+        
 
         dphi_coul = self.results["d_phi_coulomb_multipole"] + dphi_Thole
         
@@ -705,6 +716,8 @@ class Solute:
             
             E_total = (dphi_coul[i]/self.ep_in + 4*np.pi*dphi_reac[i])*-1
             d_induced[i] = d_induced[i]*(1 - SOR) + np.dot(alphaxx[i], E_total)*SOR
+            
+        self.d_induced[:] = d_induced[:]
         
         self.results["induced_dipole"] = d_induced
 
@@ -713,8 +726,10 @@ class Solute:
         
         N = len(self.x_q)
         
+        
         u12scale = 1.0
         u13scale = 1.0
+       
 
         alphaxx = self.alpha[:,0,0]
         
@@ -733,7 +748,16 @@ class Solute:
 
         while induced_dipole_residual > self.induced_dipole_iter_tol:
     
+            p12scale_temp = self.p12scale
+            p13scale_temp = self.p13scale
+        
+            self.p12scale = u12scale
+            self.p13scale = u13scale  # scaling for induced dipole calculation
+    
             dphi_Thole = self.calculate_coulomb_dphi_multipole_Thole(state = "vacuum")
+              
+            self.p12scale = p12scale_temp
+            self.p13scale = p13scale_temp
             
             dphi_coul = self.results["d_phi_coulomb_multipole"] + dphi_Thole
             
@@ -1090,8 +1114,10 @@ class Solute:
         xq = self.x_q
         if state == "dissolved":
             induced_dipole = self.results["induced_dipole"]
-        else:
+        elif state == "vacuum":
             induced_dipole = self.results["induced_dipole_vacuum"]
+        else:
+            print("Cannot understand state")
         
         thole = self.thole
         connections_12 = self.connections_12

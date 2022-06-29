@@ -114,6 +114,9 @@ class Simulation:
     def create_and_assemble_rhs(self):
 
         for index, solute in enumerate(self.solutes):
+            
+            solute.pb_formulation = self.pb_formulation
+            solute.initialise_rhs()
 
             self.rhs["rhs_" + str(index + 1)] = [
                 solute.rhs["rhs_1"],

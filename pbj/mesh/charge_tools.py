@@ -258,8 +258,12 @@ def read_tinker_radius(filename, radius_keyword='solute', solute_radius_type = '
             file_key = line[1]
             
         print ('Reading parameters from '+file_key)
-        
-    key_file = open(file_key, 'r')
+     
+    try: 
+        key_file = open(file_key, 'r')
+    except OSError:
+        print('Cannot find file ' + file_key)
+        return
         
     for line in key_file:
         

@@ -53,6 +53,7 @@ def rhs(self):
     if force_field == "amoeba":
         d = self.d
         Q = self.Q
+        d_induced = self.d_induced
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
 
@@ -89,7 +90,7 @@ def rhs(self):
                 T1 = np.transpose(dist.transpose()/norm**3)
                 T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
                 np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*(d[:]+d_induced[:])) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
                 result[0] = (phi/(4*np.pi*ep_in))
             
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
@@ -122,7 +123,7 @@ def rhs(self):
                 T1 = np.transpose(dist.transpose()/norm**3)
                 T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
                 np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*d[:]) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*(d[:]+d_induced[:])) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
                 result[0] = (phi/(4*np.pi*ep_in))
             
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
