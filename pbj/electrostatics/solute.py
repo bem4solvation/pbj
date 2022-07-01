@@ -185,10 +185,10 @@ class Solute:
         self.slic_max_iterations = 20
         self.slic_tolerance = 1e-5
 
-        self.pb_formulation_preconditioning = False
+        self.pb_formulation_preconditioning = True
         self.pb_formulation_preconditioning_type = "block_diagonal"
 
-        self.discrete_form_type = "strong"
+        self.discrete_form_type = "weak"
 
         self.gmres_tolerance = 1e-5
         self.gmres_restart = 1000
@@ -263,7 +263,7 @@ class Solute:
             self.formulation_object.lhs(self)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
 
-    def assemble_matrices(self):
+    def assemble_matrices(self): # not being used, as this is done in apply_preconditioning
         start_assembly = time.time()
         self.matrices["A"].weak_form()
         self.timings["time_matrix_assembly"] = time.time() - start_assembly
@@ -301,10 +301,33 @@ class Solute:
             )
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
+        
+    def apply_preconditioning_rhs(self):
+        preconditioning_start_time = time.time()
+        if self.pb_formulation_preconditioning and self.matrices["preconditioning_matrix_gmres"] is None:
+            precon_str = self.pb_formulation_preconditioning_type + "_preconditioner_rhs"
+            preconditioning_object = getattr(self.formulation_object, precon_str, None)
+            if preconditioning_object is not None:
+                preconditioning_object(self)
+            else:
+                raise ValueError(
+                    "Unrecognised preconditioning type %s for current formulation type %s"
+                    % (self.pb_formulation_preconditioning_type, self.pb_formulation)
+                )
+        else:
+            self.rhs["rhs_final"] = [rhs for key, rhs in sorted(self.rhs.items())][
+                : len(self.matrices["A"].domain_spaces)
+            ]
+            self.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+                self.rhs["rhs_final"], "weak", self.matrices["A"]
+            )
 
-#    def calculate_potential(self, rerun_all=False): # I think this calculate_potential is not working correctly
-#        if self.formulation_object.verify_parameters(self):
-#            self.formulation_object.calculate_potential(self, rerun_all)
+        self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
+        
+
+    def calculate_potential(self, rerun_all=False): # I think this calculate_potential is not working correctly
+        if self.formulation_object.verify_parameters(self):
+            self.formulation_object.calculate_potential(self, rerun_all)
 
     def calculate_solvation_energy(self):
 

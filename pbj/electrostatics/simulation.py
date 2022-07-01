@@ -33,6 +33,9 @@ class Simulation:
         self.ep_ex = 80.0
         self.kappa = 0.125
         
+        self.pb_formulation_preconditioning = True
+        self.pb_formulation_preconditioning_type = "block_diagonal"
+        
         self.operator_assembler = "dense"
 
         self.SOR = 0.7
@@ -48,7 +51,59 @@ class Simulation:
         self.matrices["preconditioning_matrix_gmres"] = None
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
+        # reset solute
+        if len(self.solutes)>0:
+            for index, solute in enumerate(self.solutes):
+                solute.pb_formulation = self.pb_formulation
+                   
+    @property
+    def pb_formulation_preconditioning(self):
+        return self._pb_formulation_preconditioning
 
+    @pb_formulation_preconditioning.setter
+    def pb_formulation_preconditioning(self, value):
+        self._pb_formulation_preconditioning = value
+        # reset solute
+        if len(self.solutes)>0:
+            for index, solute in enumerate(self.solutes):
+                solute.pb_formulation_preconditioning = self.pb_formulation_preconditioning
+
+    @property
+    def pb_formulation_preconditioning_type(self):
+        return self._pb_formulation_preconditioning_type
+
+    @pb_formulation_preconditioning_type.setter
+    def pb_formulation_preconditioning_type(self, value):
+        self._pb_formulation_preconditioning_type = value
+        # reset solute
+        if len(self.solutes)>0:
+            for index, solute in enumerate(self.solutes):
+                solute.pb_formulation_preconditioning_type = self.pb_formulation_preconditioning_type
+                
+    @property
+    def ep_ex(self):
+        return self._ep_ex
+
+    @ep_ex.setter
+    def ep_ex(self, value):
+        self._ep_ex = value
+        # reset solute
+        if len(self.solutes)>0:
+            for index, solute in enumerate(self.solutes):
+                solute.ep_ex = self.ep_ex 
+                
+    @property
+    def kappa(self):
+        return self._kappa
+
+    @kappa.setter
+    def kappa(self, value):
+        self._kappa = value
+        # reset solute
+        if len(self.solutes)>0:
+            for index, solute in enumerate(self.solutes):
+                solute.kappa = self.kappa 
+                
     def add_solute(self, solute):
 
         if isinstance(solute, pbj.electrostatics.solute.Solute):
@@ -62,41 +117,77 @@ class Simulation:
                 solute.SOR = self.SOR
                 solute.induced_dipole_iter_tol = self.induced_dipole_iter_tol
                 solute.operator_assembler = self.operator_assembler
+                solute.pb_formulation_preconditioning = self.pb_formulation_preconditioning 
+                solute.pb_formulation_preconditioning_type = self.pb_formulation_preconditioning_type 
                 self.solutes.append(solute)
         else:
             raise ValueError("Given object is not of the 'Solute' class.")
 
     def create_and_assemble_linear_system(self):
-        surface_count = len(self.solutes)
-        A = bempp.api.BlockedOperator(surface_count * 2, surface_count * 2)
-
+        from scipy.sparse import bmat, dok_matrix
+        from scipy.sparse.linalg import aslinearoperator
+        
+        solute_count = len(self.solutes)
+        #A = bempp.api.BlockedDiscreteOperator(solute_count * 2, solute_count * 2)
+        
+        A = np.empty((solute_count , solute_count), dtype="O")
+        
+        precond_matrix = []
+                
+        rhs_final_discrete = []
+        
         # Get self interactions of each solute
         for index, solute in enumerate(self.solutes):
             solute.pb_formulation = self.pb_formulation
-            #solute.pb_formulation_preconditioning = False
-
 
             solute.initialise_matrices()
             solute.initialise_rhs()
-            solute.assemble_matrices()
             solute.apply_preconditioning()
 
-            A[index * 2, index * 2] = solute.matrices["A"][0, 0]
-            A[(index * 2) + 1, index * 2] = solute.matrices["A"][1, 0]
-            A[index * 2, (index * 2) + 1] = solute.matrices["A"][0, 1]
-            A[(index * 2) + 1, (index * 2) + 1] = solute.matrices["A"][1, 1]
+            #A[index * 2, index * 2] = solute.matrices["A_discrete"][0, 0]
+            #A[(index * 2) + 1, index * 2] = solute.matrices["A_discrete"][1, 0]
+            #A[index * 2, (index * 2) + 1] = solute.matrices["A_discrete"][0, 1]
+            #A[(index * 2) + 1, (index * 2) + 1] = solute.matrices["A_discrete"][1, 1]
+            
+            A[index, index] = solute.matrices["A_discrete"]
+            
 
             self.rhs["rhs_" + str(index + 1)] = [
                 solute.rhs["rhs_1"],
                 solute.rhs["rhs_2"],
             ]
+            
+            rhs_final_discrete.extend(solute.rhs["rhs_discrete"])
+            
+            if solute.matrices["preconditioning_matrix_gmres"] is not None :
+                precond_matrix_top_row = []
+                precond_matrix_bottom_row = []
+
+                for index_source, solute_source in enumerate(self.solutes):
+                    
+                    if index_source == index:
+                        precond_matrix_top_row.extend(solute.matrices["preconditioning_matrix_gmres"][0])
+                        precond_matrix_bottom_row.extend(solute.matrices["preconditioning_matrix_gmres"][1])
+                    else:
+                        M = solute.dirichl_space.grid_dof_count
+                        N = solute_source.dirichl_space.grid_dof_count
+                        zero_matrix = dok_matrix((M,N))
+                        precond_matrix_top_row.extend([zero_matrix,zero_matrix])
+                        precond_matrix_bottom_row.extend([zero_matrix,zero_matrix])
+                        
+                precond_matrix.extend([precond_matrix_top_row,precond_matrix_bottom_row])
+                
+        if len(precond_matrix) > 0:
+            precond_matrix_full = bmat(precond_matrix).tocsr()
+            self.matrices["preconditioning_matrix_gmres"] = aslinearoperator(precond_matrix_full)
+                
 
         # Calculate matrix elements for interactions between solutes
 
         for index_target, solute_target in enumerate(self.solutes):
-            i = index_target*2
+            i = index_target
             for index_source, solute_source in enumerate(self.solutes):
-                j = index_source*2
+                j = index_source
 
                 if i!=j:
 
@@ -104,63 +195,35 @@ class Simulation:
                         self, solute_target, solute_source        
                     )
                     
-                    A[i    , j    ] = A_inter[0,0]
-                    A[i    , j + 1] = A_inter[0,1]
-                    A[i + 1, j    ] = A_inter[1,0]
-                    A[i + 1, j + 1] = A_inter[1,1]
+                     
+                    A[i,j] = A_inter
+                    #A[i    , j    ] = A_inter[0,0]
+                    #A[i    , j + 1] = A_inter[0,1]
+                    #A[i + 1, j    ] = A_inter[1,0]
+                    #A[i + 1, j + 1] = A_inter[1,1]
 
-        self.matrices["A"] = A
+        #self.matrices["A"] = A
+        A_discrete = bempp.api.assembly.blocked_operator.BlockedDiscreteOperator(A)
+        self.matrices["A_discrete"] = A_discrete
+        self.rhs["rhs_discrete"] = rhs_final_discrete
 
     def create_and_assemble_rhs(self):
-
+        
+        rhs_final_discrete = []
+        
         for index, solute in enumerate(self.solutes):
             
-            solute.pb_formulation = self.pb_formulation
-            solute.initialise_rhs()
+            solute.initialise_rhs()          
+            solute.apply_preconditioning_rhs()            
 
             self.rhs["rhs_" + str(index + 1)] = [
                 solute.rhs["rhs_1"],
                 solute.rhs["rhs_2"],
             ]
+            
+            rhs_final_discrete.extend(solute.rhs["rhs_discrete"])
 
-
-    def apply_preconditioning(self):
-        self.matrices["A_final"] = self.matrices["A"]
-
-        rhs_final = []
-        count = 0
-        for key, solute_rhs in self.rhs.items():
-            if count >= len(self.matrices["A"].domain_spaces) / 2:
-                break
-            else:
-                rhs_final.extend(solute_rhs)
-                count += 1
-
-        self.rhs["rhs_final"] = rhs_final
-
-        self.matrices["A_discrete"] = utils.matrix_to_discrete_form(
-            self.matrices["A_final"], "weak"
-        )
-        self.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
-            self.rhs["rhs_final"], "weak", self.matrices["A"]
-        )
-
-    def apply_preconditioning_rhs(self):
-
-        rhs_final = []
-        count = 0
-        for key, solute_rhs in self.rhs.items():
-            if count >= len(self.matrices["A"].domain_spaces) / 2:
-                break
-            else:
-                rhs_final.extend(solute_rhs)
-                count += 1
-
-        self.rhs["rhs_final"] = rhs_final
-
-        self.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
-            self.rhs["rhs_final"], "weak", self.matrices["A"]
-        )
+        self.rhs["rhs_discrete"] = rhs_final_discrete
         
     
     def calculate_potentials(self):
@@ -172,40 +235,62 @@ class Simulation:
             start_time = time.time()
 
             self.create_and_assemble_linear_system()
-            self.apply_preconditioning()
+            
+            initial_guess = np.zeros_like(self.rhs["rhs_discrete"])
 
             # Use GMRES to solve the system of equations
-            gmres_start_time = time.time()
-            x, info, it_count = utils.solver(
-                self.matrices["A_discrete"],
-                self.rhs["rhs_discrete"],
-                self.gmres_tolerance,
-                self.gmres_restart,
-                self.gmres_max_iterations,
-            )
+            if "preconditioning_matrix_gmres" in self.matrices:
+                gmres_start_time = time.time()
+                x, info, it_count = utils.solver(
+                    self.matrices["A_discrete"],
+                    self.rhs["rhs_discrete"],
+                    self.gmres_tolerance,
+                    self.gmres_restart,
+                    self.gmres_max_iterations,
+                    initial_guess = initial_guess,
+                    precond = self.matrices["preconditioning_matrix_gmres"]
+                )
+                
+            else:
+                gmres_start_time = time.time()
+                x, info, it_count = utils.solver(
+                    self.matrices["A_discrete"],
+                    self.rhs["rhs_discrete"],
+                    self.gmres_tolerance,
+                    self.gmres_restart,
+                    self.gmres_max_iterations,
+                    initial_guess = initial_guess,
+                )
 
             self.timings["time_gmres"] = time.time() - gmres_start_time
 
             from bempp.api.assembly.blocked_operator import (
                 grid_function_list_from_coefficients,
-            )
-
-            solution = grid_function_list_from_coefficients(
-                x.ravel(), self.matrices["A"].domain_spaces
-            )
+            )          
 
             self.run_info["solver_iteration_count"] = it_count
+            
+            solute_start = 0
             for index, solute in enumerate(self.solutes):
 
                 N_dirichl = solute.dirichl_space.global_dof_count
                 N_neumann = solute.neumann_space.global_dof_count
+                N_total = N_dirichl + N_neumann
+                
+                x_slice = x.ravel()[solute_start:solute_start + N_total]
+                
+                solute_start += N_total
+                
+                solution = grid_function_list_from_coefficients(
+                    x_slice, self.solutes[index].matrices["A"].domain_spaces
+                )
 
-                solute.results["phi"]  = solution[2*index]
+                solute.results["phi"]  = solution[0]
                 
                 if self.formulation_object.invert_potential:
-                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[2*index+1] 
+                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
                 else:  
-                    solute.results["d_phi"] = solution[2*index+1] 
+                    solute.results["d_phi"] = solution[1] 
 
             self.timings["time_compute_potential"] = time.time() - start_time
 
@@ -217,7 +302,6 @@ class Simulation:
             solute.results["induced_dipole"] = np.zeros_like(solute.d)
 
         self.create_and_assemble_linear_system()
-        self.apply_preconditioning()
 
         induced_dipole_residual = 1.
 
@@ -232,20 +316,32 @@ class Simulation:
         while induced_dipole_residual > self.induced_dipole_iter_tol:
 
             if dipole_iter_count != 0:
-                self.create_and_assemble_rhs()
-                self.apply_preconditioning_rhs()
-                
+                self.create_and_assemble_rhs()                
 
+            
             # Use GMRES to solve the system of equations
-            gmres_start_time = time.time()
-            x, info, it_count = utils.solver(
-                self.matrices["A_discrete"],
-                self.rhs["rhs_discrete"],
-                self.gmres_tolerance,
-                self.gmres_restart,
-                self.gmres_max_iterations,
-                initial_guess = initial_guess,
-            )
+            if "preconditioning_matrix_gmres" in self.matrices:
+                gmres_start_time = time.time()
+                x, info, it_count = utils.solver(
+                    self.matrices["A_discrete"],
+                    self.rhs["rhs_discrete"],
+                    self.gmres_tolerance,
+                    self.gmres_restart,
+                    self.gmres_max_iterations,
+                    initial_guess = initial_guess,
+                    precond = self.matrices["preconditioning_matrix_gmres"]
+                )
+                
+            else:
+                gmres_start_time = time.time()
+                x, info, it_count = utils.solver(
+                    self.matrices["A_discrete"],
+                    self.rhs["rhs_discrete"],
+                    self.gmres_tolerance,
+                    self.gmres_restart,
+                    self.gmres_max_iterations,
+                    initial_guess = initial_guess,
+                )
 
             self.timings["time_gmres"] = time.time() - gmres_start_time
             
@@ -255,21 +351,27 @@ class Simulation:
                 grid_function_list_from_coefficients,
             )
 
-            solution = grid_function_list_from_coefficients(
-                x.ravel(), self.matrices["A"].domain_spaces
-            )
-
+            solute_start = 0
             for index, solute in enumerate(self.solutes):
 
                 N_dirichl = solute.dirichl_space.global_dof_count
                 N_neumann = solute.neumann_space.global_dof_count
+                N_total = N_dirichl + N_neumann
+                
+                x_slice = x.ravel()[solute_start:solute_start + N_total]
+                
+                solute_start += N_total
+                
+                solution = grid_function_list_from_coefficients(
+                    x_slice, self.solutes[index].matrices["A"].domain_spaces
+                )
 
-                solute.results["phi"]  = solution[2*index]
+                solute.results["phi"]  = solution[0]
                 
                 if self.formulation_object.invert_potential:
-                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[2*index+1] 
+                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
                 else:  
-                    solute.results["d_phi"] = solution[2*index+1]
+                    solute.results["d_phi"] = solution[1] 
                     
 
                 solute.calculate_gradient_field()

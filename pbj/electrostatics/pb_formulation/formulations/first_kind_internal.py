@@ -210,7 +210,7 @@ def rhs(self):
 
 
 def mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
@@ -238,7 +238,7 @@ def calderon_exterior_operator_scaled_preconditioner(solute):
 
 
 def apply_calderon_precondtioning(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     solute.matrices["A_final"] = (
         solute.matrices["preconditioning_matrix"] * solute.matrices["A"]
@@ -295,7 +295,7 @@ def exterior_mass_matrix(matrix, ep_ex, ep_in):
 
 
 def calderon_interior_operator_with_scaled_mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     preconditioner = solute.matrices["A_int"]
     mass_matrix = interior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in)
@@ -321,7 +321,7 @@ def calderon_interior_operator_with_scaled_mass_matrix_preconditioner(solute):
 
 
 def calderon_exterior_operator_scaled_with_scaled_mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     preconditioner = solute.matrices["A_ext_scal"]
     mass_matrix = exterior_mass_matrix(preconditioner, solute.ep_ex, solute.ep_in)

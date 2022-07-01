@@ -150,8 +150,9 @@ def rhs(self):
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import aslinearoperator
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    import pbj.electrostatics.utils as utils
 
+    
     matrix_A = solute.matrices["A"]
 
     block1 = matrix_A[0, 0]
@@ -183,20 +184,25 @@ def block_diagonal_preconditioner(solute):
     diag21_inv = -d_aux * diag21 / diag11
     diag22_inv = d_aux
 
-    block_mat_precond = bmat(
-        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
-    ).tocsr()
+    #block_mat_precond = bmat(
+    #    [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    #).tocsr()
+    
+    block_mat_precond = [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
 
-    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
-        block_mat_precond
-    )
+
+    #solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
+    #    block_mat_precond
+    #)
+    solute.matrices["preconditioning_matrix_gmres"] = block_mat_precond
+    
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(
         solute.matrices["A_final"], "weak"
     )
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
         solute.rhs["rhs_final"], "weak", solute.matrices["A"]
     )
 
@@ -221,7 +227,7 @@ def block_diagonal_preconditioner(solute):
 
 
 def mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    import pbj.electrostatics.utils as utils
 
     # Option A:
     """
@@ -240,16 +246,26 @@ def mass_matrix_preconditioner(solute):
     solute.matrices['preconditioning_matrix_gmres'] = preconditioner
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
     """
+        
+     
     solute.matrices["A_final"] = solute.matrices["A"]
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = matrix_to_discrete_form(
+    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(
         solute.matrices["A_final"], "strong"
     )
-    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
+        
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
+    
+def mass_matrix_preconditioner_rhs(solute):
+    import pbj.electrostatics.utils as utils
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
         solute.rhs["rhs_final"], "strong", solute.matrices["A"]
     )
 
@@ -297,4 +313,4 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
     A_inter[1, 1] = (ep_in / ep_out) * slp
 
     
-    return A_inter
+    return A_inter.weak_form()  # should always be weak_form, as preconditioner doesn't touch it
