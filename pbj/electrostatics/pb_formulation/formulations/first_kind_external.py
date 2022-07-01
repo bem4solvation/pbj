@@ -188,7 +188,7 @@ def rhs(self):
 
 
 def mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
@@ -216,7 +216,7 @@ def calderon_exterior_operator_preconditioner(solute):
 
 
 def apply_calderon_precondtioning(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     solute.matrices["A_final"] = (
         solute.matrices["preconditioning_matrix"] * solute.matrices["A"]
@@ -237,7 +237,7 @@ def apply_calderon_precondtioning(solute):
 def calderon_interior_operator_scaled_with_scaled_mass_matrix_preconditioner(solute):
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     preconditioner = solute.matrices["A_int_scal"]
     ep_ex = solute.ep_ex
@@ -281,7 +281,7 @@ def calderon_interior_operator_scaled_with_scaled_mass_matrix_preconditioner(sol
 def calderon_exterior_operator_with_scaled_mass_matrix_preconditioner(solute):
     from bempp.api.utils.helpers import get_inverse_mass_matrix
     from bempp.api.assembly.blocked_operator import BlockedDiscreteOperator
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     preconditioner = solute.matrices["A_ext"]
     ep_ex = solute.ep_ex
@@ -323,7 +323,7 @@ def calderon_exterior_operator_with_scaled_mass_matrix_preconditioner(solute):
 
 
 def calderon_squared_lowered_parameters_preconditioner(solute):
-    from pbj.electrostatics.solute import rhs_to_discrete_form
+    from pbj.electrostatics.utils import rhs_to_discrete_form
 
     # Pass A to strong form with user set parameters
     solute.matrices["A"].strong_form()

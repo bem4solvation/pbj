@@ -97,7 +97,7 @@ def rhs(self):
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import aslinearoperator
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     matrix_A = solute.matrices["A"]
 
@@ -162,7 +162,7 @@ def block_diagonal_preconditioner(solute):
 
 
 def mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     # Option A:
     """

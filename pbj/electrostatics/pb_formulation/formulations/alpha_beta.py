@@ -173,7 +173,7 @@ def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import aslinearoperator
     from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     dirichl_space = solute.dirichl_space
     neumann_space = solute.neumann_space
@@ -305,7 +305,7 @@ def block_diagonal_preconditioner(solute):
 
 
 def mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.solute import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     """
     #Option A:

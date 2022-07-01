@@ -347,7 +347,7 @@ def calderon_exterior_operator_scaled_with_scaled_mass_matrix_preconditioner(sol
 
 
 def calderon_squared_lowered_parameters_preconditioner(solute):
-    from pbj.electrostatics.solute import rhs_to_discrete_form
+    from pbj.electrostatics.utils import rhs_to_discrete_form
 
     # Pass A to strong form with user set parameters
     solute.matrices["A"].strong_form()
@@ -388,7 +388,7 @@ def calderon_squared_lowered_parameters_preconditioner(solute):
 def calderon_interior_operator_with_scaled_mass_matrix_lowered_parameters_preconditioner(
     solute,
 ):
-    from pbj.electrostatics.solute import rhs_to_discrete_form
+    from pbj.electrostatics.utils import rhs_to_discrete_form
 
     # Pass A to strong form with user set parameters
     solute.matrices["A"].strong_form()
