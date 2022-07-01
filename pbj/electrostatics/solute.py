@@ -186,7 +186,7 @@ class Solute:
         self.slic_tolerance = 1e-5
 
         self.pb_formulation_preconditioning = True
-        self.pb_formulation_preconditioning_type = "block_diagonal"
+        self.pb_formulation_preconditioning_type = "mass_matrix"
 
         self.discrete_form_type = "weak"
 
