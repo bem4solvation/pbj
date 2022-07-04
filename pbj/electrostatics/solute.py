@@ -274,6 +274,13 @@ class Solute:
         if self.formulation_object.verify_parameters(self):
             self.formulation_object.rhs(self)
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
+        
+    def initialise_rhs_induced_dipole(self):
+        start_rhs = time.time()
+        # Verify if parameters are already set and then save RHS
+        if self.formulation_object.verify_parameters(self):
+            self.formulation_object.rhs_induced_dipole(self)
+        self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
     def apply_preconditioning(self):
         preconditioning_start_time = time.time()
@@ -662,7 +669,6 @@ class Solute:
                 self.timings["time_calc_boundary_force"],
                 " seconds to compute the boundary forces",
             )
-        return None
 
     def calculate_solvation_forces(self, h=0.001):
 
@@ -670,6 +676,7 @@ class Solute:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
 
+        
         if "f_qf" not in self.results:
             self.calculate_gradient_field(h=h)
             self.calculate_charges_forces()
@@ -700,7 +707,6 @@ class Solute:
                 " seconds to compute the solvation forces",
             )
 
-        return None
 
     def calculate_induced_dipole_dissolved(self):
         

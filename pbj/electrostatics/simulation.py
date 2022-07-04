@@ -207,13 +207,13 @@ class Simulation:
         self.matrices["A_discrete"] = A_discrete
         self.rhs["rhs_discrete"] = rhs_final_discrete
 
-    def create_and_assemble_rhs(self):
+    def create_and_assemble_rhs_induced_dipole(self):
         
         rhs_final_discrete = []
         
         for index, solute in enumerate(self.solutes):
             
-            solute.initialise_rhs()          
+            solute.initialise_rhs_induced_dipole()          
             solute.apply_preconditioning_rhs()            
 
             self.rhs["rhs_" + str(index + 1)] = [
@@ -236,6 +236,8 @@ class Simulation:
 
             self.create_and_assemble_linear_system()
             
+            self.timings["time_assembly"] = time.time() - start_time 
+           
             initial_guess = np.zeros_like(self.rhs["rhs_discrete"])
 
             # Use GMRES to solve the system of equations
@@ -302,6 +304,8 @@ class Simulation:
             solute.results["induced_dipole"] = np.zeros_like(solute.d)
 
         self.create_and_assemble_linear_system()
+        
+        self.timings["time_assembly"] = time.time() - start_time
 
         induced_dipole_residual = 1.
 
@@ -313,11 +317,17 @@ class Simulation:
 
         initial_guess = np.zeros_like(self.rhs["rhs_discrete"])
         
+        self.timings["time_calc_gradient"]       = 0.
+        self.timings["time_calc_induced_diss"]   = 0.
+        self.timings["time_gmres"]               = 0.
+        self.timings["time_assembly_rhs_induced_dipole"] = 0.
+        
         while induced_dipole_residual > self.induced_dipole_iter_tol:
 
+            start_time_rhs = time.time()
             if dipole_iter_count != 0:
-                self.create_and_assemble_rhs()                
-
+                self.create_and_assemble_rhs_induced_dipole()                
+            self.timings["time_assembly_rhs_induced_dipole"] += time.time() - start_time_rhs
             
             # Use GMRES to solve the system of equations
             if "preconditioning_matrix_gmres" in self.matrices:
@@ -343,7 +353,7 @@ class Simulation:
                     initial_guess = initial_guess,
                 )
 
-            self.timings["time_gmres"] = time.time() - gmres_start_time
+            self.timings["time_gmres"] += time.time() - gmres_start_time
             
             initial_guess = x.copy()
 
@@ -373,13 +383,16 @@ class Simulation:
                 else:  
                     solute.results["d_phi"] = solution[1] 
                     
-
+                time_start_grad = time.time()
                 solute.calculate_gradient_field()
+                self.timings["time_calc_gradient"] += time.time() - time_start_grad
 
                 d_induced_prev = solute.results["induced_dipole"].copy()
                 
+                time_start_induced = time.time()
                 solute.calculate_induced_dipole_dissolved()
-
+                self.timings["time_calc_induced_diss"] += time.time() - time_start_induced
+                
                 d_induced = solute.results["induced_dipole"]
 
                 dipole_diff[index] = np.max(np.sqrt(np.sum(
@@ -417,6 +430,7 @@ class Simulation:
             self.calculate_potentials()
         
     
+        start_time = time.time()
         for index, solute in enumerate(self.solutes):
             
             if self.solutes[0].force_field == "amoeba":
@@ -424,6 +438,9 @@ class Simulation:
 
             else:
                 solute.calculate_solvation_energy()
+                
+                
+        self.timings["time_calc_energy"] = time.time() - start_time
 
 
     def calculate_solvation_forces(self, h=0.001, rerun_all=False):
@@ -432,6 +449,8 @@ class Simulation:
             # If surface potential has not been calculated, calculate it now
             self.calculate_potentials()
         
-    
+        start_time = time.time()
         for index, solute in enumerate(self.solutes):
             solute.calculate_solvation_forces()
+
+        self.timings["time_calc_force"] = time.time() - start_time
