@@ -447,12 +447,20 @@ class Solute:
         flag_polar_group = False
         dphi_perm  = self.calculate_coulomb_dphi_multipole(flag_polar_group) # Recalculate for energy as flag = False
         ddphi_perm = self.calculate_coulomb_ddphi_multipole()
+        
+        self.results["phi_perm_multipoles"]         = phi_perm
+        self.results["gradphi_perm_multipoles"]     = dphi_perm
+        self.results["gradgradphi_perm_multipoles"] = ddphi_perm
        
         
         #phi, dphi and ddphi from induced dipoles
         phi_thole = self.calculate_coulomb_phi_multipole_Thole(state)
         dphi_thole = self.calculate_coulomb_dphi_multipole_Thole(state)
         ddphi_thole = self.calculate_coulomb_ddphi_multipole_Thole(state)
+        
+        self.results["phi_induced_dipole_"+state]         = phi_thole
+        self.results["gradphi_induced_dipole_"+state]     = dphi_thole
+        self.results["gradgradphi_induced_dipole_"+state] = ddphi_thole
         
         phi   = phi_perm  + phi_thole
         dphi  = dphi_perm + dphi_thole
