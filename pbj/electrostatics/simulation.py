@@ -206,6 +206,29 @@ class Simulation:
         A_discrete = bempp.api.assembly.blocked_operator.BlockedDiscreteOperator(A)
         self.matrices["A_discrete"] = A_discrete
         self.rhs["rhs_discrete"] = rhs_final_discrete
+        
+    def create_and_assemble_rhs(self):
+        from scipy.sparse import bmat, dok_matrix
+        from scipy.sparse.linalg import aslinearoperator
+        
+        solute_count = len(self.solutes)
+          
+        rhs_final_discrete = []
+        
+        for index, solute in enumerate(self.solutes):
+            solute.pb_formulation = self.pb_formulation
+
+            solute.initialise_rhs()
+            solute.apply_preconditioning_rhs()
+
+            self.rhs["rhs_" + str(index + 1)] = [
+                solute.rhs["rhs_1"],
+                solute.rhs["rhs_2"],
+            ]
+            
+            rhs_final_discrete.extend(solute.rhs["rhs_discrete"])
+
+        self.rhs["rhs_discrete"] = rhs_final_discrete
 
     def create_and_assemble_rhs_induced_dipole(self):
         
@@ -226,15 +249,21 @@ class Simulation:
         self.rhs["rhs_discrete"] = rhs_final_discrete
         
     
-    def calculate_potentials(self):
+    def calculate_potentials(self, rerun_all=False, rerun_rhs=False):
 
+        if rerun_all and rerun_rhs: # if both are True, just rerun_all
+            rerun_rhs=False
+            
         if self.solutes[0].force_field == "amoeba":
-            self.calculate_potentials_polarizable()
+            self.calculate_potentials_polarizable(rerun_all=rerun_all, rerun_rhs=rerun_rhs)
 
-        else:
+        elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
             start_time = time.time()
 
-            self.create_and_assemble_linear_system()
+            if rerun_rhs and "A_discrete" in self.solutes[0].matrices:
+                self.create_and_assemble_rhs()
+            else:
+                self.create_and_assemble_linear_system()
             
             self.timings["time_assembly"] = time.time() - start_time 
            
@@ -296,15 +325,18 @@ class Simulation:
 
             self.timings["time_compute_potential"] = time.time() - start_time
 
-    def calculate_potentials_polarizable(self):
+    def calculate_potentials_polarizable(self, rerun_all=False, rerun_rhs=False):
 
         start_time = time.time()
 
         for index, solute in enumerate(self.solutes):
             solute.results["induced_dipole"] = np.zeros_like(solute.d)
 
-        self.create_and_assemble_linear_system()
-        
+        if rerun_rhs and "A_discrete" in self.solutes[0].matrices:
+            self.create_and_assemble_rhs()
+        else:
+            self.create_and_assemble_linear_system()
+      
         self.timings["time_assembly"] = time.time() - start_time
 
         induced_dipole_residual = 1.
@@ -312,8 +344,6 @@ class Simulation:
         dipole_diff = np.zeros(len(self.solutes))
 
         dipole_iter_count = 0
-        #self.results["dipole_iter_count"] = 0 # find better place to store this
-
 
         initial_guess = np.zeros_like(self.rhs["rhs_discrete"])
         
@@ -420,10 +450,13 @@ class Simulation:
 #           show_potential_calculation_times(self)
 
     
-    def calculate_solvation_energy(self, rerun_all=False):
+    def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
 
         if rerun_all:
-            self.calculate_potential(rerun_all)
+            self.calculate_potentials(rerun_all=rerun_all)
+        
+        if rerun_rhs:
+            self.calculate_potentials(rerun_rhs=rerun_rhs)
 
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
