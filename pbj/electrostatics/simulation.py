@@ -257,7 +257,7 @@ class Simulation:
         if self.solutes[0].force_field == "amoeba":
             self.calculate_potentials_polarizable(rerun_all=rerun_all, rerun_rhs=rerun_rhs)
 
-        elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
+        elif ("phi" not in self.solutes[0].results) or (rerun_all) or (rerun_rhs):
             start_time = time.time()
 
             if rerun_rhs and "A_discrete" in self.solutes[0].matrices:

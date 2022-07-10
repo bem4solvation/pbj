@@ -90,8 +90,10 @@ def rhs(self):
                 T1 = np.transpose(dist.transpose()/norm**3)
                 T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
                 np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*(d[:]+d_induced[:])) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
+                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*(d[:])) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
                 result[0] = (phi/(4*np.pi*ep_in))
+                # only computes permanent multipole. Having a initial induced component is to be implemented
+
             
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
         else:
@@ -152,7 +154,8 @@ def rhs(self):
                 #T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
                 #np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
                 
-                phi = np.sum(q*T0) + np.sum(T1.transpose()*(d+d_induced)) + 0.5*np.sum(np.sum(T2.transpose()[:]*Q[:],axis=1))
+                phi = np.sum(q*T0) + np.sum(T1.transpose()*(d)) + 0.5*np.sum(np.sum(T2.transpose()[:]*Q[:],axis=1))
+                # only computes permanent multipole. Having a initial induced component is to be implemented
                 result[0] = (phi/(4*np.pi*ep_in))
             
             rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
