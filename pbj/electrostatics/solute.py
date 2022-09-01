@@ -678,42 +678,120 @@ class Solute:
                 " seconds to compute the boundary forces",
             )
 
-    def calculate_solvation_forces(self, h=0.001):
+    def calculate_solvation_forces(self, h=0.001, formulation='full'):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
 
-        
-        if "f_qf" not in self.results:
-            self.calculate_gradient_field(h=h)
-            self.calculate_charges_forces()
+        if formulation == 'full':
+            if "f_qf" not in self.results:
+                self.calculate_gradient_field(h=h)
+                self.calculate_charges_forces()
 
-        if "f_db" not in self.results:
-            self.calculate_boundary_forces()
+            if "f_db" not in self.results:
+                self.calculate_boundary_forces()
 
-        start_time = time.time()
+            start_time = time.time()
 
-        f_solv = np.zeros([3])
-        f_qf = self.results["f_qf"]
-        f_db = self.results["f_db"]
-        f_ib = self.results["f_ib"]
-        f_solv = f_qf + f_db + f_ib
+            f_solv = np.zeros([3])
+            f_qf = self.results["f_qf"]
+            f_db = self.results["f_db"]
+            f_ib = self.results["f_ib"]
+            f_solv = f_qf + f_db + f_ib
 
-        self.results["f_solv"] = f_solv
-        self.timings["time_calc_solvation_force"] = (
-            time.time()
-            - start_time
-            + self.timings["time_calc_boundary_force"]
-            + self.timings["time_calc_solute_force"]
-            + self.timings["time_calc_gradient_field"]
-        )
-        if self.print_times:
-            print(
-                "It took ",
-                self.timings["time_calc_solvation_force"],
-                " seconds to compute the solvation forces",
+            self.results["f_solv"] = f_solv
+            self.timings["time_calc_solvation_force"] = (
+                time.time()
+                - start_time
+                + self.timings["time_calc_boundary_force"]
+                + self.timings["time_calc_solute_force"]
+                + self.timings["time_calc_gradient_field"]
             )
+            if self.print_times:
+                print(
+                    "It took ",
+                    self.timings["time_calc_solvation_force"],
+                    " seconds to compute the solvation forces with ",
+                    formulation,
+                    " formulation"
+                )
+
+        elif formulation == 'fast':
+
+            if "f_ib" not in self.results:
+                self.calculate_boundary_forces()
+
+            start_time = time.time()
+
+
+            N_elements = self.mesh.number_of_elements
+            phi_vertex = self.results["phi"].coefficients
+            ep_hat =  self.ep_in/self.ep_ex
+            dphi_centers = ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
+            total_force = np.zeros(3)
+            convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+
+            for i in range(N_elements):
+                eps = self.mesh.normals[i]
+                
+                # get vertex indices adyacent to a triangular element
+                v1_index = self.mesh.elements[0,i]
+                v2_index = self.mesh.elements[1,i]
+                v3_index = self.mesh.elements[2,i]
+                
+                # get vertex coordinates from vertex indices
+                v1 = self.mesh.vertices[:,v1_index]
+                v2 = self.mesh.vertices[:,v2_index]
+                v3 = self.mesh.vertices[:,v3_index]
+                
+                v21 = v2 - v1
+                v31 = v3 - v1
+                
+                v21_norm = np.linalg.norm(v21)
+                v31_norm = np.linalg.norm(v31)
+                
+                phi_1 = phi_vertex[v1_index]
+                phi_2 = phi_vertex[v2_index]
+                phi_3 = phi_vertex[v3_index]
+                
+                alpha = np.arccos(np.dot(v21,v31)/(v21_norm*v31_norm))
+                
+                a = (phi_2 - phi_1)/v21_norm
+                b = (phi_3 - phi_1)/(v31_norm*np.sin(alpha)) - (phi_2-phi_1)/(v21_norm*np.tan(alpha))
+                
+                eta = v21/v21_norm
+                tau = np.cross(eps,eta)
+                
+                E_eps = -dphi_centers[i]
+                E_eta = -a
+                E_tau = -b
+                
+                E_norm = np.sqrt(E_eps*E_eps + E_eta*E_eta + E_tau*E_tau)
+                
+                F = (E_eps*E_eps - 0.5*E_norm*E_norm)*eps + E_eps*E_eta*eta + E_eps*E_tau*tau 
+                
+                F *= self.ep_ex
+                
+                total_force += F * self.mesh.volumes[i]   
+
+                self.results["f_solv"] = convert_to_kcalmolA * total_force + self.results["f_ib"]
+                self.timings["time_calc_solvation_force"] = (
+                    time.time()
+                    - start_time
+                )
+                if self.print_times:
+                    print(
+                        "It took ",
+                        self.timings["time_calc_solvation_force"],
+                        " seconds to compute the solvation forces with ",
+                        formulation,
+                        " formulation"
+                    )
+
+        else:
+                print("Please choice formulation 'full' or 'fast'")
+                return
 
 
     def calculate_induced_dipole_dissolved(self):
