@@ -34,7 +34,11 @@ class Simulation:
         self.kappa = 0.125
         
         self.pb_formulation_preconditioning = True
-        self.pb_formulation_preconditioning_type = "block_diagonal"
+        
+        if formulation=="direct":
+            self.pb_formulation_preconditioning_type = "block_diagonal"
+        else:
+            self.pb_formulation_preconditioning_type = "mass_matrix"
         
         self.operator_assembler = "dense"
 
@@ -158,7 +162,7 @@ class Simulation:
             ]
             
             rhs_final_discrete.extend(solute.rhs["rhs_discrete"])
-            
+                        
             if solute.matrices["preconditioning_matrix_gmres"] is not None :
                 precond_matrix_top_row = []
                 precond_matrix_bottom_row = []
