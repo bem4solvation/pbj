@@ -636,7 +636,7 @@ class Solute:
 
         return None
 
-    def calculate_boundary_forces(self):
+    def calculate_boundary_forces(self, dielectric_term='approx'):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
@@ -650,14 +650,66 @@ class Solute:
         convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
-        # Dielectric boundary force
-        f_db = (
-            -0.5
-            * convert_to_kcalmolA
-            * (self.ep_ex - self.ep_in)
-            * (self.ep_in / self.ep_ex)
-            * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
-        )
+        if dielectric_term == 'approx':
+            # Dielectric boundary force
+            f_db = (
+                -0.5
+                * convert_to_kcalmolA
+                * (self.ep_ex - self.ep_in)
+                * (self.ep_in / self.ep_ex)
+                * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
+            )
+
+        elif dielectric_term == 'exact':
+            N_elements = self.mesh.number_of_elements
+            phi_vertex = self.results["phi"].coefficients
+            ep_hat =  self.ep_in/self.ep_ex
+            dphi_centers = ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
+            f_db = np.zeros(3)
+            convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+            for i in range(N_elements):
+                eps = self.mesh.normals[i]
+                    
+                # get vertex indices adyacent to a triangular element
+                v1_index = self.mesh.elements[0,i]
+                v2_index = self.mesh.elements[1,i]
+                v3_index = self.mesh.elements[2,i]
+                
+                # get vertex coordinates from vertex indices
+                v1 = self.mesh.vertices[:,v1_index]
+                v2 = self.mesh.vertices[:,v2_index]
+                v3 = self.mesh.vertices[:,v3_index]
+                
+                v21 = v2 - v1
+                v31 = v3 - v1
+                
+                v21_norm = np.linalg.norm(v21)
+                v31_norm = np.linalg.norm(v31)
+                
+                phi_1 = phi_vertex[v1_index]
+                phi_2 = phi_vertex[v2_index]
+                phi_3 = phi_vertex[v3_index]
+                
+                alpha = np.arccos(np.dot(v21,v31)/(v21_norm*v31_norm))
+                
+                a = (phi_2 - phi_1)/v21_norm
+                b = (phi_3 - phi_1)/(v31_norm*np.sin(alpha)) - (phi_2-phi_1)/(v21_norm*np.tan(alpha))
+                
+                eta = v21/v21_norm
+                tau = np.cross(eps,eta)
+                
+                E_eps = -dphi_centers[i]
+                E_eta = -a
+                E_tau = -b
+                
+
+                F = ((1/ep_hat)*E_eps*E_eps + E_eta*E_eta + E_tau*E_tau)
+                F *= -0.5*(self.ep_ex - self.ep_in)*self.mesh.normals[i]
+                
+                f_db += F * self.mesh.volumes[i]   
+        else: 
+            raise ValueError('Dielectric term must be either "approx" or "exact"')
+
         # Ionic boundary force
         f_ib = (
             -0.5
@@ -667,7 +719,7 @@ class Solute:
             * np.sum(np.transpose(np.transpose(dS) * phi[0] ** 2), axis=0)
         )
 
-        self.results["f_db"] = f_db
+        self.results["f_db"] = convert_to_kcalmolA * f_db
         self.results["f_ib"] = f_ib
         self.timings["time_calc_boundary_force"] = time.time() - start_time
 
@@ -678,7 +730,7 @@ class Solute:
                 " seconds to compute the boundary forces",
             )
 
-    def calculate_solvation_forces(self, h=0.001, formulation='full'):
+    def calculate_solvation_forces(self, h=0.001, formulation='full', dielectric_term='exact'):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
@@ -690,7 +742,7 @@ class Solute:
                 self.calculate_charges_forces()
 
             if "f_db" not in self.results:
-                self.calculate_boundary_forces()
+                self.calculate_boundary_forces(dielectric_term=dielectric_term)
 
             start_time = time.time()
 
@@ -790,8 +842,7 @@ class Solute:
                     )
 
         else:
-                print("Please choice formulation 'full' or 'fast'")
-                return
+            raise ValueError('Formulation have to be "full" or "fast"')
 
 
     def calculate_induced_dipole_dissolved(self):
