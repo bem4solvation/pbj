@@ -636,7 +636,7 @@ class Solute:
 
         return None
 
-    def calculate_boundary_forces(self, dielectric_term='approx'):
+    def calculate_boundary_forces(self, dielectric_term='exact'):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
