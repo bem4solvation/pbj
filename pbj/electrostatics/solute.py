@@ -217,7 +217,9 @@ class Solute:
     def pb_formulation(self, value):
         self._pb_formulation = value
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
-        #self.matrices["preconditioning_matrix_gmres"] = None
+        if "preconditioning_matrix_gmres" not in self.matrices: # might already exist if just regenerating RHS
+            self.matrices["preconditioning_matrix_gmres"] = None
+
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
 
@@ -704,9 +706,9 @@ class Solute:
                 
 
                 F = ((1/ep_hat)*E_eps*E_eps + E_eta*E_eta + E_tau*E_tau)
-                F *= -0.5*(self.ep_ex - self.ep_in)*self.mesh.normals[i]
+                F *= -0.5*(self.ep_ex - self.ep_in)*self.mesh.normals[i] * self.mesh.volumes[i]
                 
-                f_db += F * self.mesh.volumes[i]   
+                f_db += convert_to_kcalmolA * F    
 
         # Ionic boundary force
         f_ib = (
@@ -717,7 +719,7 @@ class Solute:
             * np.sum(np.transpose(np.transpose(dS) * phi[0] ** 2), axis=0)
         )
 
-        self.results["f_db"] = convert_to_kcalmolA * f_db
+        self.results["f_db"] = f_db
         self.results["f_ib"] = f_ib
         self.timings["time_calc_boundary_force"] = time.time() - start_time
 
