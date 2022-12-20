@@ -636,7 +636,7 @@ class Solute:
 
         return None
 
-    def calculate_boundary_forces(self, dielectric_term='exact'):
+    def calculate_boundary_forces(self, fdb_approx=False):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
@@ -650,7 +650,7 @@ class Solute:
         convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
-        if dielectric_term == 'approx':
+        if fdb_approx :
             # Dielectric boundary force
             f_db = (
                 -0.5
@@ -660,7 +660,7 @@ class Solute:
                 * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
             )
 
-        elif dielectric_term == 'exact':
+        else:
             N_elements = self.mesh.number_of_elements
             phi_vertex = self.results["phi"].coefficients
             ep_hat =  self.ep_in/self.ep_ex
@@ -707,8 +707,6 @@ class Solute:
                 F *= -0.5*(self.ep_ex - self.ep_in)*self.mesh.normals[i]
                 
                 f_db += F * self.mesh.volumes[i]   
-        else: 
-            raise ValueError('Dielectric term must be either "approx" or "exact"')
 
         # Ionic boundary force
         f_ib = (
@@ -730,19 +728,18 @@ class Solute:
                 " seconds to compute the boundary forces",
             )
 
-    def calculate_solvation_forces(self, h=0.001, formulation='full', dielectric_term='exact'):
+    def calculate_solvation_forces(self, h=0.001, force_formulation='maxwell_tensor', fdb_approx=False):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
 
-        if formulation == 'full':
+        if force_formulation == 'energy_functional':
             if "f_qf" not in self.results:
                 self.calculate_gradient_field(h=h)
                 self.calculate_charges_forces()
 
-            if "f_db" not in self.results:
-                self.calculate_boundary_forces(dielectric_term=dielectric_term)
+            self.calculate_boundary_forces(fdb_approx=fdb_approx)
 
             start_time = time.time()
 
@@ -765,11 +762,11 @@ class Solute:
                     "It took ",
                     self.timings["time_calc_solvation_force"],
                     " seconds to compute the solvation forces with ",
-                    formulation,
+                    force_formulation,
                     " formulation"
                 )
 
-        elif formulation == 'fast':
+        elif force_formulation == 'maxwell_tensor':
 
             if "f_ib" not in self.results:
                 self.calculate_boundary_forces()
@@ -778,6 +775,7 @@ class Solute:
 
 
             N_elements = self.mesh.number_of_elements
+            P_normal = np.zeros([N_elements])
             phi_vertex = self.results["phi"].coefficients
             ep_hat =  self.ep_in/self.ep_ex
             dphi_centers = ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
@@ -824,25 +822,26 @@ class Solute:
                 F = (E_eps*E_eps - 0.5*E_norm*E_norm)*eps + E_eps*E_eta*eta + E_eps*E_tau*tau 
                 
                 F *= self.ep_ex
-                
                 total_force += F * self.mesh.volumes[i]   
-
-                self.results["f_solv"] = convert_to_kcalmolA * total_force + self.results["f_ib"]
-                self.timings["time_calc_solvation_force"] = (
-                    time.time()
-                    - start_time
+                P_normal[i] = np.sqrt(np.dot(F * self.mesh.volumes[i], F * self.mesh.volumes[i]))
+                
+            self.results["P_normal"] = convert_to_kcalmolA * P_normal
+            self.results["f_solv"] = convert_to_kcalmolA * total_force + self.results["f_ib"]
+            self.timings["time_calc_solvation_force"] = (
+                time.time()
+                - start_time
+            )
+            if self.print_times:
+                print(
+                    "It took ",
+                    self.timings["time_calc_solvation_force"],
+                    " seconds to compute the solvation forces with ",
+                    force_formulation,
+                    " formulation"
                 )
-                if self.print_times:
-                    print(
-                        "It took ",
-                        self.timings["time_calc_solvation_force"],
-                        " seconds to compute the solvation forces with ",
-                        formulation,
-                        " formulation"
-                    )
 
         else:
-            raise ValueError('Formulation have to be "full" or "fast"')
+            raise ValueError('Formulation have to be "maxwell_tensor" or "energy_functional"')
 
 
     def calculate_induced_dipole_dissolved(self):
