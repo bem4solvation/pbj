@@ -480,7 +480,7 @@ class Simulation:
         self.timings["time_calc_energy"] = time.time() - start_time
 
 
-    def calculate_solvation_forces(self, h=0.001, rerun_all=False):
+    def calculate_solvation_forces(self, h=0.001, rerun_all=False, force_formulation='maxwell_tensor', fdb_approx=False):
 
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
@@ -488,6 +488,6 @@ class Simulation:
         
         start_time = time.time()
         for index, solute in enumerate(self.solutes):
-            solute.calculate_solvation_forces()
+            solute.calculate_solvation_forces(h=h, force_formulation=force_formulation, fdb_approx=fdb_approx)
 
         self.timings["time_calc_force"] = time.time() - start_time
