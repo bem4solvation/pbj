@@ -1,5 +1,6 @@
 import bempp.api
 import time
+import trimesh
 
 import numpy as np
 import pbj.electrostatics.solute
@@ -491,3 +492,66 @@ class Simulation:
             solute.calculate_solvation_forces(h=h, force_formulation=force_formulation, fdb_approx=fdb_approx)
 
         self.timings["time_calc_force"] = time.time() - start_time
+
+        
+    def calculate_potential_solvent(self, eval_points, rerun_all=False, rerun_rhs=False):
+        """
+        Evaluates the potential on a cloud of points in the solvent. Needs check for multiple molecules.
+        Inputs:
+        -------
+        eval_points: (3xN array) with 3D position of N points. 
+                     If point lies in a solute it is masked out.
+                 
+        Outputs:
+        --------
+        phi_solvent: (array) electrostatic potential at eval_points
+        """
+        if rerun_all:
+            self.calculate_potentials(rerun_all=rerun_all)
+        
+        if rerun_rhs:
+            self.calculate_potentials(rerun_rhs=rerun_rhs)
+
+        if "phi" not in self.solutes[0].results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_potentials()
+     
+        # Mask out points in solute
+        points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)
+        for index, solute in enumerate(self.solutes):
+            
+            # Check if evaluation points are inside a solute
+            verts = np.transpose(solute.mesh.vertices)
+            faces = np.transpose(solute.mesh.elements)
+            
+            mesh_tri = trimesh.Trimesh(vertices = verts, faces = faces)
+            
+            points_solute = mesh_tri.contains(np.transpose(eval_points))
+            
+            points_solvent = np.logical_and(points_solvent, np.logical_not(points_solute))
+            
+            
+        # Compute potential
+        phi_solvent = np.zeros(np.shape(eval_points)[1], dtype=float)
+        for index, solute in enumerate(self.solutes):
+            
+            
+            if self.kappa < 1e-12:
+                V = bempp.api.operators.potential.laplace.single_layer \
+                                (solute.neumann_space, eval_points[:,points_solvent])
+                K = bempp.api.operators.potential.laplace.double_layer \
+                                (solute.dirichl_space, eval_points[:,points_solvent])
+            else:
+                V = bempp.api.operators.potential.modified_helmholtz.single_layer \
+                                (solute.neumann_space, eval_points[:,points_solvent], self.kappa)
+                K = bempp.api.operators.potential.modified_helmholtz.double_layer \
+                                (solute.dirichl_space, eval_points[:,points_solvent], self.kappa) 
+
+            phi_aux = K*solute.results["phi"] \
+                                        - solute.ep_in/solute.ep_ex * V*solute.results["d_phi"]
+            phi_solvent[points_solvent] = phi_aux[0,:]
+                
+        return phi_solvent
+                
+            
+            
