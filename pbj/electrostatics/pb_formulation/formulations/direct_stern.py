@@ -6,6 +6,8 @@ from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 import pbj
 from .common import calculate_potential_stern
 
+invert_potential = False
+
 
 def verify_parameters(self):
     return True
@@ -49,7 +51,7 @@ def create_stern_mesh(self):
     else:
     """
     if hasattr(self, "mesh_density"):
-        stern_solute_object = pbj.Solute(
+        stern_solute_object = pbj.electrostatics.Solute(
             stern_pqr_file,
             external_mesh_file=None,
             save_mesh_build_files=self.save_mesh_build_files,
@@ -64,7 +66,7 @@ def create_stern_mesh(self):
         )
 
     else:
-        stern_solute_object = pbj.Solute(
+        stern_solute_object = pbj.electrostatics.Solute(
             stern_pqr_file,
             external_mesh_file=None,
             save_mesh_build_files=self.save_mesh_build_files,

@@ -26,6 +26,7 @@ dependencies:
     - gmsh
     - trimesh
     - pytest
+    - rtree
     - "git+https://github.com/bempp/bempp-cl.git"
     - "git+https://github.com/exafmm/exafmm-t.git"
     - "git+https://github.com/bem4solvation/pbj.git"
