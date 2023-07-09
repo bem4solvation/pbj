@@ -4,6 +4,8 @@ from bempp.api.operators.boundary import sparse, laplace
 from .common import calculate_potential_slic
 import pbj
 
+invert_potential = False
+
 
 def verify_parameters(self):
     return True
@@ -41,8 +43,8 @@ def create_ehat_diel(self, sigma):
     q = self.q
     x_q = self.x_q
     ep_in = self.ep_in
-    ep_stern = getattr(self, "ep_stern", self.ep_ex)
-    self.ep_stern = ep_stern
+    #ep_stern = getattr(self, "ep_stern", self.ep_ex)
+    #self.ep_stern = ep_stern
 
     dlp_adj_in = bempp.api.operators.boundary.laplace.adjoint_double_layer(
         dirichl_space_diel,

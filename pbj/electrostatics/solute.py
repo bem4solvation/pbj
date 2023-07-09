@@ -170,8 +170,13 @@ class Solute:
 
         self.ep_in = 4.0
         self.ep_ex = 80.0
+        self.ep_stern = 80.0
         self.kappa = 0.125
+        
+        self.e_hat_diel  = self.ep_in / self.ep_stern
+        self.e_hat_stern = self.ep_stern / self.ep_ex
 
+        
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
 

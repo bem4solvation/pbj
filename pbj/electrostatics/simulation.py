@@ -36,7 +36,7 @@ class Simulation:
         
         self.pb_formulation_preconditioning = True
         
-        if formulation=="direct":
+        if formulation=="direct":# or formulation=="direct_stern" or formulation=="slic":
             self.pb_formulation_preconditioning_type = "block_diagonal"
         else:
             self.pb_formulation_preconditioning_type = "mass_matrix"
@@ -327,7 +327,28 @@ class Simulation:
                     solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
                 else:  
                     solute.results["d_phi"] = solution[1] 
+                  
+                if solute.stern_object is not None:
+                    N_dirichl = solute.stern_object.dirichl_space.global_dof_count
+                    N_neumann = solute.stern_object.neumann_space.global_dof_count
+                    N_total = N_dirichl + N_neumann
+                    
+                    x_slice = x.ravel()[solute_start:solute_start + N_total]
+                
+                    solute_start += N_total
+                
+                    solution = grid_function_list_from_coefficients(
+                        x_slice, self.solutes[index].matrices["A"].domain_spaces
+                    )
 
+                    solute.results["phi_stern"]  = solution[0]
+                
+                    if self.formulation_object.invert_potential:
+                        solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_in) * solution[1] 
+                    else:  
+                        solute.results["d_phi_stern"] = solution[1]
+
+  
             self.timings["time_compute_potential"] = time.time() - start_time
 
     def calculate_potentials_polarizable(self, rerun_all=False, rerun_rhs=False):
