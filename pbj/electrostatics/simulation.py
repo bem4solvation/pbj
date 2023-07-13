@@ -36,7 +36,7 @@ class Simulation:
         
         self.pb_formulation_preconditioning = True
         
-        if formulation=="direct":# or formulation=="direct_stern" or formulation=="slic":
+        if formulation=="direct" or formulation=="direct_stern" or formulation=="slic":
             self.pb_formulation_preconditioning_type = "block_diagonal"
         else:
             self.pb_formulation_preconditioning_type = "mass_matrix"
@@ -165,22 +165,47 @@ class Simulation:
             rhs_final_discrete.extend(solute.rhs["rhs_discrete"])
                         
             if solute.matrices["preconditioning_matrix_gmres"] is not None :
-                precond_matrix_top_row = []
-                precond_matrix_bottom_row = []
+                
+                if solute.stern_object is None:
+                    precond_matrix_top_row = []
+                    precond_matrix_bottom_row = []
 
-                for index_source, solute_source in enumerate(self.solutes):
+                    for index_source, solute_source in enumerate(self.solutes):
+
+                        if index_source == index:
+                            precond_matrix_top_row.extend(solute.matrices["preconditioning_matrix_gmres"][0])
+                            precond_matrix_bottom_row.extend(solute.matrices["preconditioning_matrix_gmres"][1])
+                        else:
+                            M = solute.dirichl_space.grid_dof_count
+                            N = solute_source.dirichl_space.grid_dof_count
+                            zero_matrix = dok_matrix((M,N))
+                            precond_matrix_top_row.extend([zero_matrix,zero_matrix])
+                            precond_matrix_bottom_row.extend([zero_matrix,zero_matrix])
+
+                    precond_matrix.extend([precond_matrix_top_row,precond_matrix_bottom_row])
                     
-                    if index_source == index:
-                        precond_matrix_top_row.extend(solute.matrices["preconditioning_matrix_gmres"][0])
-                        precond_matrix_bottom_row.extend(solute.matrices["preconditioning_matrix_gmres"][1])
-                    else:
-                        M = solute.dirichl_space.grid_dof_count
-                        N = solute_source.dirichl_space.grid_dof_count
-                        zero_matrix = dok_matrix((M,N))
-                        precond_matrix_top_row.extend([zero_matrix,zero_matrix])
-                        precond_matrix_bottom_row.extend([zero_matrix,zero_matrix])
+                else:
+                    precond_matrix_row_0 = []
+                    precond_matrix_row_1 = []
+                    precond_matrix_row_2 = []
+                    precond_matrix_row_3 = []
+                    
+                    
+                    for index_source, solute_source in enumerate(self.solutes):
                         
-                precond_matrix.extend([precond_matrix_top_row,precond_matrix_bottom_row])
+                        if index_source == index:
+                            precond_matrix_row_0.extend(solute.matrices["preconditioning_matrix_gmres"][0])
+                            precond_matrix_row_1.extend(solute.matrices["preconditioning_matrix_gmres"][1])
+                            precond_matrix_row_2.extend(solute.matrices["preconditioning_matrix_gmres"][2])
+                            precond_matrix_row_3.extend(solute.matrices["preconditioning_matrix_gmres"][3])
+                        else:
+                            M = solute.stern_object.dirichl_space.grid_dof_count
+                            N = solute_source.stern_object.dirichl_space.grid_dof_count
+                            zero_matrix = dok_matrix((M,N))
+                            precond_matrix_row_0.extend([zero_matrix,zero_matrix])
+                            precond_matrix_row_1.extend([zero_matrix,zero_matrix])
+                            precond_matrix_row_2.extend([zero_matrix,zero_matrix])
+                            precond_matrix_row_3.extend([zero_matrix,zero_matrix])
                 
         if len(precond_matrix) > 0:
             precond_matrix_full = bmat(precond_matrix).tocsr()

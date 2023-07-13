@@ -270,7 +270,7 @@ def rhs(self):
 
 
 def block_diagonal_preconditioner(solute):
-    from scipy.sparse import diags, bmat, block_diag
+    from scipy.sparse import diags, bmat, block_diag, dok_matrix
     from scipy.sparse.linalg import aslinearoperator
     from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
@@ -402,18 +402,33 @@ def block_diagonal_preconditioner(solute):
     diag43_inv = -d_aux * diag43 / diag33
     diag44_inv = d_aux
 
-    A = bmat(
-        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
-    )
-    B = bmat(
-        [[diags(diag33_inv), diags(diag34_inv)], [diags(diag43_inv), diags(diag44_inv)]]
-    )
+    N_diel = dirichl_space_diel.grid_dof_count
+    N_stern = dirichl_space_stern.grid_dof_count
+    
+    zero_matrix_top = dok_matrix((N_diel,N_stern))
+    zero_matrix_bot = dok_matrix((N_stern,N_diel))
+    
+    #A = bmat(
+    #    [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    #)
+    #B = bmat(
+    #    [[diags(diag33_inv), diags(diag34_inv)], [diags(diag43_inv), diags(diag44_inv)]]
+    #)
 
-    block_mat_precond = block_diag((A, B), format="csr")
+    block_mat_precond =  [[diags(diag11_inv), diags(diag12_inv), zero_matrix_top, zero_matrix_top], 
+                           [diags(diag21_inv), diags(diag22_inv), zero_matrix_top, zero_matrix_top],
+                           [diags(diag33_inv), diags(diag34_inv), zero_matrix_bot, zero_matrix_bot], 
+                           [diags(diag43_inv), diags(diag44_inv), zero_matrix_bot, zero_matrix_bot]]
+                        
+    
+    #block_mat_precond = block_diag((A, B), format="csr")
 
-    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
-        block_mat_precond
-    )
+    #solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
+    #    block_mat_precond
+    #)
+    
+    solute.matrices["preconditioning_matrix_gmres"] = block_mat_precond
+    
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [
         solute.rhs["rhs_1"],
@@ -456,3 +471,81 @@ def calculate_potential(self, rerun_all):
     if self.stern_object is None:
         create_stern_mesh(self)
     calculate_potential_stern(self, rerun_all)
+    
+    
+def lhs_inter_solute_interactions(self, solute_target, solute_source):
+   
+    dirichl_space_target = solute_target.stern_object.dirichl_space
+    neumann_space_target = solute_target.stern_object.neumann_space
+    dirichl_space_source = solute_source.stern_object.dirichl_space
+    neumann_space_source = solute_source.stern_object.neumann_space
+
+    ep_in = solute_source.ep_stern
+    ep_out = self.ep_ex
+    kappa = self.kappa
+    operator_assembler = self.operator_assembler
+
+
+
+    dlp = modified_helmholtz.double_layer(
+        dirichl_space_source, dirichl_space_target, dirichl_space_target, kappa, assembler=operator_assembler
+    )
+    slp = modified_helmholtz.single_layer(
+        neumann_space_source, neumann_space_target, neumann_space_target, kappa,  assembler=operator_assembler
+    )
+
+    
+    if solute_target.stern_object is None:
+        
+        zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+            dirichl_space_source, dirichl_space_target, dirichl_space_target
+        )
+    
+        zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+            neumann_space_source, neumann_space_target, neumann_space_target
+        )
+        
+        A_inter = bempp.api.BlockedOperator(2, 2)
+    
+        A_inter[0, 0] = zero_00
+        A_inter[0, 1] = zero_01 
+        A_inter[1, 0] = - dlp
+        A_inter[1, 1] = (ep_in / ep_out) * slp
+        
+    else:
+        from bempp.api.assembly.boundary_operator import ZeroBoundaryOperator as zero_op
+        
+        A_inter = bempp.api.BlockedOperator(4, 4)
+        
+        target_diel  = solute_target.dirichl_space
+        target_stern = solute_target.stern_object.dirichl_space
+        source_diel  = solute_source.dirichl_space
+        source_stern = solute_source.stern_object.dirichl_space
+   
+        zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+            dirichl_space_source, dirichl_space_target, dirichl_space_target
+        )
+    
+        zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
+            neumann_space_source, neumann_space_target, neumann_space_target
+        )
+        
+        A_inter[0, 0] = zero_op(source_diel, target_diel, target_diel)
+        A_inter[0, 1] = zero_op(source_diel, target_diel, target_diel)
+        A_inter[0, 2] = zero_op(source_stern, target_diel, target_diel)
+        A_inter[0, 3] = zero_op(source_stern, target_diel, target_diel)
+        A_inter[1, 0] = zero_op(source_diel, target_diel, target_diel)
+        A_inter[1, 1] = zero_op(source_diel, target_diel, target_diel)
+        A_inter[1, 2] = zero_op(source_stern, target_diel, target_diel)
+        A_inter[1, 3] = zero_op(source_stern, target_diel, target_diel)
+        A_inter[2, 0] = zero_op(source_diel, target_stern, target_stern)
+        A_inter[2, 1] = zero_op(source_diel, target_stern, target_stern)
+        A_inter[2, 2] = zero_op(source_stern, target_stern, target_stern)
+        A_inter[2, 3] = zero_op(source_stern, target_stern, target_stern)
+        A_inter[3, 0] = zero_op(source_diel, target_stern, target_stern)
+        A_inter[3, 1] = zero_op(source_diel, target_stern, target_stern)
+        A_inter[3, 2] = - dlp
+        A_inter[3, 3] = (ep_in / ep_out) * slp
+             
+    
+    return A_inter.weak_form()  # should always be weak_form, as preconditioner doesn't touch it
