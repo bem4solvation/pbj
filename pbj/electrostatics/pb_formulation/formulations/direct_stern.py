@@ -463,14 +463,8 @@ def mass_matrix_preconditioner(solute):
     )
 
 
-def calculate_potential(self, rerun_all):
-    ep_stern = getattr(self, "ep_stern", self.ep_ex)
-    self.ep_stern = ep_stern
-    self.e_hat_diel = self.ep_in / self.ep_stern
-    self.e_hat_stern = self.ep_stern / self.ep_ex
-    if self.stern_object is None:
-        create_stern_mesh(self)
-    calculate_potential_stern(self, rerun_all)
+def calculate_potential(self, rerun_all, rerun_rhs):
+    calculate_potential_stern(self, rerun_all, rerun_rhs)
     
     
 def lhs_inter_solute_interactions(self, solute_target, solute_source):

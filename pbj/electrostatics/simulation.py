@@ -279,102 +279,9 @@ class Simulation:
         self.rhs["rhs_discrete"] = rhs_final_discrete
         
     
-    def calculate_potentials(self, rerun_all=False, rerun_rhs=False):
-
-        if rerun_all and rerun_rhs: # if both are True, just rerun_all
-            rerun_rhs=False
-            
-        if self.solutes[0].force_field == "amoeba":
-            self.calculate_potentials_polarizable(rerun_all=rerun_all, rerun_rhs=rerun_rhs)
-
-        elif ("phi" not in self.solutes[0].results) or (rerun_all) or (rerun_rhs):
-            start_time = time.time()
-
-            if rerun_rhs and "A_discrete" in self.solutes[0].matrices:
-                self.create_and_assemble_rhs()
-            else:
-                self.create_and_assemble_linear_system()
-            
-            self.timings["time_assembly"] = time.time() - start_time 
-           
-            initial_guess = np.zeros_like(self.rhs["rhs_discrete"])
-
-            # Use GMRES to solve the system of equations
-            if "preconditioning_matrix_gmres" in self.matrices:
-                gmres_start_time = time.time()
-                x, info, it_count = utils.solver(
-                    self.matrices["A_discrete"],
-                    self.rhs["rhs_discrete"],
-                    self.gmres_tolerance,
-                    self.gmres_restart,
-                    self.gmres_max_iterations,
-                    initial_guess = initial_guess,
-                    precond = self.matrices["preconditioning_matrix_gmres"]
-                )
-                
-            else:
-                gmres_start_time = time.time()
-                x, info, it_count = utils.solver(
-                    self.matrices["A_discrete"],
-                    self.rhs["rhs_discrete"],
-                    self.gmres_tolerance,
-                    self.gmres_restart,
-                    self.gmres_max_iterations,
-                    initial_guess = initial_guess,
-                )
-
-            self.timings["time_gmres"] = time.time() - gmres_start_time
-
-            from bempp.api.assembly.blocked_operator import (
-                grid_function_list_from_coefficients,
-            )          
-
-            self.run_info["solver_iteration_count"] = it_count
-            
-            solute_start = 0
-            for index, solute in enumerate(self.solutes):
-
-                N_dirichl = solute.dirichl_space.global_dof_count
-                N_neumann = solute.neumann_space.global_dof_count
-                N_total = N_dirichl + N_neumann
-                
-                x_slice = x.ravel()[solute_start:solute_start + N_total]
-                
-                solute_start += N_total
-                
-                solution = grid_function_list_from_coefficients(
-                    x_slice, self.solutes[index].matrices["A"].domain_spaces
-                )
-
-                solute.results["phi"]  = solution[0]
-                
-                if self.formulation_object.invert_potential:
-                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
-                else:  
-                    solute.results["d_phi"] = solution[1] 
-                  
-                if solute.stern_object is not None:
-                    N_dirichl = solute.stern_object.dirichl_space.global_dof_count
-                    N_neumann = solute.stern_object.neumann_space.global_dof_count
-                    N_total = N_dirichl + N_neumann
-                    
-                    x_slice = x.ravel()[solute_start:solute_start + N_total]
-                
-                    solute_start += N_total
-                
-                    solution = grid_function_list_from_coefficients(
-                        x_slice, self.solutes[index].matrices["A"].domain_spaces
-                    )
-
-                    solute.results["phi_stern"]  = solution[0]
-                
-                    if self.formulation_object.invert_potential:
-                        solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_in) * solution[1] 
-                    else:  
-                        solute.results["d_phi_stern"] = solution[1]
-
-  
-            self.timings["time_compute_potential"] = time.time() - start_time
+    def calculate_surface_potential(self, rerun_all=False, rerun_rhs=False):
+        self.formulation_object.calculate_potential(self, rerun_all, rerun_rhs)
+                                    
 
     def calculate_potentials_polarizable(self, rerun_all=False, rerun_rhs=False):
 
@@ -504,14 +411,14 @@ class Simulation:
     def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
 
         if rerun_all:
-            self.calculate_potentials(rerun_all=rerun_all)
+            self.calculate_surface_potential(rerun_all=rerun_all)
         
         if rerun_rhs:
-            self.calculate_potentials(rerun_rhs=rerun_rhs)
+            self.calculate_surface_potential(rerun_rhs=rerun_rhs)
 
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
-            self.calculate_potentials()
+            self.calculate_surface_potential()
         
     
         start_time = time.time()
@@ -531,7 +438,7 @@ class Simulation:
 
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
-            self.calculate_potentials()
+            self.calculate_surface_potential()
         
         start_time = time.time()
         for index, solute in enumerate(self.solutes):
@@ -553,14 +460,14 @@ class Simulation:
         phi_solvent: (array) electrostatic potential at eval_points
         """
         if rerun_all:
-            self.calculate_potentials(rerun_all=rerun_all)
+            self.calculate_surface_potential(rerun_all=rerun_all)
         
         if rerun_rhs:
-            self.calculate_potentials(rerun_rhs=rerun_rhs)
+            self.calculate_surface_potential(rerun_rhs=rerun_rhs)
 
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
-            self.calculate_potentials()
+            self.calculate_surface_potential()
      
         # Mask out points in solute
         points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)

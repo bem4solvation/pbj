@@ -338,9 +338,9 @@ class Solute:
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
         
 
-    def calculate_potential(self, rerun_all=False): # I think this calculate_potential is not working correctly
-        if self.formulation_object.verify_parameters(self):
-            self.formulation_object.calculate_potential(self, rerun_all)
+    #def calculate_potential(self, rerun_all=False): # I think this calculate_potential is not working correctly
+    #    if self.formulation_object.verify_parameters(self):
+    #        self.formulation_object.calculate_potential(self, rerun_all)
 
     def calculate_solvation_energy(self):
 
