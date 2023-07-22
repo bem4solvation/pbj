@@ -9,13 +9,22 @@ import pbj.electrostatics.utils as utils
 
 
 class Simulation:
-    def __init__(self, formulation="direct", print_times=False):
-
-        self._pb_formulation = formulation
+    def __init__(self, formulation="direct", stern_layer = False, print_times=False): 
+            
+        if stern_layer and formulation != "slic":
+            self._pb_formulation = "direct_stern"
+            if formulation != ("direct" or "direct_stern"):
+                print("Stern or ion-exclusion layer only supported with direct formulation. Using direct.")                      
+        else:
+            self._pb_formulation = formulation
+           
+        if formulation == ("direct_stern" or "slic"):
+            stern_layer = True
+            
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
-
+        
         self.solvent_parameters = dict()
         self.solvent_parameters["ep"] = 80.0
 
@@ -24,6 +33,9 @@ class Simulation:
         self.gmres_max_iterations = 1000
 
         self.induced_dipole_iter_tol = 1e-2
+
+        self.slic_max_iterations = 20
+        self.slic_tolerance = 1e-4
 
         self.solutes = list()
         self.matrices = dict()
@@ -36,7 +48,7 @@ class Simulation:
         
         self.pb_formulation_preconditioning = True
         
-        if formulation=="direct" or formulation=="direct_stern" or formulation=="slic":
+        if self._pb_formulation=="direct" or self._pb_formulation=="direct_stern" or self._pb_formulation=="slic":
             self.pb_formulation_preconditioning_type = "block_diagonal"
         else:
             self.pb_formulation_preconditioning_type = "mass_matrix"
@@ -96,6 +108,8 @@ class Simulation:
         if len(self.solutes)>0:
             for index, solute in enumerate(self.solutes):
                 solute.ep_ex = self.ep_ex 
+                solute.e_hat_stern = solute.ep_stern / solute.ep_ex
+                solute.pb_formulation_beta = solute.ep_ex / solute.ep_in  # np.nan
                 
     @property
     def kappa(self):
@@ -123,7 +137,9 @@ class Simulation:
                 solute.induced_dipole_iter_tol = self.induced_dipole_iter_tol
                 solute.operator_assembler = self.operator_assembler
                 solute.pb_formulation_preconditioning = self.pb_formulation_preconditioning 
-                solute.pb_formulation_preconditioning_type = self.pb_formulation_preconditioning_type 
+                solute.pb_formulation_preconditioning_type = self.pb_formulation_preconditioning_type
+                if self.pb_formulation[-5:] == "stern" or self.pb_formulation == "slic":
+                    solute.stern_mesh_density = solute.stern_mesh_density_ratio * solute.mesh_density
                 self.solutes.append(solute)
         else:
             raise ValueError("Given object is not of the 'Solute' class.")
@@ -193,44 +209,70 @@ class Simulation:
                     
                     for index_source, solute_source in enumerate(self.solutes):
                         
-                        if index_source == index:
+                        #if index_source == index:
+                        if solute == solute_source:
                             precond_matrix_row_0.extend(solute.matrices["preconditioning_matrix_gmres"][0])
                             precond_matrix_row_1.extend(solute.matrices["preconditioning_matrix_gmres"][1])
                             precond_matrix_row_2.extend(solute.matrices["preconditioning_matrix_gmres"][2])
                             precond_matrix_row_3.extend(solute.matrices["preconditioning_matrix_gmres"][3])
                         else:
-                            M = solute.stern_object.dirichl_space.grid_dof_count
-                            N = solute_source.stern_object.dirichl_space.grid_dof_count
-                            zero_matrix = dok_matrix((M,N))
+                            M_diel = solute.dirichl_space.grid_dof_count
+                            N_diel = solute_source.dirichl_space.grid_dof_count
+                            M_stern = solute.stern_object.dirichl_space.grid_dof_count
+                            N_stern = solute_source.stern_object.dirichl_space.grid_dof_count
+                           
+                            
+                            zero_matrix = dok_matrix((M_diel,N_diel))
                             precond_matrix_row_0.extend([zero_matrix,zero_matrix])
                             precond_matrix_row_1.extend([zero_matrix,zero_matrix])
+                            
+                            zero_matrix = dok_matrix((M_stern,N_diel))
                             precond_matrix_row_2.extend([zero_matrix,zero_matrix])
                             precond_matrix_row_3.extend([zero_matrix,zero_matrix])
-                
+                            
+                            zero_matrix = dok_matrix((M_diel,N_stern))
+                            precond_matrix_row_0.extend([zero_matrix,zero_matrix])
+                            precond_matrix_row_1.extend([zero_matrix,zero_matrix])
+                            
+                            zero_matrix = dok_matrix((M_stern,N_stern))
+                            precond_matrix_row_2.extend([zero_matrix,zero_matrix])
+                            precond_matrix_row_3.extend([zero_matrix,zero_matrix])
+                        
+                    precond_matrix.extend([precond_matrix_row_0,precond_matrix_row_1,
+                                           precond_matrix_row_2, precond_matrix_row_3])
+                            
+                    self.rhs["rhs_" + str(index + 1)].extend(
+                        [solute.rhs["rhs_3"],
+                        solute.rhs["rhs_4"]]
+                    )
+        
+        
         if len(precond_matrix) > 0:
             precond_matrix_full = bmat(precond_matrix).tocsr()
             self.matrices["preconditioning_matrix_gmres"] = aslinearoperator(precond_matrix_full)
                 
 
         # Calculate matrix elements for interactions between solutes
-
+        
         for index_target, solute_target in enumerate(self.solutes):
             i = index_target
+            solute_target.matrices["A_inter"] = []
             for index_source, solute_source in enumerate(self.solutes):
                 j = index_source
 
                 if i!=j:
 
-                    A_inter = self.formulation_object.lhs_inter_solute_interactions(
+                    self.formulation_object.lhs_inter_solute_interactions(
                         self, solute_target, solute_source        
                     )
+                    if i>j:
+                        index_array = j
+                    else:
+                        index_array = j - 1
+                        
+                    A[i,j] = solute_target.matrices["A_inter"][index_array].weak_form() # always weak form as it's not 
+                                                                                       # touched by preconditioner
                     
-                     
-                    A[i,j] = A_inter
-                    #A[i    , j    ] = A_inter[0,0]
-                    #A[i    , j + 1] = A_inter[0,1]
-                    #A[i + 1, j    ] = A_inter[1,0]
-                    #A[i + 1, j + 1] = A_inter[1,1]
 
         #self.matrices["A"] = A
         A_discrete = bempp.api.assembly.blocked_operator.BlockedDiscreteOperator(A)
@@ -419,7 +461,6 @@ class Simulation:
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_surface_potential()
-        
     
         start_time = time.time()
         for index, solute in enumerate(self.solutes):

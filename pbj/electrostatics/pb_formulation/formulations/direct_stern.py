@@ -50,6 +50,7 @@ def create_stern_mesh(self):
         raise RuntimeError("Solute was created using an external mesh file. For the stern layer mesh generation a pqr or pdb file must be used to create the solute mesh.")
     else:
     """
+
     if hasattr(self, "mesh_density"):
         stern_solute_object = pbj.electrostatics.Solute(
             stern_pqr_file,
@@ -57,7 +58,7 @@ def create_stern_mesh(self):
             save_mesh_build_files=self.save_mesh_build_files,
             mesh_build_files_dir=self.mesh_build_files_dir,
             mesh_density=getattr(self, "stern_mesh_density", self.mesh_density),
-            nanoshaper_grid_scale=getattr(self, "nanoshaper_grid_scale", None),
+            nanoshaper_grid_scale= None,#getattr(self, "nanoshaper_grid_scale", None),
             mesh_probe_radius=self.mesh_probe_radius,
             mesh_generator=self.mesh_generator,
             print_times=self.print_times,
@@ -89,8 +90,10 @@ def create_stern_mesh(self):
 def lhs(self):
     dirichl_space_diel = self.dirichl_space
     neumann_space_diel = self.neumann_space
-    e_hat_diel = self.e_hat_diel
-    e_hat_stern = self.e_hat_stern
+
+    e_hat_diel = self.ep_in / self.ep_stern 
+    e_hat_stern = self.ep_stern / self.ep_ex         
+        
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
@@ -278,8 +281,14 @@ def block_diagonal_preconditioner(solute):
     neumann_space_diel = solute.neumann_space
     dirichl_space_stern = solute.stern_object.dirichl_space
     neumann_space_stern = solute.stern_object.neumann_space
-    e_hat_diel = solute.e_hat_diel
-    e_hat_stern = solute.e_hat_stern
+    
+    if solute.slic_e_hat_diel is None:
+        e_hat_diel = solute.ep_in / solute.ep_stern 
+        e_hat_stern = solute.ep_stern / solute.ep_ex 
+    else: 
+        e_hat_diel = solute.slic_e_hat_diel
+        e_hat_stern = solute.slic_e_hat_stern  
+    
     kappa = solute.kappa
 
     if not (isinstance(e_hat_diel, float) or isinstance(e_hat_diel, int)):
@@ -417,8 +426,8 @@ def block_diagonal_preconditioner(solute):
 
     block_mat_precond =  [[diags(diag11_inv), diags(diag12_inv), zero_matrix_top, zero_matrix_top], 
                            [diags(diag21_inv), diags(diag22_inv), zero_matrix_top, zero_matrix_top],
-                           [diags(diag33_inv), diags(diag34_inv), zero_matrix_bot, zero_matrix_bot], 
-                           [diags(diag43_inv), diags(diag44_inv), zero_matrix_bot, zero_matrix_bot]]
+                           [zero_matrix_bot, zero_matrix_bot, diags(diag33_inv), diags(diag34_inv)], 
+                           [ zero_matrix_bot, zero_matrix_bot, diags(diag43_inv), diags(diag44_inv)]]
                         
     
     #block_mat_precond = block_diag((A, B), format="csr")
@@ -474,8 +483,8 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
     dirichl_space_source = solute_source.stern_object.dirichl_space
     neumann_space_source = solute_source.stern_object.neumann_space
 
-    ep_in = solute_source.ep_stern
-    ep_out = self.ep_ex
+    e_hat_stern = solute_source.ep_stern / solute_source.ep_ex 
+        
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
@@ -504,7 +513,7 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
         A_inter[0, 0] = zero_00
         A_inter[0, 1] = zero_01 
         A_inter[1, 0] = - dlp
-        A_inter[1, 1] = (ep_in / ep_out) * slp
+        A_inter[1, 1] = e_hat_stern * slp
         
     else:
         from bempp.api.assembly.boundary_operator import ZeroBoundaryOperator as zero_op
@@ -539,7 +548,8 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
         A_inter[3, 0] = zero_op(source_diel, target_stern, target_stern)
         A_inter[3, 1] = zero_op(source_diel, target_stern, target_stern)
         A_inter[3, 2] = - dlp
-        A_inter[3, 3] = (ep_in / ep_out) * slp
-             
+        A_inter[3, 3] = e_hat_stern * slp
+        
+    solute_target.matrices["A_inter"].append(A_inter)
     
-    return A_inter.weak_form()  # should always be weak_form, as preconditioner doesn't touch it
+    #return A_inter

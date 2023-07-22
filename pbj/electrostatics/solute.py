@@ -173,22 +173,23 @@ class Solute:
         self.ep_stern = 80.0
         self.kappa = 0.125
         
-        self.e_hat_diel  = self.ep_in / self.ep_stern
-        self.e_hat_stern = self.ep_stern / self.ep_ex
-
+        self.slic_alpha = 0.5
+        self.slic_beta = -60
+        self.slic_gamma = -0.5
+        
+        self.slic_e_hat_diel  = None #self.ep_in / self.ep_stern
+        self.slic_e_hat_stern = None #self.ep_stern / self.ep_ex
+        self.slic_sigma = None
+        self.slic_e_hat_diel_old  = self.ep_in / self.ep_stern
+        self.slic_e_hat_stern_old = self.ep_stern / self.ep_ex
+        
+        self.stern_mesh_density_ratio = 0.5 # stern_density/diel_density ratio. No need for fine meshes in Stern.
         
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
 
         self.pb_formulation_stern_width = 2.0
         self.stern_object = None
-
-        self.slic_alpha = 0.5
-        self.slic_beta = -60
-        self.slic_gamma = -0.5
-
-        self.slic_max_iterations = 20
-        self.slic_tolerance = 1e-5
 
         self.pb_formulation_preconditioning = True
         self.pb_formulation_preconditioning_type = "mass_matrix"
@@ -234,8 +235,10 @@ class Solute:
     @stern_mesh_density.setter
     def stern_mesh_density(self, value):
         self._stern_mesh_density = value
+        self.stern_mesh_density_ratio = value/self.mesh_density
         pb_formulations.direct_stern.create_stern_mesh(self)
-
+        
+        
     def display_available_formulations(self):
         from inspect import getmembers, ismodule
 

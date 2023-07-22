@@ -415,5 +415,6 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
     A_inter[1, 0] = - dlp
     A_inter[1, 1] = (ep_in / ep_out) * slp
 
+    solute_target.matrices["A_inter"].append(A_inter)
     
-    return A_inter.weak_form()  # should always be weak_form, as preconditioner doesn't touch it
+    #return A_inter.weak_form()  # should always be weak_form, as preconditioner doesn't touch it
