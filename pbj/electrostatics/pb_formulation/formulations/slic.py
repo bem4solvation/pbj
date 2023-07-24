@@ -1,11 +1,14 @@
 import numpy as np
 import bempp.api
 from bempp.api.operators.boundary import sparse, laplace
+from bempp.api.linalg.iterative_solvers import IterationCounter
 from .common import calculate_potential_stern
 import pbj
 import time
 import pbj.electrostatics.utils as utils
 from pbj.electrostatics.utils import matrix_to_discrete_form
+import scipy.sparse.linalg
+
 
 
 invert_potential = False
@@ -109,12 +112,41 @@ def solve_sigma(self):
         slp_in_diel * self.results["d_phi"]
         - (-0.5 * identity_diel + dlp_in_diel) * self.results["phi"]
     )
+    """
     sigma, _ = bempp.api.linalg.gmres(
         slp_in_diel,
         rhs_sigma,
         tol=self.gmres_tolerance,
         maxiter=self.gmres_max_iterations,
         use_strong_form=True
+    )
+    """
+    
+    if not slp_in_diel.range.is_compatible(rhs_sigma.space):
+        raise ValueError(
+            "The range of A and the domain of A must have"
+            + "the same number of unknowns if the strong form is used."
+        )
+        
+    A_op = slp_in_diel.strong_form()
+    b_vec = rhs_sigma.coefficients
+    
+    callback = IterationCounter(False)
+
+    bempp.api.log("Starting GMRES iteration")
+    start_time = time.time()
+    x, info = scipy.sparse.linalg.gmres(
+        A_op, b_vec, x0 = self.slic_sigma.coefficients, 
+        tol=self.gmres_tolerance, maxiter=self.gmres_max_iterations, callback=callback
+    )
+    end_time = time.time()
+    bempp.api.log(
+        "GMRES finished in %i iterations and took %.2E sec."
+        % (callback.count, end_time - start_time)
+    )
+    
+    sigma = bempp.api.GridFunction(
+        slp_in_diel.domain, coefficients=x.ravel()
     )
 
     return sigma
