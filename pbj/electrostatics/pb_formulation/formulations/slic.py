@@ -86,7 +86,6 @@ def create_ehat_diel(self):
         f_fun, neumann_space_diel, neumann_space_diel, neumann_space_diel
     )
 
-
 def solve_sigma(self):
     dirichl_space_diel = self.dirichl_space
     neumann_space_diel = self.neumann_space
@@ -133,7 +132,8 @@ def solve_sigma(self):
     
     callback = IterationCounter(False)
 
-    bempp.api.log("Starting GMRES iteration")
+    bempp.api.log("PBJ: Starting GMRES iterations for sigma (SLIC)")
+
     start_time = time.time()
     x, info = scipy.sparse.linalg.gmres(
         A_op, b_vec, x0 = self.slic_sigma.coefficients, 
@@ -149,7 +149,7 @@ def solve_sigma(self):
         slp_in_diel.domain, coefficients=x.ravel()
     )
 
-    return sigma
+    self.slic_sigma = sigma
 
 
 def calculate_potential(simulation, rerun_all, rerun_rhs):
@@ -167,11 +167,6 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
             )
 
         max_iterations = simulation.slic_max_iterations
-        
-
-        d2 = 1
-        qtotal = np.sum(solute.q)
-        d1 = -qtotal / solute.ep_stern
 
         solute.slic_sigma = bempp.api.GridFunction(
             dirichl_space_diel, coefficients=np.zeros(dirichl_space_diel.global_dof_count)
@@ -187,6 +182,7 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
     time_matrix_assembly = []
     time_preconditioning = []
 
+    bempp.api.log("PBJ: Starting self-consistent SLIC iterations")
     # iteration 0
     calculate_potential_stern(simulation)
     
@@ -195,9 +191,9 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
     inter_matrix_cache = np.empty(len(simulation.solutes), dtype="O")
     phi_old = np.array([])
     for index, solute in enumerate(simulation.solutes):
-        matrix_solute = [solute.matrices["A"][1,1]*(1/solute.slic_e_hat_diel_old),
-                         solute.matrices["A"][2,1]*(1/solute.slic_e_hat_diel_old),
-                         solute.matrices["A"][3,3]*(1/solute.slic_e_hat_stern_old)
+        matrix_solute = [solute.matrices["A"][1,1]*(solute.ep_stern/solute.ep_in),
+                         solute.matrices["A"][2,1]*(solute.ep_stern/solute.ep_in),
+                         solute.matrices["A"][3,3]*(solute.ep_ex/solute.ep_stern)
                         ]
         matrix_cache[index] = matrix_solute
         
@@ -209,7 +205,7 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
                 else:
                     index_array = index_j - 1
                 
-                inter_matrix_solute.append(solute.matrices["A_inter"][index_array][3,3]*(1/solute.slic_e_hat_stern_old))
+                inter_matrix_solute.append(solute.matrices["A_inter"][index_array][3,3]*(solute.ep_ex/solute.ep_stern))
         
         inter_matrix_cache[index] = inter_matrix_solute
         
@@ -223,12 +219,17 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
     
         A = np.empty((solute_count , solute_count), dtype="O")
         
+        #update e_hats
         for index, solute in enumerate(simulation.solutes):
-            solute.slic_sigma = solve_sigma(solute)
+            qtotal = np.sum(solute.q)
+            d1 = -qtotal / solute.ep_stern
+            solve_sigma(solute)
             create_ehat_diel(solute)
             d2 = solute.results["d_phi_stern"].integrate()[0]
             solute.slic_e_hat_stern = d1 / d2
             
+        for index, solute in enumerate(simulation.solutes):
+
             A_solute = bempp.api.BlockedOperator(4, 4)
            
             A_solute[0,0] = solute.matrices["A"][0,0]
@@ -279,7 +280,7 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
                     A_inter[3,0] = solute.matrices["A_inter"][index_array][3,0]
                     A_inter[3,1] = solute.matrices["A_inter"][index_array][3,0]
                     A_inter[3,2] = solute.matrices["A_inter"][index_array][3,2]                
-                    A_inter[3,3] = inter_matrix_cache[index][index_array]*solute.slic_e_hat_stern
+                    A_inter[3,3] = inter_matrix_cache[index][index_array]*solute_j.slic_e_hat_stern
                 
                     solute.matrices["A_inter"][index_array] = A_inter
                     
@@ -295,8 +296,6 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
         phi_new = np.array([])
         for index, solute in enumerate(simulation.solutes):
             phi_new = np.append(phi_new, solute.results["phi"].coefficients.copy())
-            solute.slic_e_hat_diel_old = solute.slic_e_hat_diel
-            solute.slic_e_hat_stern_old = solute.slic_e_hat_stern
         
         phi_L2error = np.sqrt(
             np.sum((phi_old - phi_new) ** 2)
@@ -305,8 +304,9 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
 
         phi_old = phi_new.copy()
         
-        #print(phi_L2error)
 
+        bempp.api.log("PBJ: Self-consistent iteration %i, residual %e"%(it,phi_L2error))
+        
         it += 1
 
         for index, solute in enumerate(simulation.solutes):
@@ -346,6 +346,7 @@ def calculate_potential_slic(simulation):
         initial_guess[i:i+N_neumann] = solute.results["d_phi_stern"].coefficients
         i += N_neumann
     
+    bempp.api.log("PBJ: Start GMRES iterations for surface potential")
     # Use GMRES to solve the system of equations
     if "preconditioning_matrix_gmres" in simulation.matrices:
         gmres_start_time = time.time()
@@ -399,14 +400,14 @@ def calculate_potential_slic(simulation):
         solute.results["phi"]  = solution[0]
 
         if simulation.formulation_object.invert_potential:
-            solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
+            solute.results["d_phi"] = (solute.ep_stern / solute.ep_in) * solution[1] 
         else:  
             solute.results["d_phi"] = solution[1] 
 
         solute.results["phi_stern"]  = solution[2]
 
         if simulation.formulation_object.invert_potential:
-            solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_in) * solution[3] 
+            solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_stern) * solution[3] 
         else:  
             solute.results["d_phi_stern"] = solution[3]
 

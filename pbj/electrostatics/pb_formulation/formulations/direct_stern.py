@@ -550,6 +550,7 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
         A_inter[3, 2] = - dlp
         A_inter[3, 3] = e_hat_stern * slp
         
+        
     solute_target.matrices["A_inter"].append(A_inter)
     
     #return A_inter

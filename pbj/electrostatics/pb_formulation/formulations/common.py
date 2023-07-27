@@ -96,7 +96,6 @@ def calculate_potential_stern(simulation, rerun_all=False, rerun_rhs=False):
             simulation.timings["time_assembly"] = time.time() - start_time 
            
             initial_guess = np.zeros_like(simulation.rhs["rhs_discrete"])
-
             # Use GMRES to solve the system of equations
             if "preconditioning_matrix_gmres" in simulation.matrices:
                 gmres_start_time = time.time()
@@ -146,18 +145,19 @@ def calculate_potential_stern(simulation, rerun_all=False, rerun_rhs=False):
                 solution = grid_function_list_from_coefficients(
                     x_slice, simulation.solutes[index].matrices["A"].domain_spaces
                 )
+                
 
                 solute.results["phi"]  = solution[0]
                 
                 if simulation.formulation_object.invert_potential:
-                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
+                    solute.results["d_phi"] = (solute.ep_stern / solute.ep_in) * solution[1] 
                 else:  
                     solute.results["d_phi"] = solution[1] 
                 
                 solute.results["phi_stern"]  = solution[2]
 
                 if simulation.formulation_object.invert_potential:
-                    solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_in) * solution[3] 
+                    solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_stern) * solution[3] 
                 else:  
                     solute.results["d_phi_stern"] = solution[3]
 
