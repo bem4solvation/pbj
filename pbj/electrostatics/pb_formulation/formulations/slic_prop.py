@@ -1,6 +1,6 @@
 import numpy as np
 import bempp.api
-from .common import calculate_potential_slic
+from .slic import calculate_potential_slic ############ maybe move to .common?????? CHECK
 import pbj
 
 

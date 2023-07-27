@@ -441,7 +441,7 @@ def load_tinker_multipoles_to_solute(solute):
             file_key = line[1]
             
         if not os.path.isfile(file_key):
-            print("Cannot find a key/prm file. Please use same file name as .xyz file.")
+            print("Cannot find a key/prm file. Please use same file name as .xyz file, or check the path to the key file in your prm file.")
             return
     
         print('Reading parameters from '+file_key)

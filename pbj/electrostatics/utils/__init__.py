@@ -7,7 +7,6 @@ def solver(A, rhs, tolerance, restart_value, max_iterations, initial_guess=None,
 
     callback = IterationCounter(True)
 
-    
     if precond is None:
         x, info = gmres(
             A,
