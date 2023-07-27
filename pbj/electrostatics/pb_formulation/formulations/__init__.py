@@ -12,5 +12,6 @@ from . import first_kind_external
 from . import muller_internal
 from . import muller_external
 from . import direct_stern
+from . import direct_amoeba
 from . import slic
 from . import slic_prop

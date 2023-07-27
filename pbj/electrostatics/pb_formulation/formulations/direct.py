@@ -50,10 +50,6 @@ def rhs(self):
     neumann_space = self.neumann_space
     q = self.q
     x_q = self.x_q
-    if force_field == "amoeba":
-        d = self.d
-        Q = self.Q
-        d_induced = self.d_induced
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
 
@@ -76,28 +72,8 @@ def rhs(self):
         # def zero(x, n, domain_index, result):
         #     result[0] = 0
 
-        coefs = np.zeros(neumann_space.global_dof_count)
-
-        if force_field == "amoeba":
-            
-            @bempp.api.real_callable
-            def multipolar_charges_fun(x, n, i, result): # not using fmm
-                T2 = np.zeros((len(x_q),3,3))
-                phi = 0
-                dist = x - x_q
-                norm = np.sqrt(np.sum((dist*dist), axis = 1))
-                T0 = 1/norm[:]
-                T1 = np.transpose(dist.transpose()/norm**3)
-                T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
-                np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-                phi = np.sum(q[:]*T0[:]) + np.sum(T1[:]*(d[:])) + 0.5*np.sum(np.sum(T2[:]*Q[:],axis=1))
-                result[0] = (phi/(4*np.pi*ep_in))
-                # only computes permanent multipole. Having a initial induced component is to be implemented
-
-            
-            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
-        else:
-            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
+        coefs = np.zeros(neumann_space.global_dof_count)  
+        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
 
         # rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
         rhs_2 = bempp.api.GridFunction(neumann_space, coefficients=coefs)
@@ -107,148 +83,24 @@ def rhs(self):
         @bempp.api.real_callable
         def zero(x, n, domain_index, result):
             result[0] = 0
-    
-        if force_field == "amoeba":
-            
-            @bempp.api.real_callable
-            def multipolar_charges_fun(x, n, i, result):
 
-                dist = np.zeros((3,len(x_q)))
-                dist[0,:] = x[0] - x_q[:, 0]
-                dist[1,:] = x[1] - x_q[:, 1]
-                dist[2,:] = x[2] - x_q[:, 2]
-                                
-                #dist = x - x_q
-                #norm = np.sqrt(np.sum((dist*dist), axis = 1))
-                
-                norm = np.sqrt(
-                    (dist[0,:]) ** 2
-                    + (dist[1,:]) ** 2
-                    + (dist[2,:]) ** 2
-                )
-                
-                T0 = 1/norm
-                
-                T1 = np.zeros((3, len(x_q)))
-                T1[0,:] = dist[0,:]#/norm**3
-                T1[1,:] = dist[1,:]#/norm**3
-                T1[2,:] = dist[2,:]#/norm**3
-                
-                T1 /= (norm*norm*norm)
-                    
-                #T1 = np.transpose(dist.transpose()/norm**3)
-                
-                T2 = np.zeros((3,3,len(x_q)))
-                
-                T2[0,0,:] = dist[0,:] * dist[0,:]/norm**5
-                T2[0,1,:] = dist[0,:] * dist[1,:]/norm**5
-                T2[0,2,:] = dist[0,:] * dist[2,:]/norm**5
-                T2[1,1,:] = dist[1,:] * dist[1,:]/norm**5
-                T2[1,2,:] = dist[1,:] * dist[2,:]/norm**5
-                T2[2,2,:] = dist[2,:] * dist[2,:]/norm**5
-                
-                T2[2,1,:] = T2[1,2,:]
-                T2[1,0,:] = T2[0,1,:]
-                T2[2,0,:] = T2[0,2,:]
-                
-                #T2[:,:,:] = np.ones((len(x_q),3,3))[:]* dist.reshape((len(x_q),1,3))* \
-                #np.transpose(np.ones((len(x_q),3,3))*dist.reshape((len(x_q),1,3)), (0,2,1))/norm.reshape((len(x_q),1,1))**5
-                
-                phi = np.sum(q*T0) + np.sum(T1.transpose()*(d)) + 0.5*np.sum(np.sum(T2.transpose()[:]*Q[:],axis=1))
-                # only computes permanent multipole. Having a initial induced component is to be implemented
-                result[0] = (phi/(4*np.pi*ep_in))
-            
-            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=multipolar_charges_fun)
-            
-        else:
-            
-            @bempp.api.real_callable
-            def charges_fun(x, n, domain_index, result):
-                nrm = np.sqrt(
-                    (x[0] - x_q[:, 0]) ** 2
-                    + (x[1] - x_q[:, 1]) ** 2
-                    + (x[2] - x_q[:, 2]) ** 2
-                )
-                aux = np.sum(q / nrm)
-                result[0] = aux / (4 * np.pi * ep_in)
-                
-            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
+        @bempp.api.real_callable
+        def charges_fun(x, n, domain_index, result):
+            nrm = np.sqrt(
+                (x[0] - x_q[:, 0]) ** 2
+                + (x[1] - x_q[:, 1]) ** 2
+                + (x[2] - x_q[:, 2]) ** 2
+            )
+            aux = np.sum(q / nrm)
+            result[0] = aux / (4 * np.pi * ep_in)
+
+        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
 
         rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
     self.rhs["rhs_permanent_multipole_1"], self.rhs["rhs_permanent_multipole_2"] = rhs_1, rhs_2
 
-
-def rhs_induced_dipole(self):
-    
-    force_field = self.force_field
-    dirichl_space = self.dirichl_space
-    neumann_space = self.neumann_space
-    x_q = self.x_q
-    if force_field == "amoeba":
-        d_induced = self.d_induced 
-    ep_in = self.ep_in
-    rhs_constructor = self.rhs_constructor
-
-    if rhs_constructor == "fmm":
-
-
-        coefs = np.zeros(neumann_space.global_dof_count)
-
-            
-        @bempp.api.real_callable
-        def dipole_charges_fun(x, n, i, result): # not using fmm
-            dist = x - x_q
-            norm = np.sqrt(np.sum((dist*dist), axis = 1))
-            T1 = np.transpose(dist.transpose()/norm**3)
-            phi = np.sum(T1[:]*d_induced[:])
-            result[0] = (phi/(4*np.pi*ep_in))
-            
-        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=dipole_charges_fun)
-
-        # rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
-        rhs_2 = bempp.api.GridFunction(neumann_space, coefficients=coefs)
-
-    else:
-
-        @bempp.api.real_callable
-        def zero(x, n, domain_index, result):
-            result[0] = 0
-    
-        if force_field == "amoeba":
-            
-            @bempp.api.real_callable
-            def dipole_charges_fun(x, n, i, result):
-
-                dist = np.zeros((3,len(x_q)))
-                dist[0,:] = x[0] - x_q[:, 0]
-                dist[1,:] = x[1] - x_q[:, 1]
-                dist[2,:] = x[2] - x_q[:, 2]
-
-                norm = np.sqrt(
-                    (dist[0,:]) ** 2
-                    + (dist[1,:]) ** 2
-                    + (dist[2,:]) ** 2
-                )
-                
-                T1 = np.zeros((3, len(x_q)))
-                T1[0,:] = dist[0,:]
-                T1[1,:] = dist[1,:]
-                T1[2,:] = dist[2,:]
-                
-                T1 /= (norm*norm*norm)
-                
-                phi = np.sum(T1.transpose()*d_induced)
-                result[0] = (phi/(4*np.pi*ep_in))
-            
-            rhs_1 = bempp.api.GridFunction(dirichl_space, fun=dipole_charges_fun)
-
-        rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
-
-    # Add induced dipole component to already existing rhs with permanent multipoles
-    self.rhs["rhs_1"] = self.rhs["rhs_permanent_multipole_1"] + rhs_1
-    self.rhs["rhs_2"] = self.rhs["rhs_permanent_multipole_2"] + rhs_2
     
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
