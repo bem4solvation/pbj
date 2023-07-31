@@ -58,7 +58,7 @@ def create_ehat_stern(self):
     self.e_hat_stern = (1 / d2) * d1_op
 
 
-def calculate_potential(self, rerun_all):
+def calculate_potential(self, rerun_all, rerun_rhs):
     dirichl_space_diel = self.dirichl_space
 
     ep_stern = getattr(self, "ep_stern", self.ep_ex)

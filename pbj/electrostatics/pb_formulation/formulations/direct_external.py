@@ -94,5 +94,5 @@ def rhs(self):
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
-def calculate_potential(self, rerun_all):
-    calculate_potential_one_surface(self, rerun_all)
+def calculate_potential(self, rerun_all, rerun_rhs):
+    calculate_potential_one_surface(self, rerun_all, rerun_rhs)

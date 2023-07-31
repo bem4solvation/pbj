@@ -327,5 +327,5 @@ def scaled_mass_preconditioner(solute):
     ] * rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
 
-def calculate_potential(self, rerun_all):
-    calculate_potential_one_surface(self, rerun_all)
+def calculate_potential(self, rerun_all, rerun_rhs):
+    calculate_potential_one_surface(self, rerun_all, rerun_rhs)
