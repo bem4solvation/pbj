@@ -15,9 +15,28 @@ Installation
 ================
 Download the repository and create a [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/install/download.html) using the `environment.yml` file as
 
-`conda env create -f environment.yml`
+```
+conda env create -f environment.yml
+```
 
 and you're good to go!
+
+Docker
+===============
+You can install PBJ in a ready-to-use Jupyter-Notebook Docker image based on the [docker bempp](https://hub.docker.com/r/bempp/cl-notebook) image. To launch this image, simply run:
+
+```
+docker run -v $(pwd):/root/shared -w "/root/shared" -p 8888:8888 pescapil/pbj
+```
+
+Next, you can install and use PBJ within the notebook. Furthermore, the Docker image can be built locally and run as:
+
+```
+cd docker
+docker build -f Dockerfile . -t pbj 
+docker run -v $(pwd):/root/shared -w "/root/shared" -p 8888:8888 pbj
+```
+
 
 Documentation
 ===============
