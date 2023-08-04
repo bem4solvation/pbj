@@ -1,0 +1,5 @@
+trimesh
+rtree
+jupyter
+jupyterlab
+notebook
