@@ -125,7 +125,8 @@ class Simulation:
                 
     def add_solute(self, solute):
 
-        if isinstance(solute, pbj.electrostatics.solute.Solute):
+         
+        if isinstance(solute, pbj.electrostatics.solute.Solute) and hasattr(solute, "solute_name"):
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
@@ -146,7 +147,7 @@ class Simulation:
                     self.pb_formulation = "direct_amoeba"
                 self.solutes.append(solute)
         else:
-            raise ValueError("Given object is not of the 'Solute' class.")
+            raise ValueError("Given object is not of the 'Solute' class or pdb/pqr file not correctly loaded.")
 
     def create_and_assemble_linear_system(self):
         from scipy.sparse import bmat, dok_matrix
@@ -308,7 +309,11 @@ class Simulation:
         
     
     def calculate_surface_potential(self, rerun_all=False, rerun_rhs=False):
-        self.formulation_object.calculate_potential(self, rerun_all, rerun_rhs)
+        
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+        else:
+            self.formulation_object.calculate_potential(self, rerun_all, rerun_rhs)
                                     
 
         # Print times, if this is desired
@@ -317,6 +322,10 @@ class Simulation:
 
     
     def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
+        
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
 
         if rerun_all:
             self.calculate_surface_potential(rerun_all=rerun_all)
@@ -339,6 +348,10 @@ class Simulation:
 
     def calculate_solvation_forces(self, h=0.001, rerun_all=False, force_formulation='maxwell_tensor', fdb_approx=False):
 
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_surface_potential()
@@ -362,6 +375,11 @@ class Simulation:
         --------
         phi_solvent: (array) electrostatic potential at eval_points
         """
+ 
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
         if rerun_all:
             self.calculate_surface_potential(rerun_all=rerun_all)
         
@@ -424,6 +442,11 @@ class Simulation:
         -------
         phi_ens: ENS potential for each atom with atom_name
         """
+        
+         if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
         if rerun_all:
             self.calculate_surface_potential(rerun_all=rerun_all)
         
