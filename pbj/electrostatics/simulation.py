@@ -410,12 +410,12 @@ class Simulation:
         return phi_solvent
                 
         
-    def calculate_potential_ens(self, atom_name = "H", mesh_dx = 0.5, mesh_length = 40., ion_radius_explode = 3.5, rerun_all=False, rerun_rhs=False):
+    def calculate_potential_ens(self, atom_name = ["H"], mesh_dx = 1.0, mesh_length = 40., ion_radius_explode = 3.5, rerun_all=False, rerun_rhs=False):
         """
         Calculates effective near surface (ENS) potential. See Yu, Pettit, Iwahara (2021) PNAS. 
         Inputs:
         -------
-        atom_name: (str) atom name in pqr file where phi_ens will be calculated
+        atom_name: (array of str) array with atom names in pqr file where phi_ens will be calculated
         mesh_dx  : (float) spacing in mesh for integration
         mesh_length: (float) length of mesh for integration
         ion_radius_explode: (float) exploded radius for ion accessibility 
@@ -441,6 +441,10 @@ class Simulation:
         kT = 4.11e-21 
         Na = 6.02214076e23
         
+        # check if atom_name is a single string
+        if type(atom_name) == str:
+            atom_name = [atom_name]
+        
         r_explode = np.array([])
         x_q = np.empty((0,3))
         for index, solute in enumerate(self.solutes):
@@ -451,7 +455,7 @@ class Simulation:
             
             H_atoms = []
             for i,name in enumerate(solute.atom_name):
-                if name == atom_name:
+                if name in atom_name:
                     H_atoms.append(i)
                                 
             phi_ens = np.zeros(len(H_atoms))
@@ -504,7 +508,7 @@ class Simulation:
                 G2_over_G2 = np.sum(np.exp(-qe*phi_V/kT)/dist**6)/np.sum(np.exp(qe*phi_V/kT)/dist**6)
 
                 phi_ens[i] = -kT/(2*qe) * np.log(G2_over_G2) * 1000 # in mV
-                bempp.api.log("PBJ: ENS calculation " + atom_name + " atom %i, phi_ens = %1.3f mV"%(i,phi_ens[i]))
+                bempp.api.log("PBJ: ENS calculation " + str(atom_name) + " atom %i, phi_ens = %1.3f mV"%(i,phi_ens[i]))
             
             solute.results["phi_ens"] = phi_ens
             
