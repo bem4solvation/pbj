@@ -368,7 +368,7 @@ class Simulation:
         Evaluates the potential on a cloud of points in the solvent. Needs check for multiple molecules.
         Inputs:
         -------
-        eval_points: (3xN array) with 3D position of N points. 
+        eval_points: (Nx3 array) with 3D position of N points. 
                      If point lies in a solute it is masked out.
                  
         Outputs:
@@ -390,6 +390,8 @@ class Simulation:
             # If surface potential has not been calculated, calculate it now
             self.calculate_surface_potential()
      
+        eval_points = np.transpose(eval_points) # format that Bempp likes
+        
         # Mask out points in solute
         points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)
         for index, solute in enumerate(self.solutes):
@@ -426,7 +428,121 @@ class Simulation:
             phi_solvent[points_solvent] = phi_aux[0,:]
                 
         return phi_solvent
-                
+  
+    def calculate_reaction_potential_solute(self, eval_points, solute_subset=None, rerun_all=False, rerun_rhs=False):
+        """
+        Evaluates the reaction potential on a cloud of points in the solute. 
+        Inputs:
+        -------
+        eval_points: (Nx3 array) with 3D position of N points. 
+                     If point lies in a solute it is masked out.
+        solute_subset: (array of int) subset of solutes that want to be 
+                    computed. Defaults to None to compute all. 
+                 
+        Outputs:
+        --------
+        phi_solute: (array) electrostatic potential at eval_points
+        point_solute: (array) int with index of solute where the point is
+                    if -1 point is in solvent
+        """
+ 
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
+        if rerun_all:
+            self.calculate_surface_potential(rerun_all=rerun_all)
+        
+        if rerun_rhs:
+            self.calculate_surface_potential(rerun_rhs=rerun_rhs)
+
+        if "phi" not in self.solutes[0].results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_surface_potential()
+            
+        if solute_subset is None:
+            solute_subset = np.arange(len(self.solutes))
+     
+        eval_points = np.transpose(eval_points) # format that Bempp likes
+        
+        # Mask out points in solute
+        points_solute = -np.ones(np.shape(eval_points)[1]) 
+        phi_solute = np.zeros(np.shape(eval_points)[1], dtype=float)
+        
+        for index in solute_subset:
+            
+            solute = self.solutes[index]
+            
+            # Check if evaluation points are inside a solute
+            verts = np.transpose(solute.mesh.vertices)
+            faces = np.transpose(solute.mesh.elements)
+            
+            mesh_tri = trimesh.Trimesh(vertices = verts, faces = faces)
+            
+            points_solute_local = mesh_tri.contains(np.transpose(eval_points))
+            
+            points_solute[points_solute_local] = index
+            
+            slp = bempp.api.operators.potential.laplace.single_layer \
+                            (solute.neumann_space, eval_points[:,points_solute_local])
+            dlp = bempp.api.operators.potential.laplace.double_layer \
+                            (solute.dirichl_space, eval_points[:,points_solute_local])
+            
+            
+            phi_aux = slp*solute.results["d_phi"] - dlp*solute.results["phi"]
+            
+            phi_solute[points_solute_local] = phi_aux[0,:]
+            
+        return phi_solute, points_solute
+            
+   
+    def calculate_coulomb_potential_solute(self, eval_points, solute_subset=None, rerun_all=False, rerun_rhs=False):
+        """
+        Evaluates the vacuum (Coulomb) potential on a cloud of points in the solute. 
+        Inputs:
+        -------
+        eval_points: (Nx3 array) with 3D position of N points. 
+                     If point lies in a solute it is masked out.
+        solute_subset: (array of int) subset of solutes that want to be 
+                    computed. Defaults to None to compute all. 
+                 
+        Outputs:
+        --------
+        phi_coul_solute: (array) electrostatic potential at eval_points
+        point_solute: (array) int with index of solute where the point is
+                    if -1 point is in solvent
+        """
+        
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
+            
+        if solute_subset is None:
+            solute_subset = np.arange(len(self.solutes))
+             
+        # Mask out points in solute
+        points_solute = -np.ones(np.shape(eval_points)[0]) 
+        phi_coul_solute = np.zeros(np.shape(eval_points)[0], dtype=float)
+        
+        for index in solute_subset:
+            
+            solute = self.solutes[index]
+            
+            # Check if evaluation points are inside a solute
+            verts = np.transpose(solute.mesh.vertices)
+            faces = np.transpose(solute.mesh.elements)
+            
+            mesh_tri = trimesh.Trimesh(vertices = verts, faces = faces)
+            
+            points_solute_local = mesh_tri.contains(eval_points)
+            
+            points_solute[points_solute_local] = index
+         
+            phi_coul_solute[points_solute_local] = solute.calculate_coulomb_potential(eval_points[points_solute_local])
+            
+        return phi_coul_solute, points_solute        
+        
         
     def calculate_potential_ens(self, atom_name = ["H"], mesh_dx = 1.0, mesh_length = 40., ion_radius_explode = 3.5, rerun_all=False, rerun_rhs=False):
         """
@@ -443,7 +559,7 @@ class Simulation:
         phi_ens: ENS potential for each atom with atom_name
         """
         
-         if len(self.solutes) == 0:
+        if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
             return
         

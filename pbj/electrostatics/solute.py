@@ -735,6 +735,29 @@ class Solute:
 
         else:
             raise ValueError('Formulation have to be "maxwell_tensor" or "energy_functional"')
+            
+            
+    def calculate_coulomb_potential(self, eval_points):
+        """
+        Compute the Coulomb potential due to the charges in self on eval_points 
+        Inputs:
+        -------
+            eval_points: (Nx3 array) positions where to compute the potential
+            
+        Output:
+        --------
+            phi_coul (array) Coulomb potential at eval_points
+        """
+        
+        phi_coul = np.zeros(len(eval_points), dtype=float)
+        
+        for i in range(len(self.x_q)):
+            dist = np.linalg.norm(eval_points - self.x_q[i,:], axis=1)
+            phi_coul[:] += self.q[i]/(4*np.pi*dist[:])
+            
+        return phi_coul
+                               
+                               
 
             
 
