@@ -32,7 +32,7 @@ def import_charges_from_pqr(pqr_path):
     >>> import numpy as np
     >>> import pbj.mesh.charge_tools as ct
     >>> pqr_path = "methane.pqr"
-    >>> q, x_q, r_q = ct.import_charges_from_pqr(pqr_path)
+    >>> q, x_q, r_q, atom_name, res_name, res_num = ct.import_charges_from_pqr(pqr_path)
     >>> print(q)
     [-0.1048  0.0262  0.0262  0.0262  0.0262]
     >>> print(x_q)
@@ -54,10 +54,13 @@ def import_charges_from_pqr(pqr_path):
             continue
         atom_count += 1
 
-    q, x_q, r_q = (
+    q, x_q, r_q, atom_name, res_name, res_num = (
         np.empty((atom_count,)),
         np.empty((atom_count, 3)),
         np.empty((atom_count,)),
+        np.empty((atom_count,), dtype=object),
+        np.empty((atom_count,), dtype=object),
+        np.empty((atom_count,), dtype=object),
     )
     count = 0
     for line in molecule_data:
@@ -67,10 +70,15 @@ def import_charges_from_pqr(pqr_path):
         q[count] = float(line[8])
         x_q[count, :] = line[5:8]
         r_q[count] = float(line[9])
+        atom_name[count] = line[2]
+        res_name[count] = line[3]
+        res_num[count] = line[4]
+        
+        
 
         count += 1
 
-    return q, x_q, r_q
+    return q, x_q, r_q, atom_name, res_name, res_num
 
 
 def generate_msms_mesh_import_charges(solute):
@@ -141,7 +149,7 @@ def generate_msms_mesh_import_charges(solute):
     # convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path)
 
     grid = import_msms_mesh(mesh_face_path, mesh_vert_path)
-    q, x_q, r_q = import_charges_from_pqr(mesh_pqr_path)
+    q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
 
     if solute.save_mesh_build_files:
         if solute.imported_file_type == "pdb":
@@ -153,7 +161,7 @@ def generate_msms_mesh_import_charges(solute):
         solute.mesh_off_path = mesh_off_path
     else:
         shutil.rmtree(mesh_dir)
-    return grid, q, x_q, r_q
+    return grid, q, x_q, r_q, atom_name, res_name, res_num
 
 
 def load_charges_to_solute(solute):
@@ -192,9 +200,9 @@ def load_charges_to_solute(solute):
     else:
         mesh_pqr_path = solute.pqr_path
 
-    q, x_q, r_q = import_charges_from_pqr(mesh_pqr_path)
+    q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
 
-    return q, x_q, r_q
+    return q, x_q, r_q, atom_name, res_name, res_num
 
 
 def read_tinker_radius(filename, radius_keyword='solute', solute_radius_type = 'PB'):

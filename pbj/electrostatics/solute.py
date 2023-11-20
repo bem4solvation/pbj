@@ -131,7 +131,7 @@ class Solute:
                 self.d_induced = np.zeros_like(self.d)
                 self.d_induced_prev = np.zeros_like(self.d)
             else: 
-                self.q, self.x_q, self.r_q = charge_tools.load_charges_to_solute(
+                self.q, self.x_q, self.r_q, self.atom_name, self.res_name, self.res_num = charge_tools.load_charges_to_solute(
                     self
                 )  # Import charges from given file
 
@@ -167,6 +167,9 @@ class Solute:
                     self.q,
                     self.x_q,
                     self.r_q,
+                    self.atom_name, 
+                    self.res_name, 
+                    self.res_num
                 ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0

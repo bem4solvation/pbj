@@ -125,7 +125,8 @@ class Simulation:
                 
     def add_solute(self, solute):
 
-        if isinstance(solute, pbj.electrostatics.solute.Solute):
+         
+        if isinstance(solute, pbj.electrostatics.solute.Solute) and hasattr(solute, "solute_name"):
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
@@ -146,7 +147,7 @@ class Simulation:
                     self.pb_formulation = "direct_amoeba"
                 self.solutes.append(solute)
         else:
-            raise ValueError("Given object is not of the 'Solute' class.")
+            raise ValueError("Given object is not of the 'Solute' class or pdb/pqr file not correctly loaded.")
 
     def create_and_assemble_linear_system(self):
         from scipy.sparse import bmat, dok_matrix
@@ -308,7 +309,11 @@ class Simulation:
         
     
     def calculate_surface_potential(self, rerun_all=False, rerun_rhs=False):
-        self.formulation_object.calculate_potential(self, rerun_all, rerun_rhs)
+        
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+        else:
+            self.formulation_object.calculate_potential(self, rerun_all, rerun_rhs)
                                     
 
         # Print times, if this is desired
@@ -317,6 +322,10 @@ class Simulation:
 
     
     def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
+        
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
 
         if rerun_all:
             self.calculate_surface_potential(rerun_all=rerun_all)
@@ -339,6 +348,10 @@ class Simulation:
 
     def calculate_solvation_forces(self, h=0.001, rerun_all=False, force_formulation='maxwell_tensor', fdb_approx=False):
 
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_surface_potential()
@@ -362,6 +375,11 @@ class Simulation:
         --------
         phi_solvent: (array) electrostatic potential at eval_points
         """
+ 
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
         if rerun_all:
             self.calculate_surface_potential(rerun_all=rerun_all)
         
@@ -409,5 +427,111 @@ class Simulation:
                 
         return phi_solvent
                 
+        
+    def calculate_potential_ens(self, atom_name = ["H"], mesh_dx = 1.0, mesh_length = 40., ion_radius_explode = 3.5, rerun_all=False, rerun_rhs=False):
+        """
+        Calculates effective near surface (ENS) potential. See Yu, Pettit, Iwahara (2021) PNAS. 
+        Inputs:
+        -------
+        atom_name: (array of str) array with atom names in pqr file where phi_ens will be calculated
+        mesh_dx  : (float) spacing in mesh for integration
+        mesh_length: (float) length of mesh for integration
+        ion_radius_explode: (float) exploded radius for ion accessibility 
+        
+        Output:
+        -------
+        phi_ens: ENS potential for each atom with atom_name
+        """
+        
+         if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+        
+        if rerun_all:
+            self.calculate_surface_potential(rerun_all=rerun_all)
+        
+        if rerun_rhs:
+            self.calculate_surface_potential(rerun_rhs=rerun_rhs)
+
+        if "phi" not in self.solutes[0].results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_surface_potential()            
+        
+        qe = 1.60217663e-19
+        eps0 = 8.8541878128e-12
+        ang_to_m = 1e-10
+        to_V = qe/(eps0 * ang_to_m)
+        kT = 4.11e-21 
+        Na = 6.02214076e23
+        
+        # check if atom_name is a single string
+        if type(atom_name) == str:
+            atom_name = [atom_name]
+        
+        r_explode = np.array([])
+        x_q = np.empty((0,3))
+        for index, solute in enumerate(self.solutes):
+            r_explode = np.append(r_explode, solute.r_q + ion_radius_explode)
+            x_q = np.append(x_q, solute.x_q, axis=0)
             
+        for index, solute in enumerate(self.solutes):
+            
+            H_atoms = []
+            for i,name in enumerate(solute.atom_name):
+                if name in atom_name:
+                    H_atoms.append(i)
+                                
+            phi_ens = np.zeros(len(H_atoms))
+
+            for i in range(len(H_atoms)):
+
+                N = int(mesh_length/mesh_dx)
+                ctr = solute.x_q[H_atoms[i]]
+                x = np.linspace(ctr[0]-mesh_length/2, ctr[0]+mesh_length/2, num = N)
+                y = np.linspace(ctr[1]-mesh_length/2, ctr[1]+mesh_length/2, num = N)
+                z = np.linspace(ctr[2]-mesh_length/2, ctr[2]+mesh_length/2, num = N)
+
+                X,Y,Z = np.meshgrid(x,y,z)
+                pos_mesh = np.zeros((3,N*N*N))
+                pos_mesh[0,:] = X.flatten()
+                pos_mesh[1,:] = Y.flatten()
+                pos_mesh[2,:] = Z.flatten()
+
+                inside = np.zeros(len(pos_mesh[0]), dtype=int)
+
+                for j in range(len(r_explode)):
+                    r_q_mesh = np.linalg.norm(x_q[j,:]-pos_mesh.transpose(), axis=1)
+                    inside_local_index = np.nonzero(r_q_mesh < r_explode[j])[0]
+                    inside[inside_local_index] += 1
+
+                r_mesh = np.linalg.norm(ctr - pos_mesh.transpose(), axis=1)
+
+                outside = np.nonzero(inside == 0)[0]
+
+                pos_mesh_outside = pos_mesh[:,outside]
+
+                phi_solvent = np.zeros(len(outside))
+                for index_source, solute_source in enumerate(self.solutes):
+                    
+                    V = pbj.electrostatics.simulation.bempp.api.operators.potential.modified_helmholtz.single_layer \
+                                  (solute_source.neumann_space, pos_mesh_outside, self.kappa, assembler = self.operator_assembler)
+                    K = pbj.electrostatics.simulation.bempp.api.operators.potential.modified_helmholtz.double_layer \
+                                  (solute_source.dirichl_space, pos_mesh_outside, self.kappa, assembler = self.operator_assembler)
+
+                    phi_aux = K*solute_source.results["phi"] \
+                                - solute_source.ep_in/solute_source.ep_ex * V*solute_source.results["d_phi"]
+                    
+
+                    phi_solvent[:] += phi_aux[0,:]
+
+                phi_V = phi_solvent * to_V 
+
+                pos_atom = solute.x_q[H_atoms[i]]
+                dist = np.linalg.norm(pos_mesh_outside.transpose() - pos_atom, axis=1) 
+                G2_over_G2 = np.sum(np.exp(-qe*phi_V/kT)/dist**6)/np.sum(np.exp(qe*phi_V/kT)/dist**6)
+
+                phi_ens[i] = -kT/(2*qe) * np.log(G2_over_G2) * 1000 # in mV
+                bempp.api.log("PBJ: ENS calculation " + str(atom_name) + " atom %i, phi_ens = %1.3f mV"%(i,phi_ens[i]))
+            
+            solute.results["phi_ens"] = phi_ens
             
