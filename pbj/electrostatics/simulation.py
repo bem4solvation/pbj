@@ -363,13 +363,15 @@ class Simulation:
         self.timings["time_calc_force"] = time.time() - start_time
 
         
-    def calculate_potential_solvent(self, eval_points, rerun_all=False, rerun_rhs=False):
+    def calculate_potential_solvent(self, eval_points, units="mV", rerun_all=False, rerun_rhs=False):
         """
         Evaluates the potential on a cloud of points in the solvent. Needs check for multiple molecules.
         Inputs:
         -------
         eval_points: (Nx3 array) with 3D position of N points. 
                      If point lies in a solute it is masked out.
+        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
+                       defaults to mV
                  
         Outputs:
         --------
@@ -426,10 +428,32 @@ class Simulation:
             phi_aux = K*solute.results["phi"] \
                                         - solute.ep_in/solute.ep_ex * V*solute.results["d_phi"]
             phi_solvent[points_solvent] = phi_aux[0,:]
-                
-        return phi_solvent
+      
+        qe = 1.60217663e-19
+        eps0 = 8.8541878128e-12
+        ang_to_m = 1e-10
+        kT = 4.11e-21 
+        Na = 6.02214076e23
+
+        to_V = qe/(eps0 * ang_to_m)
+     
+        if units=="mV":
+            unit_conversion = to_V*1000
+        elif units == "kT_e":
+            unit_conversion = to_V*1000/(kT/qe)
+        elif units=="kJ_mol":
+            unit_conversion = to_V*1000/(kT*Na/qe)
+        elif units=="kcal_mol":
+            unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
+        elif units=="qe_eps0_angs":
+            unit_conversion = 1.
+        else:
+            print("Units not recognized. Defaulting to mV")
+            unit_conversion = to_V*1000
+            
+        return unit_conversion * phi_solvent
   
-    def calculate_reaction_potential_solute(self, eval_points, solute_subset=None, rerun_all=False, rerun_rhs=False):
+    def calculate_reaction_potential_solute(self, eval_points, units="mV", solute_subset=None, rerun_all=False, rerun_rhs=False):
         """
         Evaluates the reaction potential on a cloud of points in the solute. 
         Inputs:
@@ -493,10 +517,32 @@ class Simulation:
             
             phi_solute[points_solute_local] = phi_aux[0,:]
             
-        return phi_solute, points_solute
+        qe = 1.60217663e-19
+        eps0 = 8.8541878128e-12
+        ang_to_m = 1e-10
+        kT = 4.11e-21 
+        Na = 6.02214076e23
+
+        to_V = qe/(eps0 * ang_to_m)
+     
+        if units=="mV":
+            unit_conversion = to_V*1000
+        elif units == "kT_e":
+            unit_conversion = to_V*1000/(kT/qe)
+        elif units=="kJ_mol":
+            unit_conversion = to_V*1000/(kT*Na/qe)
+        elif units=="kcal_mol":
+            unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
+        elif units=="qe_eps0_angs":
+            unit_conversion = 1.
+        else:
+            print("Units not recognized. Defaulting to mV")
+            unit_conversion = to_V*1000
+            
+        return unit_conversion*phi_solute, points_solute
             
    
-    def calculate_coulomb_potential_solute(self, eval_points, solute_subset=None, rerun_all=False, rerun_rhs=False):
+    def calculate_coulomb_potential_solute(self, eval_points, units="mV", solute_subset=None, rerun_all=False, rerun_rhs=False):
         """
         Evaluates the vacuum (Coulomb) potential on a cloud of points in the solute. 
         Inputs:
@@ -540,8 +586,30 @@ class Simulation:
             points_solute[points_solute_local] = index
          
             phi_coul_solute[points_solute_local] = solute.calculate_coulomb_potential(eval_points[points_solute_local])
+        
+        qe = 1.60217663e-19
+        eps0 = 8.8541878128e-12
+        ang_to_m = 1e-10
+        kT = 4.11e-21 
+        Na = 6.02214076e23
+
+        to_V = qe/(eps0 * ang_to_m)
+     
+        if units=="mV":
+            unit_conversion = to_V*1000
+        elif units == "kT_e":
+            unit_conversion = to_V*1000/(kT/qe)
+        elif units=="kJ_mol":
+            unit_conversion = to_V*1000/(kT*Na/qe)
+        elif units=="kcal_mol":
+            unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
+        elif units=="qe_eps0_angs":
+            unit_conversion = 1.
+        else:
+            print("Units not recognized. Defaulting to mV")
+            unit_conversion = to_V*1000
             
-        return phi_coul_solute, points_solute        
+        return unit_conversion*phi_coul_solute, points_solute        
         
         
     def calculate_potential_ens(self, atom_name = ["H"], mesh_dx = 1.0, mesh_length = 40., ion_radius_explode = 3.5, rerun_all=False, rerun_rhs=False):
