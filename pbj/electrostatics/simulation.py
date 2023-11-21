@@ -427,31 +427,11 @@ class Simulation:
 
             phi_aux = K*solute.results["phi"] \
                                         - solute.ep_in/solute.ep_ex * V*solute.results["d_phi"]
-            phi_solvent[points_solvent] = phi_aux[0,:]
+            phi_solvent[points_solvent] += phi_aux[0,:]
       
-        qe = 1.60217663e-19
-        eps0 = 8.8541878128e-12
-        ang_to_m = 1e-10
-        kT = 4.11e-21 
-        Na = 6.02214076e23
-
-        to_V = qe/(eps0 * ang_to_m)
-     
-        if units=="mV":
-            unit_conversion = to_V*1000
-        elif units == "kT_e":
-            unit_conversion = to_V*1000/(kT/qe)
-        elif units=="kJ_mol":
-            unit_conversion = to_V*1000/(kT*Na/qe)
-        elif units=="kcal_mol":
-            unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
-        elif units=="qe_eps0_angs":
-            unit_conversion = 1.
-        else:
-            print("Units not recognized. Defaulting to mV")
-            unit_conversion = to_V*1000
+        unit_conversion = convert_units(units)
             
-        return unit_conversion * phi_solvent
+        return unit_conversion * phi_solvent, points_solvent
   
     def calculate_reaction_potential_solute(self, eval_points, units="mV", solute_subset=None, rerun_all=False, rerun_rhs=False):
         """
@@ -460,6 +440,8 @@ class Simulation:
         -------
         eval_points: (Nx3 array) with 3D position of N points. 
                      If point lies in a solute it is masked out.
+        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
+                       defaults to mV
         solute_subset: (array of int) subset of solutes that want to be 
                     computed. Defaults to None to compute all. 
                  
@@ -517,28 +499,8 @@ class Simulation:
             
             phi_solute[points_solute_local] = phi_aux[0,:]
             
-        qe = 1.60217663e-19
-        eps0 = 8.8541878128e-12
-        ang_to_m = 1e-10
-        kT = 4.11e-21 
-        Na = 6.02214076e23
-
-        to_V = qe/(eps0 * ang_to_m)
-     
-        if units=="mV":
-            unit_conversion = to_V*1000
-        elif units == "kT_e":
-            unit_conversion = to_V*1000/(kT/qe)
-        elif units=="kJ_mol":
-            unit_conversion = to_V*1000/(kT*Na/qe)
-        elif units=="kcal_mol":
-            unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
-        elif units=="qe_eps0_angs":
-            unit_conversion = 1.
-        else:
-            print("Units not recognized. Defaulting to mV")
-            unit_conversion = to_V*1000
-            
+        unit_conversion = convert_units(units)
+ 
         return unit_conversion*phi_solute, points_solute
             
    
@@ -549,6 +511,8 @@ class Simulation:
         -------
         eval_points: (Nx3 array) with 3D position of N points. 
                      If point lies in a solute it is masked out.
+        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
+                       defaults to mV
         solute_subset: (array of int) subset of solutes that want to be 
                     computed. Defaults to None to compute all. 
                  
@@ -585,29 +549,9 @@ class Simulation:
             
             points_solute[points_solute_local] = index
          
-            phi_coul_solute[points_solute_local] = solute.calculate_coulomb_potential(eval_points[points_solute_local])
+            phi_coul_solute[points_solute_local] = solute.calculate_coulomb_potential(eval_points[points_solute_local])  
         
-        qe = 1.60217663e-19
-        eps0 = 8.8541878128e-12
-        ang_to_m = 1e-10
-        kT = 4.11e-21 
-        Na = 6.02214076e23
-
-        to_V = qe/(eps0 * ang_to_m)
-     
-        if units=="mV":
-            unit_conversion = to_V*1000
-        elif units == "kT_e":
-            unit_conversion = to_V*1000/(kT/qe)
-        elif units=="kJ_mol":
-            unit_conversion = to_V*1000/(kT*Na/qe)
-        elif units=="kcal_mol":
-            unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
-        elif units=="qe_eps0_angs":
-            unit_conversion = 1.
-        else:
-            print("Units not recognized. Defaulting to mV")
-            unit_conversion = to_V*1000
+        unit_conversion = convert_units(units)
             
         return unit_conversion*phi_coul_solute, points_solute        
         
@@ -718,4 +662,38 @@ class Simulation:
                 bempp.api.log("PBJ: ENS calculation " + str(atom_name) + " atom %i, phi_ens = %1.3f mV"%(i,phi_ens[i]))
             
             solute.results["phi_ens"] = phi_ens
-            
+
+def convert_units(units):
+    """
+    Convert units from e_eps0_angs to "units"
+    Input:
+    ------
+        units: (str) Can be mV, kT_e, kcal_mol_e, kJ_mol_e, e_eps0_angs.
+                     Defaults to mV. Check kcal_mol_e and kJ_mol_e.
+    Output:
+    -------
+        unit_conversion: (float) coefficient for unit conversion
+    """
+    qe = 1.60217663e-19
+    eps0 = 8.8541878128e-12
+    ang_to_m = 1e-10
+    kT = 4.11e-21 
+    Na = 6.02214076e23
+
+    to_V = qe/(eps0 * ang_to_m)
+
+    if units=="mV":
+        unit_conversion = to_V*1000
+    elif units == "kT_e":
+        unit_conversion = to_V*1000/(kT/qe)
+    elif units=="kJ_mol_e":
+        unit_conversion = to_V*1000/(kT*Na/qe)
+    elif units=="kcal_mol_e":
+        unit_conversion = to_V*1000/(kT*Na/(4.184*qe))
+    elif units=="e_eps0_angs":
+        unit_conversion = 1.
+    else:
+        print("Units not recognized. Defaulting to mV")
+        unit_conversion = to_V*1000
+
+    return unit_conversion
