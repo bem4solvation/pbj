@@ -1,4 +1,4 @@
-name: pbj_dev
+name: pbj
 channels:
   - conda-forge
   - defaults
