@@ -5,7 +5,7 @@ from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
 from numba import jit
 import time
 import pbj
-import pbj.electrostatics.utils as utils
+import pbj.implicit_solvent.utils as utils
 
 
 invert_potential = False
@@ -16,7 +16,7 @@ def verify_parameters(self):
 
 
 def lhs(self):
-    pbj.electrostatics.pb_formulation.formulations.direct.lhs(self)
+    pbj.implicit_solvent.pb_formulation.formulations.direct.lhs(self)
 
 
 def rhs(self):
@@ -185,16 +185,16 @@ def rhs_induced_dipole(self):
     self.rhs["rhs_2"] = self.rhs["rhs_permanent_multipole_2"] + rhs_2
     
 def block_diagonal_preconditioner(solute):
-    pbj.electrostatics.pb_formulation.formulations.direct.block_diagonal_preconditioner(solute)
+    pbj.implicit_solvent.pb_formulation.formulations.direct.block_diagonal_preconditioner(solute)
 
 
 
 def mass_matrix_preconditioner(solute):
-    pbj.electrostatics.pb_formulation.formulations.direct.mass_matrix_preconditioner(solute)
+    pbj.implicit_solvent.pb_formulation.formulations.direct.mass_matrix_preconditioner(solute)
 
     
 def mass_matrix_preconditioner_rhs(solute):
-    pbj.electrostatics.pb_formulation.formulations.direct.mass_matrix_preconditioner_rhs(solute)
+    pbj.implicit_solvent.pb_formulation.formulations.direct.mass_matrix_preconditioner_rhs(solute)
 
 
 def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):

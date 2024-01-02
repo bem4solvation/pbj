@@ -3,9 +3,9 @@ import time
 import trimesh
 
 import numpy as np
-import pbj.electrostatics.solute
-import pbj.electrostatics.pb_formulation.formulations as pb_formulations
-import pbj.electrostatics.utils as utils
+import pbj.implicit_solvent.solute
+import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
+import pbj.implicit_solvent.utils as utils
 
 
 class Simulation:
@@ -126,7 +126,7 @@ class Simulation:
     def add_solute(self, solute):
 
          
-        if isinstance(solute, pbj.electrostatics.solute.Solute) and hasattr(solute, "solute_name"):
+        if isinstance(solute, pbj.implicit_solvent.solute.Solute) and hasattr(solute, "solute_name"):
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
@@ -641,9 +641,9 @@ class Simulation:
                 phi_solvent = np.zeros(len(outside))
                 for index_source, solute_source in enumerate(self.solutes):
                     
-                    V = pbj.electrostatics.simulation.bempp.api.operators.potential.modified_helmholtz.single_layer \
+                    V = pbj.implicit_solvent.simulation.bempp.api.operators.potential.modified_helmholtz.single_layer \
                                   (solute_source.neumann_space, pos_mesh_outside, self.kappa, assembler = self.operator_assembler)
-                    K = pbj.electrostatics.simulation.bempp.api.operators.potential.modified_helmholtz.double_layer \
+                    K = pbj.implicit_solvent.simulation.bempp.api.operators.potential.modified_helmholtz.double_layer \
                                   (solute_source.dirichl_space, pos_mesh_outside, self.kappa, assembler = self.operator_assembler)
 
                     phi_aux = K*solute_source.results["phi"] \

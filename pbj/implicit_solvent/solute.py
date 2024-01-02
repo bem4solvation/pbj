@@ -3,10 +3,11 @@ import bempp.api
 import os
 import numpy as np
 import time
+import shutil
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.electrostatics.pb_formulation.formulations as pb_formulations
-import pbj.electrostatics.utils as utils
+import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
+import pbj.implicit_solvent.utils as utils
 
 
 class Solute:
@@ -335,8 +336,21 @@ class Solute:
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
         
+    def calculate_solvation_energy(self, calculate_all=True, only_electrostatic=False, only_nonpolar=False):
 
-    def calculate_solvation_energy(self):
+        if calculate_all:
+            self.calculate_electrostatic_solvation_energy()
+            self.calculate_nonpolar_solvation_energy()
+
+        elif only_electrostatic:
+            self.calculate_electrostatic_solvation_energy()
+    
+        elif only_nonpolar: 
+            self.calculate_nonpolar_solvation_energy()
+
+
+
+    def calculate_electrostatic_solvation_energy(self):
 
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
@@ -361,7 +375,7 @@ class Solute:
 
         # total solvation energy applying constant to get units [kcal/mol]
         total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
-        self.results["solvation_energy"] = total_energy
+        self.results["electrostatic_solvation_energy"] = total_energy
         self.timings["time_calc_energy"] = time.time() - start_time
 
         if self.print_times:
@@ -371,6 +385,10 @@ class Solute:
                 " seconds to compute the solvation energy",
             )
  
+    def calculate_nonpolar_solvation_energy(self):
+
+        cavity_energy = 1.
+        dispersion_energy = 1. 
             
     def calculate_gradient_field(self, h=0.001):
 
@@ -757,8 +775,77 @@ class Solute:
             
         return phi_coul
                                
-                               
+    
+    def create_sas_mesh(self, sas_mesh_density=None, water_radius=1.4):
 
+        if sas_mesh_density==None:
+            sas_mesh_density = self.mesh_density
+
+        sas_mesh_dir = os.path.abspath("mesh_files/")
+        if self.save_mesh_build_files:
+            sas_mesh_dir = self.mesh_build_files_dir
+
+        if not os.path.exists(sas_mesh_dir):
+            try:
+                os.mkdir(sas_mesh_dir)
+            except OSError:
+                print("Creation of the directory %s failed" % sas_mesh_dir)
+
+        sas_pqr_file = os.path.join(sas_mesh_dir, "sas_pqr.pqr")
+        with open(sas_pqr_file, "w") as f:
+            f.write(
+                "# This is a dummy pqr file generated for the creation of the SAS mesh.\n"
+            )
+            for index in range(len(self.r_q)):
+                f.write(
+                    "ATOM      #  #   ###     #      "
+                    + str(self.x_q[index][0])
+                    + " "
+                    + str(self.x_q[index][1])
+                    + " "
+                    + str(self.x_q[index][2])
+                    + " "
+                    + str(self.q[index])
+                    + " "
+                    + str(self.r_q[index] + water_radius)
+                    + "\n"
+                )
+
+        sas_mesh_xyzr_file = os.path.join(sas_pqr_file[:-4] + ".xyzr")
+        mesh_tools.convert_pqr2xyzr(sas_pqr_file, sas_mesh_xyzr_file)
+    
+        mesh_probe_radius = 0.05
+        if self.mesh_generator == "msms":
+            mesh_tools.generate_msms_mesh(
+                sas_mesh_xyzr_file,
+                sas_mesh_dir,
+                self.solute_name+"_sas",
+                mesh_density,
+                mesh_probe_radius,
+            ) 
+
+        if self.mesh_generator == "nanoshaper":
+            nanoshaper_grid_scale =  \
+                    mesh_tools.density_to_nanoshaper_grid_scale_conversion(sas_mesh_density)		
+            mesh_tools.generate_nanoshaper_mesh(
+				sas_mesh_xyzr_file,
+				sas_mesh_dir,
+				self.solute_name+"_sas",
+				nanoshaper_grid_scale,
+				mesh_probe_radius,
+				self.save_mesh_build_files,
+			) 
+
+        mesh_face_path = os.path.join(sas_mesh_dir, self.solute_name + "_sas.face")
+        mesh_vert_path = os.path.join(sas_mesh_dir, self.solute_name + "_sas.vert")
+
+        grid = mesh_tools.import_msms_mesh(mesh_face_path, mesh_vert_path) 
+
+        if not self.save_mesh_build_files:
+            shutil.rmtree(sas_mesh_dir)
+
+        self.sas_mesh = grid
+     
             
 
 def get_name_from_pdb(pdb_path):

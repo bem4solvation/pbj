@@ -1,8 +1,8 @@
 """Poisson Boltzmann & Jupyter: Bempp based biomolecular electrostatics solver."""
 # Add imports here
 import os
-from pbj.electrostatics.solute import Solute
-from pbj.electrostatics.simulation import Simulation
+from pbj.implicit_solvent.solute import Solute
+from pbj.implicit_solvent.simulation import Simulation
 
 PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 

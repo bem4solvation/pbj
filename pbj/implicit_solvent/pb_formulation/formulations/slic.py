@@ -5,8 +5,8 @@ from bempp.api.linalg.iterative_solvers import IterationCounter
 from .common import calculate_potential_stern
 import pbj
 import time
-import pbj.electrostatics.utils as utils
-from pbj.electrostatics.utils import matrix_to_discrete_form
+import pbj.implicit_solvent.utils as utils
+from pbj.implicit_solvent.utils import matrix_to_discrete_form
 import scipy.sparse.linalg
 
 
@@ -19,26 +19,26 @@ def verify_parameters(self):
 
 
 def lhs(self):
-    pbj.electrostatics.pb_formulation.formulations.direct_stern.lhs(self)
+    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.lhs(self)
 
 
 def rhs(self):
-    pbj.electrostatics.pb_formulation.formulations.direct_stern.rhs(self)
+    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.rhs(self)
 
 
 def block_diagonal_preconditioner(self):
-    pbj.electrostatics.pb_formulation.formulations.direct_stern.block_diagonal_preconditioner(
+    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.block_diagonal_preconditioner(
         self
     )
 
 
 def mass_matrix_preconditioner(self):
-    pbj.electrostatics.pb_formulation.formulations.direct_stern.mass_matrix_preconditioner(
+    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.mass_matrix_preconditioner(
         self
     )
     
 def lhs_inter_solute_interactions(self, solute_target, solute_source):
-    pbj.electrostatics.pb_formulation.formulations.direct_stern.lhs_inter_solute_interactions(
+    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.lhs_inter_solute_interactions(
         self, solute_target, solute_source
     )
     
@@ -162,7 +162,7 @@ def calculate_potential(simulation, rerun_all, rerun_rhs):
         solute.ep_stern = ep_stern
 
         if solute.stern_object is None:
-            pbj.electrostatics.pb_formulation.formulations.direct_stern.create_stern_mesh(
+            pbj.implicit_solvent.pb_formulation.formulations.direct_stern.create_stern_mesh(
                 solute
             )
 
