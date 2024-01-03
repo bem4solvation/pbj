@@ -97,5 +97,71 @@ def rhs(self):
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
 
 
+# need to finish this!! only copied from direct
+def block_diagonal_preconditioner(solute):
+    from scipy.sparse import diags, bmat
+    from scipy.sparse.linalg import aslinearoperator
+    import pbj.electrostatics.utils as utils
+
+    matrix_A = solute.matrices["A"]
+
+    block1 = matrix_A[0, 0]
+    block2 = matrix_A[0, 1]
+    block3 = matrix_A[1, 0]
+    block4 = matrix_A[1, 1]
+
+    diag11 = (
+            block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal()
+            + block1._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+    diag12 = (
+            block2._alpha
+            * block2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+    diag21 = (
+            block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal()
+            + block3._op2._alpha
+            * block3._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+    diag22 = (
+            block4._alpha
+            * block4._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+    )
+
+    d_aux = 1 / (diag22 - diag21 * diag12 / diag11)
+    diag11_inv = 1 / diag11 + 1 / diag11 * diag12 * d_aux * diag21 / diag11
+    diag12_inv = -1 / diag11 * diag12 * d_aux
+    diag21_inv = -d_aux * diag21 / diag11
+    diag22_inv = d_aux
+
+    block_mat_precond = [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+
+    solute.matrices["preconditioning_matrix_gmres"] = block_mat_precond
+
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+
+    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(
+        solute.matrices["A_final"], "weak"
+    )
+    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "weak", solute.matrices["A"]
+    )
+
+
+def mass_matrix_preconditioner(solute):
+    import pbj.electrostatics.utils as utils
+
+    solute.matrices["A_final"] = solute.matrices["A"]
+    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(
+        solute.matrices["A_final"], "strong"
+    )
+
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
+    )
+
+
 def calculate_potential(self, rerun_all, rerun_rhs):
     calculate_potential_one_surface(self, rerun_all, rerun_rhs)
