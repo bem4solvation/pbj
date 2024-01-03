@@ -9,8 +9,33 @@ import pbj.electrostatics.utils as utils
 
 
 class Simulation:
-    def __init__(self, formulation="direct", stern_layer = False, print_times=False): 
-            
+    """Simulation class which is base for running electrostatic calculations
+    of solutes using the different implemented formulations.
+
+    Attributes
+    ----------
+    solvent_parameters : dict
+        Dictionary of the parameters that represent the solvent
+
+    Methods
+    -------
+
+    """
+    
+    def __init__(self, formulation="direct", stern_layer = False, print_times=False):
+        """Construct of the simulation called when the object is created which sets up
+        the basic class with default parameters, or those specified in the call.
+
+        Parameters
+        ----------
+        formulation : str, optional
+            Which formulation to use for the calculations, defaults to "direct" and can be changed later by
+            editing the "pb_formulation" parameter of the Simulation object" (default is "direct")
+        stern_layer : bool, optional
+            A flag to define if a stern layer is to be used (default is False)
+        print_times : bool, optional
+            A flag to set whether the different calculation times should be printed to the terminal (default is False)
+        """
         if stern_layer and formulation != "slic":
             self._pb_formulation = "direct_stern"
             if formulation != ("direct" or "direct_stern"):
@@ -124,8 +149,13 @@ class Simulation:
                 solute.kappa = self.kappa 
                 
     def add_solute(self, solute):
+        """Calculate Solvation forces in the simulation.
 
-         
+        Parameters
+        ----------
+        solute : object
+            Solute object to be added to the simulation
+        """
         if isinstance(solute, pbj.electrostatics.solute.Solute) and hasattr(solute, "solute_name"):
             if solute in self.solutes:
                 print(
@@ -150,6 +180,7 @@ class Simulation:
             raise ValueError("Given object is not of the 'Solute' class or pdb/pqr file not correctly loaded.")
 
     def create_and_assemble_linear_system(self):
+        """Create and assemble linear system of the matrix system."""
         from scipy.sparse import bmat, dok_matrix
         from scipy.sparse.linalg import aslinearoperator
         
@@ -285,6 +316,7 @@ class Simulation:
         self.rhs["rhs_discrete"] = rhs_final_discrete
         
     def create_and_assemble_rhs(self):
+        """Create and assemble RHS of the matrix system."""
         from scipy.sparse import bmat, dok_matrix
         from scipy.sparse.linalg import aslinearoperator
         
@@ -309,7 +341,17 @@ class Simulation:
         
     
     def calculate_surface_potential(self, rerun_all=False, rerun_rhs=False):
-        
+        """Calculate surface potential of the simulation.
+
+        Parameters
+        ----------
+        rerun_all : bool, optional
+            A flag for whether to rerun all the calculations, instead of using
+            the previously cached values (default is False)
+        rerun_rhs : bool, optional
+            A flag for whether to rerun the calculations of the RHS, instead of using
+            the previously cached values (default is False)
+        """
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
         else:
@@ -322,7 +364,17 @@ class Simulation:
 
     
     def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
-        
+        """Calculate solvation energy of the simulation.
+
+        Parameters
+        ----------
+        rerun_all : bool, optional
+            A flag for whether to rerun all the calculations, instead of using
+            the previously cached values (default is False)
+        rerun_rhs : bool, optional
+            A flag for whether to rerun the calculations of the RHS, instead of using
+            the previously cached values (default is False)
+        """
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
             return
@@ -347,7 +399,20 @@ class Simulation:
 
 
     def calculate_solvation_forces(self, h=0.001, rerun_all=False, force_formulation='maxwell_tensor', fdb_approx=False):
+        """Calculate Solvation forces in the simulation.
 
+        Parameters
+        ----------
+        h : float, optional
+
+        rerun_all : bool, optional
+            A flag for whether to rerun all the calculations, instead of using
+            the previously cached values (default is False)
+        force_formulation : str, optional
+
+        fdb_approx : bool, optional
+
+        """
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
             return
@@ -364,20 +429,24 @@ class Simulation:
 
         
     def calculate_potential_solvent(self, eval_points, units="mV", rerun_all=False, rerun_rhs=False):
+        """Evaluates the potential on a cloud of points in the solvent. Needs check for multiple molecules.
+
+        Parameters
+        ----------
+        eval_points: 3xN
+            Array with 3D position of N points. If point lies in a solute it is masked out.
+        rerun_all : bool, optional
+            A flag for whether to rerun all the calculations, instead of using
+            the previously cached values (default is False)
+        rerun_rhs : bool, optional
+            A flag for whether to rerun the calculations of the RHS, instead of using
+            the previously cached values (default is False)
+
+        Returns
+        ----------
+        phi_solvent: array
+            Electrostatic potential at eval_points
         """
-        Evaluates the potential on a cloud of points in the solvent. Needs check for multiple molecules.
-        Inputs:
-        -------
-        eval_points: (Nx3 array) with 3D position of N points. 
-                     If point lies in a solute it is masked out.
-        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
-                       defaults to mV
-                 
-        Outputs:
-        --------
-        phi_solvent: (array) electrostatic potential at eval_points
-        """
- 
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
             return
@@ -557,14 +626,24 @@ class Simulation:
         
         
     def calculate_potential_ens(self, atom_name = ["H"], mesh_dx = 1.0, mesh_length = 40., ion_radius_explode = 3.5, rerun_all=False, rerun_rhs=False):
-        """
-        Calculates effective near surface (ENS) potential. See Yu, Pettit, Iwahara (2021) PNAS. 
-        Inputs:
-        -------
-        atom_name: (array of str) array with atom names in pqr file where phi_ens will be calculated
-        mesh_dx  : (float) spacing in mesh for integration
-        mesh_length: (float) length of mesh for integration
-        ion_radius_explode: (float) exploded radius for ion accessibility 
+        """Calculates effective near surface (ENS) potential. See Yu, Pettit, Iwahara (2021) PNAS.
+
+        Parameters
+        ----------
+        atom_name : array of str, optional
+            Array with atom names in pqr file where phi_ens will be calculated
+        mesh_dx : float, optional
+            Spacing in mesh for integration (default is 1.0)
+        mesh_length : float, optional
+            Length of mesh for integration (default is 40.0)
+        ion_radius_explode : float, optional
+            Exploded radius for ion accessibility (default is 3.5)
+        rerun_all : bool, optional
+            A flag for whether to rerun all the calculations, instead of using
+            the previously cached values (default is False)
+        rerun_rhs : bool, optional
+            A flag for whether to rerun the calculations of the RHS, instead of using
+            the previously cached values (default is False)
         
         Output:
         -------
