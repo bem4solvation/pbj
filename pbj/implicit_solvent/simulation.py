@@ -25,8 +25,8 @@ class Simulation:
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
         
-        self.solvent_parameters = dict()
-        self.solvent_parameters["ep"] = 80.0
+        #self.solvent_parameters = dict()
+        #self.solvent_parameters["ep"] = 80.0
 
         self.gmres_tolerance = 1e-5
         self.gmres_restart = 1000

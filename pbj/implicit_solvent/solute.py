@@ -23,7 +23,7 @@ class Solute:
         mesh_build_files_dir="mesh_files/",
         mesh_density=2.0,
         nanoshaper_grid_scale=None,
-        mesh_probe_radius=1.4,
+        solvent_radius=1.4,
         mesh_generator="nanoshaper",
         print_times=False,
         force_field="amber",
@@ -73,7 +73,7 @@ class Solute:
                         self.mesh_density
                     )
                 )
-        self.mesh_probe_radius = mesh_probe_radius
+        self.mesh_probe_radius = solvent_radius
         self.mesh_generator = mesh_generator
 
         self.print_times = print_times
@@ -177,6 +177,14 @@ class Solute:
         self.ep_ex = 80.0
         self.ep_stern = 80.0
         self.kappa = 0.125
+
+        self.gamma_cav_nonpolar = 0.06
+        self.intercept_cav_nonpolar = -3
+
+        self.gamma_disp_nonpolar = -0.06
+        self.intercept_disp_nonpolar = 5
+
+        self.solvent_number_density = 1.45
         
         self.slic_alpha = 0.5
         self.slic_beta = -60
@@ -187,6 +195,8 @@ class Solute:
         self.slic_e_hat_stern_old = self.ep_stern / self.ep_ex
         
         self.stern_mesh_density_ratio = 0.5 # stern_density/diel_density ratio. No need for fine meshes in Stern.
+
+        self.sas_mesh_density = self.mesh_density
         
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
@@ -341,6 +351,8 @@ class Solute:
         if calculate_all:
             self.calculate_electrostatic_solvation_energy()
             self.calculate_nonpolar_solvation_energy()
+            self.results["solvation_energy"] = self.results["electrostatic_solvation_energy"] \
+                                             + self.results["nonpolar_solvation_energy"]
 
         elif only_electrostatic:
             self.calculate_electrostatic_solvation_energy()
@@ -376,20 +388,61 @@ class Solute:
         # total solvation energy applying constant to get units [kcal/mol]
         total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
         self.results["electrostatic_solvation_energy"] = total_energy
-        self.timings["time_calc_energy"] = time.time() - start_time
+        self.timings["time_calc_elec_energy"] = time.time() - start_time
 
         if self.print_times:
             print(
                 "It took ",
-                self.timings["time_calc_energy"],
-                " seconds to compute the solvation energy",
+                self.timings["time_calc_elec_energy"],
+                " seconds to compute the electrostatic solvation energy",
             )
  
-    def calculate_nonpolar_solvation_energy(self):
+    def calculate_nonpolar_solvation_energy(self, sas_mesh_density=None):
 
-        cavity_energy = 1.
-        dispersion_energy = 1. 
-            
+        start_time = time.time()
+        
+        self.calculate_cavity_energy(sas_mesh_density)
+        self.calculate_dispersion_energy(sas_mesh_density)
+
+        self.timings["time_calc_nonpol_energy"] = time.time() - start_time
+
+        self.results["nonpolar_solvation_energy"] = \
+                self.results["cavity_energy"] + self.results["dispersion_energy"]
+    
+        if self.print_times:
+            print(
+                "It took ",
+                self.timings["time_calc_nonpol_energy"],
+                " seconds to compute the nonpolar solvation energy",
+            )
+ 
+    def calculate_cavity_energy(self, sas_mesh_density=None):
+
+        if not hasattr(self, "sas_mesh"): 
+            self.create_sas_mesh(sas_mesh_density)
+
+        sasa = np.sum(self.sas_mesh.volumes)
+
+        gamma = self.gamma_cav_nonpolar 
+        b = self.intercept_cav_nonpolar
+
+        cavity_energy = gamma*sasa + b
+        self.results["cavity_energy"] = cavity_energy
+
+
+    def calculate_dispersion_energy(self, sas_mesh_density=None):
+
+        if not hasattr(self, "sas_mesh"): 
+            self.create_sas_mesh(sas_mesh_density)
+
+        sasa = np.sum(self.sas_mesh.volumes)
+
+        gamma = self.gamma_disp_nonpolar 
+        b = self.intercept_disp_nonpolar
+
+        dispersion_energy = gamma*sasa + b
+        self.results["dispersion_energy"] = dispersion_energy
+
     def calculate_gradient_field(self, h=0.001):
 
         """
@@ -776,10 +829,10 @@ class Solute:
         return phi_coul
                                
     
-    def create_sas_mesh(self, sas_mesh_density=None, water_radius=1.4):
+    def create_sas_mesh(self, sas_mesh_density=None):
 
-        if sas_mesh_density==None:
-            sas_mesh_density = self.mesh_density
+        if sas_mesh_density!=None:
+            self.sas_mesh_density = sas_mesh_density
 
         sas_mesh_dir = os.path.abspath("mesh_files/")
         if self.save_mesh_build_files:
@@ -807,32 +860,32 @@ class Solute:
                     + " "
                     + str(self.q[index])
                     + " "
-                    + str(self.r_q[index] + water_radius)
+                    + str(self.r_q[index] + self.mesh_probe_radius)
                     + "\n"
                 )
 
         sas_mesh_xyzr_file = os.path.join(sas_pqr_file[:-4] + ".xyzr")
         mesh_tools.convert_pqr2xyzr(sas_pqr_file, sas_mesh_xyzr_file)
     
-        mesh_probe_radius = 0.05
+        probe_radius = 0.05 # small probe for SAS
         if self.mesh_generator == "msms":
             mesh_tools.generate_msms_mesh(
                 sas_mesh_xyzr_file,
                 sas_mesh_dir,
                 self.solute_name+"_sas",
-                mesh_density,
-                mesh_probe_radius,
+                self.sas_mesh_density,
+                probe_radius,
             ) 
 
         if self.mesh_generator == "nanoshaper":
             nanoshaper_grid_scale =  \
-                    mesh_tools.density_to_nanoshaper_grid_scale_conversion(sas_mesh_density)		
+                    mesh_tools.density_to_nanoshaper_grid_scale_conversion(self.sas_mesh_density)		
             mesh_tools.generate_nanoshaper_mesh(
 				sas_mesh_xyzr_file,
 				sas_mesh_dir,
 				self.solute_name+"_sas",
 				nanoshaper_grid_scale,
-				mesh_probe_radius,
+			    probe_radius,
 				self.save_mesh_build_files,
 			) 
 
