@@ -10,8 +10,17 @@ import pbj.electrostatics.utils as utils
 
 
 class Solute:
-    """The basic Solute object
+    """The basic Solute class
     This object holds all the solute information and allows for an easy way to hold the data
+
+    Attributes
+    ----------
+    solute_parameters : dict
+        Dictionary of the parameters that represent the solvent
+
+    Methods
+    -------
+
     """
 
     def __init__(
@@ -30,12 +39,42 @@ class Solute:
         radius_keyword="solute",
         solute_radius_type="PB"
     ):
+        """Construct of the solute called when the object is created which sets up
+        the basic class with default parameters, or those specified in the call.
 
+        Parameters
+        ----------
+        solute_file_path : str
+            Path to solute definition file
+        external_mesh_file : str, optional
+            (default is None)
+        save_mesh_build_files : bool, optional
+            (default is False)
+        mesh_build_files_dir : str, optional
+            (default is "mesh_files/")
+        mesh_density : float, optional
+            (default is 2.0)
+        nanoshaper_grid_scale : float, optional
+            (default is None)
+        mesh_probe_radius : float, optional
+            (default is 1.4)
+        mesh_generator : str, optional
+            (default is "nanoshaper")
+        print_times : bool, optional
+            (default is False)
+        force_field : str, optional
+            (default is "amber")
+        formulation : str, optional
+            (default is "direct")
+        radius_keyword : str, optional
+            (default is "solute")
+        solute_radius_type : str, optional
+            (default is "PB")
+        """
         if not os.path.isfile(solute_file_path):
             print("file does not exist -> Cannot start")
             return
 
-            
         if force_field == "amoeba" and formulation != "direct":
             print("AMOEBA force field is only available with the direct formulation -> Changing to direct")
         if force_field == "amoeba":
@@ -160,7 +199,6 @@ class Solute:
                 self.d_induced = np.zeros_like(self.d)
                 self.d_induced_prev = np.zeros_like(self.d)
 
-
             else:
                 (
                     self.mesh,
@@ -182,10 +220,10 @@ class Solute:
         self.slic_gamma = -0.5
         
         self.slic_sigma = None
-        self.slic_e_hat_diel_old  = self.ep_in / self.ep_stern
+        self.slic_e_hat_diel_old = self.ep_in / self.ep_stern
         self.slic_e_hat_stern_old = self.ep_stern / self.ep_ex
         
-        self.stern_mesh_density_ratio = 0.5 # stern_density/diel_density ratio. No need for fine meshes in Stern.
+        self.stern_mesh_density_ratio = 0.5  # stern_density/diel_density ratio. No need for fine meshes in Stern.
         
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
@@ -239,8 +277,7 @@ class Solute:
         self._stern_mesh_density = value
         self.stern_mesh_density_ratio = value/self.mesh_density
         pb_formulations.direct_stern.create_stern_mesh(self)
-        
-        
+
     def display_available_formulations(self):
         from inspect import getmembers, ismodule
 
@@ -334,7 +371,6 @@ class Solute:
             )
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
-        
 
     def calculate_solvation_energy(self):
 
@@ -370,19 +406,14 @@ class Solute:
                 self.timings["time_calc_energy"],
                 " seconds to compute the solvation energy",
             )
- 
-            
-    def calculate_gradient_field(self, h=0.001):
 
-        """
-        Compute the first derivate of potential due to solvent
+    def calculate_gradient_field(self, h=0.001):
+        """Compute the first derivative of potential due to solvent
         in the position of the points
         """
-
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
-
 
         start_time = time.time()
 
@@ -406,7 +437,7 @@ class Solute:
         dphidx = 0.5 * (phi[0, : len(self.x_q)] - phi[0, len(self.x_q) :]) / h
         dphidr[:, 0] = dphidx
 
-        # y axis derivate
+        # y axis derivative
         dy = np.concatenate((self.x_q[:] + dist[1], self.x_q[:] - dist[1]))
         slpo = bempp.api.operators.potential.laplace.single_layer(
             self.neumann_space, dy.transpose()
@@ -418,7 +449,7 @@ class Solute:
         dphidy = 0.5 * (phi[0, : len(self.x_q)] - phi[0, len(self.x_q) :]) / h
         dphidr[:, 1] = dphidy
 
-        # z axis derivate
+        # z axis derivative
         dz = np.concatenate((self.x_q[:] + dist[2], self.x_q[:] - dist[2]))
         slpo = bempp.api.operators.potential.laplace.single_layer(
             self.neumann_space, dz.transpose()
@@ -442,13 +473,16 @@ class Solute:
         return None
 
     def calculate_gradgradient_field(self, h=0.001):
+        """Compute the second derivate of potential due
+        to solvent in the position of the points
 
-        """
-        Compute the second derivate of potential due to solvent
-        in the position of the points
-        xq: Array size (Nx3) whit positions to calculate the derivate.
-        h: Float number, distance for the central difference.
-        Return:
+        Parameters
+        ----------
+        h : float, optional
+            Distance for the central difference (default is 0.001)
+
+        Output
+        ----------
         ddphi: Second derivate of the potential in the positions of points.
         """
 
@@ -496,9 +530,7 @@ class Solute:
                     " seconds to compute the gradient of the gradient field on solute charges",
                 )
 
-
     def calculate_charges_forces(self, h=0.001):
-
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
@@ -594,7 +626,6 @@ class Solute:
                 E_eps = -dphi_centers[i]
                 E_eta = -a
                 E_tau = -b
-                
 
                 F = ((1/ep_hat)*E_eps*E_eps + E_eta*E_eta + E_tau*E_tau)
                 F *= -0.5*(self.ep_ex - self.ep_in)*self.mesh.normals[i] * self.mesh.volumes[i]
@@ -622,7 +653,6 @@ class Solute:
             )
 
     def calculate_solvation_forces(self, h=0.001, force_formulation='maxwell_tensor', fdb_approx=False):
-
         if "phi" not in self.results:
             print("Please compute surface potential first with simulation.calculate_potentials()")
             return
@@ -666,11 +696,10 @@ class Solute:
 
             start_time = time.time()
 
-
             N_elements = self.mesh.number_of_elements
             P_normal = np.zeros([N_elements])
             phi_vertex = self.results["phi"].coefficients
-            ep_hat =  self.ep_in/self.ep_ex
+            ep_hat = self.ep_in/self.ep_ex
             dphi_centers = ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
             total_force = np.zeros(3)
             convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
@@ -735,8 +764,7 @@ class Solute:
 
         else:
             raise ValueError('Formulation have to be "maxwell_tensor" or "energy_functional"')
-            
-            
+
     def calculate_coulomb_potential(self, eval_points):
         """
         Compute the Coulomb potential due to the charges in self on eval_points 
@@ -756,10 +784,7 @@ class Solute:
             phi_coul[:] += self.q[i]/(4*np.pi*dist[:])
             
         return phi_coul
-                               
-                               
 
-            
 
 def get_name_from_pdb(pdb_path):
     pdb_file = open(pdb_path)
