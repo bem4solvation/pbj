@@ -321,7 +321,7 @@ class Simulation:
 #           show_potential_calculation_times(self)
 
     
-    def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
+    def calculate_solvation_energy(self, electrostatic_energy=True, nonpolar_energy=False, rerun_all=False, rerun_rhs=False):
         
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
@@ -340,7 +340,7 @@ class Simulation:
         start_time = time.time()
         for index, solute in enumerate(self.solutes):
             
-            solute.calculate_solvation_energy()
+            solute.calculate_solvation_energy(electrostatic_energy, nonpolar_energy)
                 
                 
         self.timings["time_calc_energy"] = time.time() - start_time

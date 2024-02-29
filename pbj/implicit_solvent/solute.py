@@ -346,18 +346,19 @@ class Solute:
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
         
-    def calculate_solvation_energy(self, calculate_all=True, only_electrostatic=False, only_nonpolar=False):
+    def calculate_solvation_energy(self, electrostatic_energy=True, nonpolar_energy=False):
 
+        calculate_all = electrostatic_energy and nonpolar_energy
         if calculate_all:
             self.calculate_electrostatic_solvation_energy()
             self.calculate_nonpolar_solvation_energy()
             self.results["solvation_energy"] = self.results["electrostatic_solvation_energy"] \
                                              + self.results["nonpolar_solvation_energy"]
 
-        elif only_electrostatic:
+        elif electrostatic_energy:
             self.calculate_electrostatic_solvation_energy()
     
-        elif only_nonpolar: 
+        elif nonpolar_energy: 
             self.calculate_nonpolar_solvation_energy()
 
 
