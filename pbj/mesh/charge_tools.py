@@ -270,7 +270,7 @@ def read_tinker_radius(filename, radius_keyword='solute', solute_radius_type = '
     try: 
         key_file = open(file_key, 'r')
     except OSError:
-        print('Cannot find file ' + file_key)
+        raise ValueError('Cannot find file ' + file_key)
         return
         
     for line in key_file:
@@ -448,13 +448,13 @@ def load_tinker_multipoles_to_solute(solute):
         if line[0]=='parameters':
             file_key = line[1]
             
-        if not os.path.isfile(file_key):
-            print("Cannot find a key/prm file. Please use same file name as .xyz file, or check the path to the key file in your prm file.")
-            return
-    
+    try: 
+        file_k = open(file_key, 'r').read().split('\n') 
         print('Reading parameters from '+file_key)
-    
-    file_k = open(file_key, 'r').read().split('\n') 
+    except OSError:
+        raise ValueError("Cannot find a key/prm file. Please use same file name as .xyz file, or check the path to the key file in your prm file.")
+        return
+
     for line in file_k:
         line = line.split()
         
@@ -804,14 +804,13 @@ def generate_msms_mesh_import_tinker_multipoles(solute):
 
 
     if solute.save_mesh_build_files:
-        if solute.imported_file_type == "pdb":
-            solute.mesh_pqr_path = mesh_pqr_path
-            solute.mesh_pqr_log = mesh_pqr_log
         solute.mesh_xyzr_path = mesh_xyzr_path
         solute.mesh_face_path = mesh_face_path
         solute.mesh_vert_path = mesh_vert_path
         solute.mesh_off_path = mesh_off_path
     else:
         shutil.rmtree(mesh_dir)
+    
+    
     return grid, x_q, q,d, Q, alpha, r_q, mass, polar_group, thole, \
             connections_12, connections_13, pointer_connections_12, pointer_connections_13, p12scale, p13scale
