@@ -52,14 +52,14 @@ def create_stern_mesh(self):
     """
 
     if hasattr(self, "mesh_density"):
-        stern_solute_object = pbj.electrostatics.Solute(
+        stern_solute_object = pbj.implicit_solvent.Solute(
             stern_pqr_file,
             external_mesh_file=None,
             save_mesh_build_files=self.save_mesh_build_files,
             mesh_build_files_dir=self.mesh_build_files_dir,
             mesh_density=getattr(self, "stern_mesh_density", self.mesh_density),
             nanoshaper_grid_scale= None,#getattr(self, "nanoshaper_grid_scale", None),
-            mesh_probe_radius=self.mesh_probe_radius,
+            solvent_radius=self.stern_probe_radius,
             mesh_generator=self.mesh_generator,
             print_times=self.print_times,
             force_field=self.force_field,
@@ -67,13 +67,13 @@ def create_stern_mesh(self):
         )
 
     else:
-        stern_solute_object = pbj.electrostatics.Solute(
+        stern_solute_object = pbj.implicit_solvent.Solute(
             stern_pqr_file,
             external_mesh_file=None,
             save_mesh_build_files=self.save_mesh_build_files,
             mesh_build_files_dir=self.mesh_build_files_dir,
             nanoshaper_grid_scale=getattr(self, "nanoshaper_grid_scale", None),
-            mesh_probe_radius=self.mesh_probe_radius,
+            solvent_radius=self.stern_probe_radius,
             mesh_generator=self.mesh_generator,
             print_times=self.print_times,
             force_field=self.force_field,
@@ -275,7 +275,7 @@ def rhs(self):
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat, block_diag, dok_matrix
     from scipy.sparse.linalg import aslinearoperator
-    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.implicit_solvent.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     dirichl_space_diel = solute.dirichl_space
     neumann_space_diel = solute.neumann_space
@@ -455,7 +455,7 @@ def block_diagonal_preconditioner(solute):
 
 
 def mass_matrix_preconditioner(solute):
-    from pbj.electrostatics.utils import matrix_to_discrete_form, rhs_to_discrete_form
+    from pbj.implicit_solvent.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [

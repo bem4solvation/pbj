@@ -3,9 +3,9 @@ import time
 import trimesh
 
 import numpy as np
-import pbj.electrostatics.solute
-import pbj.electrostatics.pb_formulation.formulations as pb_formulations
-import pbj.electrostatics.utils as utils
+import pbj.implicit_solvent.solute
+import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
+import pbj.implicit_solvent.utils as utils
 
 
 class Simulation:
@@ -25,8 +25,8 @@ class Simulation:
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
         
-        self.solvent_parameters = dict()
-        self.solvent_parameters["ep"] = 80.0
+        #self.solvent_parameters = dict()
+        #self.solvent_parameters["ep"] = 80.0
 
         self.gmres_tolerance = 1e-5
         self.gmres_restart = 1000
@@ -48,7 +48,10 @@ class Simulation:
         
         self.pb_formulation_preconditioning = True
         
-        if self._pb_formulation== ("direct" or "direct_stern" or "slic" or "direct_amoeba"):
+        if self._pb_formulation == "direct" or \
+           self._pb_formulation == "direct_stern" or \
+           self._pb_formulation == "slic" or \
+           self._pb_formulation == "direct_amoeba": 
             self.pb_formulation_preconditioning_type = "block_diagonal"
         else:
             self.pb_formulation_preconditioning_type = "mass_matrix"
@@ -126,7 +129,7 @@ class Simulation:
     def add_solute(self, solute):
 
          
-        if isinstance(solute, pbj.electrostatics.solute.Solute) and hasattr(solute, "solute_name"):
+        if isinstance(solute, pbj.implicit_solvent.solute.Solute) and hasattr(solute, "solute_name"):
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
@@ -321,7 +324,7 @@ class Simulation:
 #           show_potential_calculation_times(self)
 
     
-    def calculate_solvation_energy(self, rerun_all=False, rerun_rhs=False):
+    def calculate_solvation_energy(self, electrostatic_energy=True, nonpolar_energy=False, rerun_all=False, rerun_rhs=False):
         
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
@@ -340,7 +343,7 @@ class Simulation:
         start_time = time.time()
         for index, solute in enumerate(self.solutes):
             
-            solute.calculate_solvation_energy()
+            solute.calculate_solvation_energy(electrostatic_energy, nonpolar_energy)
                 
                 
         self.timings["time_calc_energy"] = time.time() - start_time
@@ -641,9 +644,9 @@ class Simulation:
                 phi_solvent = np.zeros(len(outside))
                 for index_source, solute_source in enumerate(self.solutes):
                     
-                    V = pbj.electrostatics.simulation.bempp.api.operators.potential.modified_helmholtz.single_layer \
+                    V = pbj.implicit_solvent.simulation.bempp.api.operators.potential.modified_helmholtz.single_layer \
                                   (solute_source.neumann_space, pos_mesh_outside, self.kappa, assembler = self.operator_assembler)
-                    K = pbj.electrostatics.simulation.bempp.api.operators.potential.modified_helmholtz.double_layer \
+                    K = pbj.implicit_solvent.simulation.bempp.api.operators.potential.modified_helmholtz.double_layer \
                                   (solute_source.dirichl_space, pos_mesh_outside, self.kappa, assembler = self.operator_assembler)
 
                     phi_aux = K*solute_source.results["phi"] \

@@ -1,6 +1,6 @@
 import pbj
-import pbj.electrostatics.pb_formulation.formulations as pb_formulations
-from pbj.electrostatics.utils.analytical import an_P
+import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
+from pbj.implicit_solvent.utils.analytical import an_P
 from inspect import getmembers, ismodule, isfunction
 import numpy as np
 from pbj import PBJ_PATH

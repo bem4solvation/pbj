@@ -1,7 +1,7 @@
 # import bempp.api
 import numpy as np
 import time
-import pbj.electrostatics.utils as utils
+import pbj.implicit_solvent.utils as utils
         
 def calculate_potential_one_surface(simulation, rerun_all=False, rerun_rhs=False):
 

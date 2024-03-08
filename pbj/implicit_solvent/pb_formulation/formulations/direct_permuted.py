@@ -35,17 +35,15 @@ def lhs(self):
 
     A = bempp.api.BlockedOperator(2, 2)
 
-    A[0, 0] = 0.5 * identity + dlp_in
-    A[0, 1] = -slp_in
-    A[1, 0] = 0.5 * identity - dlp_out
-    A[1, 1] = (ep_in / ep_out) * slp_out
+    A[0, 0] = 0.5 * identity - dlp_out
+    A[0, 1] = (ep_in / ep_out) * slp_out
+    A[1, 0] = 0.5 * identity + dlp_in
+    A[1, 1] = -slp_in
 
     self.matrices["A"] = A
 
 
 def rhs(self):
-    
-    force_field = self.force_field
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     q = self.q
@@ -67,22 +65,14 @@ def rhs(self):
             os.remove(".rhs.tmp")
             result[:] = values[:, 0] / ep_in
 
-
-        # @bempp.api.real_callable
-        # def zero(x, n, domain_index, result):
-        #     result[0] = 0
-
-        coefs = np.zeros(neumann_space.global_dof_count)  
-        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
-
-        # rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
-        rhs_2 = bempp.api.GridFunction(neumann_space, coefficients=coefs)
-
-    else:
-
         @bempp.api.real_callable
         def zero(x, n, domain_index, result):
             result[0] = 0
+
+        rhs_1 = bempp.api.GridFunction(neumann_space, fun=zero)
+        rhs_2 = bempp.api.GridFunction(dirichl_space, fun=fmm_green_func)
+
+    else:
 
         @bempp.api.real_callable
         def charges_fun(x, n, domain_index, result):
@@ -94,20 +84,21 @@ def rhs(self):
             aux = np.sum(q / nrm)
             result[0] = aux / (4 * np.pi * ep_in)
 
-        rhs_1 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
+        @bempp.api.real_callable
+        def zero(x, n, domain_index, result):
+            result[0] = 0
 
-        rhs_2 = bempp.api.GridFunction(neumann_space, fun=zero)
+        rhs_1 = bempp.api.GridFunction(neumann_space, fun=zero)
+        rhs_2 = bempp.api.GridFunction(dirichl_space, fun=charges_fun)
 
     self.rhs["rhs_1"], self.rhs["rhs_2"] = rhs_1, rhs_2
-    self.rhs["rhs_permanent_multipole_1"], self.rhs["rhs_permanent_multipole_2"] = rhs_1, rhs_2
 
-    
+
 def block_diagonal_preconditioner(solute):
     from scipy.sparse import diags, bmat
     from scipy.sparse.linalg import aslinearoperator
-    import pbj.electrostatics.utils as utils
+    from pbj.implicit_solvent.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
-    
     matrix_A = solute.matrices["A"]
 
     block1 = matrix_A[0, 0]
@@ -117,7 +108,8 @@ def block_diagonal_preconditioner(solute):
 
     diag11 = (
         block1._op1._alpha * block1._op1._op.weak_form().to_sparse().diagonal()
-        + block1._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
+        + block1._op2._alpha
+        * block1._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
     )
     diag12 = (
         block2._alpha
@@ -125,8 +117,7 @@ def block_diagonal_preconditioner(solute):
     )
     diag21 = (
         block3._op1._alpha * block3._op1._op.weak_form().to_sparse().diagonal()
-        + block3._op2._alpha
-        * block3._op2._op.descriptor.singular_part.weak_form().to_sparse().diagonal()
+        + block3._op2.descriptor.singular_part.weak_form().to_sparse().diagonal()
     )
     diag22 = (
         block4._alpha
@@ -139,25 +130,20 @@ def block_diagonal_preconditioner(solute):
     diag21_inv = -d_aux * diag21 / diag11
     diag22_inv = d_aux
 
-    #block_mat_precond = bmat(
-    #    [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
-    #).tocsr()
-    
-    block_mat_precond = [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    block_mat_precond = bmat(
+        [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
+    ).tocsr()
 
-
-    #solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
-    #    block_mat_precond
-    #)
-    solute.matrices["preconditioning_matrix_gmres"] = block_mat_precond
-    
+    solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
+        block_mat_precond
+    )
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
 
-    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
         solute.matrices["A_final"], "weak"
     )
-    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
         solute.rhs["rhs_final"], "weak", solute.matrices["A"]
     )
 
@@ -172,17 +158,11 @@ def block_diagonal_preconditioner(solute):
                                                    assembler="only_diagonal_part").weak_form().get_diagonal()
     dlp_out_diag = modified_helmholtz.double_layer(neumann_space, dirichl_space, dirichl_space, kappa,
                                                    assembler="only_diagonal_part").weak_form().get_diagonal()
-
-    #if permuted_rows:
-    diag11 = .5 * identity_diag - dlp_out_diag
-    diag12 = (ep_in / ep_ex) * slp_out_diag
-    diag21 = .5 * identity_diag + dlp_in_diag
-    diag22 = -slp_in_diag
     """
 
 
 def mass_matrix_preconditioner(solute):
-    import pbj.electrostatics.utils as utils
+    from pbj.implicit_solvent.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     # Option A:
     """
@@ -201,72 +181,19 @@ def mass_matrix_preconditioner(solute):
     solute.matrices['preconditioning_matrix_gmres'] = preconditioner
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(solute.matrices["A_final"], "weak")
-    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(solute.matrices["A_final"], "weak")
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(solute.rhs["rhs_final"], "weak", solute.matrices["A"])
 
     """
-        
-     
     solute.matrices["A_final"] = solute.matrices["A"]
-    solute.matrices["A_discrete"] = utils.matrix_to_discrete_form(
+    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
+    solute.matrices["A_discrete"] = matrix_to_discrete_form(
         solute.matrices["A_final"], "strong"
     )
-        
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
-        solute.rhs["rhs_final"], "strong", solute.matrices["A"]
-    )
-    
-def mass_matrix_preconditioner_rhs(solute):
-    import pbj.electrostatics.utils as utils
-    solute.rhs["rhs_final"] = [solute.rhs["rhs_1"], solute.rhs["rhs_2"]]
-    solute.rhs["rhs_discrete"] = utils.rhs_to_discrete_form(
+    solute.rhs["rhs_discrete"] = rhs_to_discrete_form(
         solute.rhs["rhs_final"], "strong", solute.matrices["A"]
     )
 
 
 def calculate_potential(self, rerun_all, rerun_rhs):
     calculate_potential_one_surface(self, rerun_all, rerun_rhs)
-
-
-def lhs_inter_solute_interactions(self, solute_target, solute_source):
-
-   
-    dirichl_space_target = solute_target.dirichl_space
-    neumann_space_target = solute_target.neumann_space
-    dirichl_space_source = solute_source.dirichl_space
-    neumann_space_source = solute_source.neumann_space
-
-    ep_in = solute_source.ep_in
-    ep_out = self.ep_ex
-    kappa = self.kappa
-    operator_assembler = self.operator_assembler
-
-
-
-    dlp = modified_helmholtz.double_layer(
-        dirichl_space_source, dirichl_space_target, dirichl_space_target, kappa, assembler=operator_assembler
-    )
-    slp = modified_helmholtz.single_layer(
-        neumann_space_source, neumann_space_target, neumann_space_target, kappa,  assembler=operator_assembler
-    )
-
-    zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
-        dirichl_space_source, dirichl_space_target, dirichl_space_target
-    )
-    
-    zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
-        neumann_space_source, neumann_space_target, neumann_space_target
-    )
-    
-    A_inter = bempp.api.BlockedOperator(2, 2)
-
-    
-    A_inter[0, 0] = zero_00
-    A_inter[0, 1] = zero_01 
-    A_inter[1, 0] = - dlp
-    A_inter[1, 1] = (ep_in / ep_out) * slp
-
-    solute_target.matrices["A_inter"].append(A_inter)
-    
-    #return A_inter.weak_form()  # should always be weak_form, as preconditioner doesn't touch it
