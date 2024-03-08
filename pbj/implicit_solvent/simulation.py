@@ -48,7 +48,10 @@ class Simulation:
         
         self.pb_formulation_preconditioning = True
         
-        if self._pb_formulation== ("direct" or "direct_stern" or "slic" or "direct_amoeba"):
+        if self._pb_formulation == "direct" or \
+           self._pb_formulation == "direct_stern" or \
+           self._pb_formulation == "slic" or \
+           self._pb_formulation == "direct_amoeba": 
             self.pb_formulation_preconditioning_type = "block_diagonal"
         else:
             self.pb_formulation_preconditioning_type = "mass_matrix"

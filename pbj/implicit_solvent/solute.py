@@ -191,8 +191,8 @@ class Solute:
         self.slic_gamma = -0.5
         
         self.slic_sigma = None
-        self.slic_e_hat_diel_old  = self.ep_in / self.ep_stern
-        self.slic_e_hat_stern_old = self.ep_stern / self.ep_ex
+        self.slic_e_hat_diel  = None #self.ep_in / self.ep_stern
+        self.slic_e_hat_stern = None #self.ep_stern / self.ep_ex
         
         self.stern_mesh_density_ratio = 0.5 # stern_density/diel_density ratio. No need for fine meshes in Stern.
         self.stern_probe_radius = 0.05 # probe radius for the outer mesh of Stern layer 
