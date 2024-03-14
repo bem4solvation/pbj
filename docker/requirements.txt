@@ -1,5 +1,6 @@
 trimesh
 rtree
+pandas=1.2.1
 jupyter
 jupyterlab
 notebook
