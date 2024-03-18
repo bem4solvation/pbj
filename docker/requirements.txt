@@ -1,5 +1,7 @@
 trimesh
 rtree
+pandas==1.2.1
+plotly
 jupyter
 jupyterlab
 notebook
