@@ -181,8 +181,8 @@ class Solute:
         self.gamma_cav_nonpolar = 0.06
         self.intercept_cav_nonpolar = -3
 
-        self.gamma_disp_nonpolar = -0.06
-        self.intercept_disp_nonpolar = 5
+        self.gamma_disp_nonpolar = -0.055
+        self.intercept_disp_nonpolar = 3.5
 
         self.solvent_number_density = 1.45
         
