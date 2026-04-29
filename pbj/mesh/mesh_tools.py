@@ -2,7 +2,8 @@ import trimesh
 import numpy as np
 import subprocess
 import os
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import platform
 import shutil
 

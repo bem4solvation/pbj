@@ -1,4 +1,5 @@
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import time
 import trimesh
 

@@ -1,7 +1,8 @@
 import numpy as np
-import bempp.api
-from bempp.api.operators.boundary import sparse, laplace
-from bempp.api.linalg.iterative_solvers import IterationCounter
+import bempp_cl as bempp
+import bempp_cl.api
+from bempp_cl.api.operators.boundary import sparse, laplace
+from bempp_cl.api.linalg.iterative_solvers import IterationCounter
 from .common import calculate_potential_stern
 import pbj
 import time

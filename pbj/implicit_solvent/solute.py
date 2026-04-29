@@ -1,5 +1,6 @@
 import re
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
 import numpy as np
 import time
@@ -379,7 +380,7 @@ class Solute:
         solution_dirichl = self.results["phi"]
         solution_neumann = self.results["d_phi"]
 
-        from bempp.api.operators.potential.laplace import single_layer, double_layer
+        from bempp_cl.api.operators.potential.laplace import single_layer, double_layer
 
         slp_q = single_layer(self.neumann_space, self.x_q.transpose())
         dlp_q = double_layer(self.dirichl_space, self.x_q.transpose())

@@ -1,7 +1,8 @@
 import numpy as np
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from numba import jit
 import time
 import pbj

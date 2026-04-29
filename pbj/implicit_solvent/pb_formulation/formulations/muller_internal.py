@@ -1,6 +1,7 @@
 import numpy as np
-import bempp.api
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+import bempp_cl as bempp
+import bempp_cl.api
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
 
