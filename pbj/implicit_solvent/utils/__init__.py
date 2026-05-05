@@ -16,6 +16,7 @@ def solver(A, rhs, tolerance, restart_value, max_iterations, initial_guess=None,
             restart=restart_value,
             maxiter=max_iterations,
             callback=callback,
+            callback_type = 'legacy'
         )
     else:
         x, info = gmres(
@@ -27,6 +28,7 @@ def solver(A, rhs, tolerance, restart_value, max_iterations, initial_guess=None,
             restart=restart_value,
             maxiter=max_iterations,
             callback=callback,
+            callback_type = 'legacy'
         )
 
     return x, info, callback.count

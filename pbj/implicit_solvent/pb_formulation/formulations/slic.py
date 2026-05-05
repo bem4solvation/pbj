@@ -138,7 +138,8 @@ def solve_sigma(self):
     start_time = time.time()
     x, info = scipy.sparse.linalg.gmres(
         A_op, b_vec, x0 = self.slic_sigma.coefficients, 
-        tol=self.gmres_tolerance, maxiter=self.gmres_max_iterations, callback=callback
+        rtol=self.gmres_tolerance, maxiter=self.gmres_max_iterations, callback=callback,
+        callback_type = 'legacy'
     )
     end_time = time.time()
     bempp.api.log(
@@ -374,7 +375,7 @@ def calculate_potential_slic(simulation):
 
     simulation.timings["time_gmres"] = time.time() - gmres_start_time
 
-    from bempp.api.assembly.blocked_operator import (
+    from bempp_cl.api.assembly.blocked_operator import (
         grid_function_list_from_coefficients,
     )          
 

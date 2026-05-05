@@ -198,7 +198,10 @@ class Solute:
         self.stern_mesh_density_ratio = 0.5 # stern_density/diel_density ratio. No need for fine meshes in Stern.
         self.stern_probe_radius = 0.05 # probe radius for the outer mesh of Stern layer 
 
-        self.sas_mesh_density = self.mesh_density
+        if nanoshaper_grid_scale is None:
+            self.sas_mesh_density = self.mesh_density
+        else:
+            self.sas_mesh_density = self.nanoshaper_grid_scale
         
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
@@ -250,7 +253,7 @@ class Solute:
     @stern_mesh_density.setter
     def stern_mesh_density(self, value):
         self._stern_mesh_density = value
-        self.stern_mesh_density_ratio = value/self.mesh_density
+        self.stern_mesh_density_ratio = value/self.sas_mesh_density
         pb_formulations.direct_stern.create_stern_mesh(self)
         
         

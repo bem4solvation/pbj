@@ -14,6 +14,6 @@ def test_pbj_imported():
     assert "pbj" in sys.modules
 
 
-@pytest.fixture
-def test():
+@pytest.fixture(autouse=True)
+def pbj_path():
     print(pbj.PBJ_PATH)

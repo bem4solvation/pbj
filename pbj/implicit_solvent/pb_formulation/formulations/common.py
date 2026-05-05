@@ -119,12 +119,12 @@ def calculate_potential_stern(simulation, rerun_all=False, rerun_rhs=False):
                     simulation.gmres_tolerance,
                     simulation.gmres_restart,
                     simulation.gmres_max_iterations,
-                    initial_guess = initial_guess,
+                    initial_guess = initial_guess
                 )
 
             simulation.timings["time_gmres"] = time.time() - gmres_start_time
 
-            from bempp.api.assembly.blocked_operator import (
+            from bempp_cl.api.assembly.blocked_operator import (
                 grid_function_list_from_coefficients,
             )          
 

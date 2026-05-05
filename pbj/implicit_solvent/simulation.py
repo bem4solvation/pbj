@@ -144,7 +144,7 @@ class Simulation:
                 solute.pb_formulation_preconditioning = self.pb_formulation_preconditioning 
                 solute.pb_formulation_preconditioning_type = self.pb_formulation_preconditioning_type
                 if self.pb_formulation[-5:] == "stern" or self.pb_formulation == "slic":  ## Think of better way to do this
-                    solute.stern_mesh_density = solute.stern_mesh_density_ratio * solute.mesh_density
+                    solute.stern_mesh_density = solute.stern_mesh_density_ratio * solute.sas_mesh_density
                 if solute.force_field == "amoeba":
                     if self.pb_formulation != ("direct" or "direct_amoeba"):
                         print("AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct")
