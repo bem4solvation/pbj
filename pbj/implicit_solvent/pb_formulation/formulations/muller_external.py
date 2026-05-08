@@ -4,7 +4,6 @@ import bempp_cl.api
 from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
-
 invert_potential = True
 
 
@@ -73,9 +72,7 @@ def rhs(self):
             (x[0] - x_q[:, 0]) ** 2 + (x[1] - x_q[:, 1]) ** 2 + (x[2] - x_q[:, 2]) ** 2
         )
         const = -1.0 / (4.0 * np.pi * ep_in)
-        result[:] = (
-            (ep_in / ep_ex) * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
-        )
+        result[:] = (ep_in / ep_ex) * const * np.sum(q * np.dot(x - x_q, n) / (nrm**3))
 
     @bempp.api.real_callable
     def green_func(x, n, domain_index, result):

@@ -1,7 +1,9 @@
 from .analytical import *
 
 
-def solver(A, rhs, tolerance, restart_value, max_iterations, initial_guess=None, precond=None):
+def solver(
+    A, rhs, tolerance, restart_value, max_iterations, initial_guess=None, precond=None
+):
     from scipy.sparse.linalg import gmres
     from bempp_cl.api.linalg.iterative_solvers import IterationCounter
 
@@ -11,24 +13,24 @@ def solver(A, rhs, tolerance, restart_value, max_iterations, initial_guess=None,
         x, info = gmres(
             A,
             rhs,
-            x0 = initial_guess,
+            x0=initial_guess,
             rtol=tolerance,
             restart=restart_value,
             maxiter=max_iterations,
             callback=callback,
-            callback_type = 'legacy'
+            callback_type="legacy",
         )
     else:
         x, info = gmres(
             A,
             rhs,
             M=precond,
-            x0 = initial_guess,
+            x0=initial_guess,
             rtol=tolerance,
             restart=restart_value,
             maxiter=max_iterations,
             callback=callback,
-            callback_type = 'legacy'
+            callback_type="legacy",
         )
 
     return x, info, callback.count

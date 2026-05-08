@@ -5,7 +5,6 @@ import os
 from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
-
 invert_potential = False
 
 

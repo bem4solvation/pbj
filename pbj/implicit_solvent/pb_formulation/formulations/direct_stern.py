@@ -59,7 +59,7 @@ def create_stern_mesh(self):
             save_mesh_build_files=self.save_mesh_build_files,
             mesh_build_files_dir=self.mesh_build_files_dir,
             mesh_density=getattr(self, "stern_mesh_density", self.mesh_density),
-            nanoshaper_grid_scale= None,#getattr(self, "nanoshaper_grid_scale", None),
+            nanoshaper_grid_scale=None,  # getattr(self, "nanoshaper_grid_scale", None),
             solvent_radius=self.stern_probe_radius,
             mesh_generator=self.mesh_generator,
             print_times=self.print_times,
@@ -92,9 +92,9 @@ def lhs(self):
     dirichl_space_diel = self.dirichl_space
     neumann_space_diel = self.neumann_space
 
-    e_hat_diel = self.ep_in / self.ep_stern 
-    e_hat_stern = self.ep_stern / self.ep_ex         
-        
+    e_hat_diel = self.ep_in / self.ep_stern
+    e_hat_stern = self.ep_stern / self.ep_ex
+
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
@@ -282,14 +282,14 @@ def block_diagonal_preconditioner(solute):
     neumann_space_diel = solute.neumann_space
     dirichl_space_stern = solute.stern_object.dirichl_space
     neumann_space_stern = solute.stern_object.neumann_space
-    
+
     if solute.slic_e_hat_diel is None:
-        e_hat_diel = solute.ep_in / solute.ep_stern 
-        e_hat_stern = solute.ep_stern / solute.ep_ex 
-    else: 
+        e_hat_diel = solute.ep_in / solute.ep_stern
+        e_hat_stern = solute.ep_stern / solute.ep_ex
+    else:
         e_hat_diel = solute.slic_e_hat_diel
-        e_hat_stern = solute.slic_e_hat_stern  
-    
+        e_hat_stern = solute.slic_e_hat_stern
+
     kappa = solute.kappa
 
     if not (isinstance(e_hat_diel, float) or isinstance(e_hat_diel, int)):
@@ -414,31 +414,32 @@ def block_diagonal_preconditioner(solute):
 
     N_diel = dirichl_space_diel.grid_dof_count
     N_stern = dirichl_space_stern.grid_dof_count
-    
-    zero_matrix_top = dok_matrix((N_diel,N_stern))
-    zero_matrix_bot = dok_matrix((N_stern,N_diel))
-    
-    #A = bmat(
+
+    zero_matrix_top = dok_matrix((N_diel, N_stern))
+    zero_matrix_bot = dok_matrix((N_stern, N_diel))
+
+    # A = bmat(
     #    [[diags(diag11_inv), diags(diag12_inv)], [diags(diag21_inv), diags(diag22_inv)]]
-    #)
-    #B = bmat(
+    # )
+    # B = bmat(
     #    [[diags(diag33_inv), diags(diag34_inv)], [diags(diag43_inv), diags(diag44_inv)]]
-    #)
+    # )
 
-    block_mat_precond =  [[diags(diag11_inv), diags(diag12_inv), zero_matrix_top, zero_matrix_top], 
-                           [diags(diag21_inv), diags(diag22_inv), zero_matrix_top, zero_matrix_top],
-                           [zero_matrix_bot, zero_matrix_bot, diags(diag33_inv), diags(diag34_inv)], 
-                           [ zero_matrix_bot, zero_matrix_bot, diags(diag43_inv), diags(diag44_inv)]]
-                        
-    
-    #block_mat_precond = block_diag((A, B), format="csr")
+    block_mat_precond = [
+        [diags(diag11_inv), diags(diag12_inv), zero_matrix_top, zero_matrix_top],
+        [diags(diag21_inv), diags(diag22_inv), zero_matrix_top, zero_matrix_top],
+        [zero_matrix_bot, zero_matrix_bot, diags(diag33_inv), diags(diag34_inv)],
+        [zero_matrix_bot, zero_matrix_bot, diags(diag43_inv), diags(diag44_inv)],
+    ]
 
-    #solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
+    # block_mat_precond = block_diag((A, B), format="csr")
+
+    # solute.matrices["preconditioning_matrix_gmres"] = aslinearoperator(
     #    block_mat_precond
-    #)
-    
+    # )
+
     solute.matrices["preconditioning_matrix_gmres"] = block_mat_precond
-    
+
     solute.matrices["A_final"] = solute.matrices["A"]
     solute.rhs["rhs_final"] = [
         solute.rhs["rhs_1"],
@@ -475,65 +476,70 @@ def mass_matrix_preconditioner(solute):
 
 def calculate_potential(self, rerun_all, rerun_rhs):
     calculate_potential_stern(self, rerun_all, rerun_rhs)
-    
-    
+
+
 def lhs_inter_solute_interactions(self, solute_target, solute_source):
-   
+
     dirichl_space_target = solute_target.stern_object.dirichl_space
     neumann_space_target = solute_target.stern_object.neumann_space
     dirichl_space_source = solute_source.stern_object.dirichl_space
     neumann_space_source = solute_source.stern_object.neumann_space
 
-    e_hat_stern = solute_source.ep_stern / solute_source.ep_ex 
-        
+    e_hat_stern = solute_source.ep_stern / solute_source.ep_ex
+
     kappa = self.kappa
     operator_assembler = self.operator_assembler
 
-
-
     dlp = modified_helmholtz.double_layer(
-        dirichl_space_source, dirichl_space_target, dirichl_space_target, kappa, assembler=operator_assembler
+        dirichl_space_source,
+        dirichl_space_target,
+        dirichl_space_target,
+        kappa,
+        assembler=operator_assembler,
     )
     slp = modified_helmholtz.single_layer(
-        neumann_space_source, neumann_space_target, neumann_space_target, kappa,  assembler=operator_assembler
+        neumann_space_source,
+        neumann_space_target,
+        neumann_space_target,
+        kappa,
+        assembler=operator_assembler,
     )
 
-    
     if solute_target.stern_object is None:
-        
+
         zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
             dirichl_space_source, dirichl_space_target, dirichl_space_target
         )
-    
+
         zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
             neumann_space_source, neumann_space_target, neumann_space_target
         )
-        
+
         A_inter = bempp.api.BlockedOperator(2, 2)
-    
+
         A_inter[0, 0] = zero_00
-        A_inter[0, 1] = zero_01 
-        A_inter[1, 0] = - dlp
+        A_inter[0, 1] = zero_01
+        A_inter[1, 0] = -dlp
         A_inter[1, 1] = e_hat_stern * slp
-        
+
     else:
         from bempp.api.assembly.boundary_operator import ZeroBoundaryOperator as zero_op
-        
+
         A_inter = bempp.api.BlockedOperator(4, 4)
-        
-        target_diel  = solute_target.dirichl_space
+
+        target_diel = solute_target.dirichl_space
         target_stern = solute_target.stern_object.dirichl_space
-        source_diel  = solute_source.dirichl_space
+        source_diel = solute_source.dirichl_space
         source_stern = solute_source.stern_object.dirichl_space
-   
+
         zero_00 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
             dirichl_space_source, dirichl_space_target, dirichl_space_target
         )
-    
+
         zero_01 = bempp.api.assembly.boundary_operator.ZeroBoundaryOperator(
             neumann_space_source, neumann_space_target, neumann_space_target
         )
-        
+
         A_inter[0, 0] = zero_op(source_diel, target_diel, target_diel)
         A_inter[0, 1] = zero_op(source_diel, target_diel, target_diel)
         A_inter[0, 2] = zero_op(source_stern, target_diel, target_diel)
@@ -548,10 +554,9 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
         A_inter[2, 3] = zero_op(source_stern, target_stern, target_stern)
         A_inter[3, 0] = zero_op(source_diel, target_stern, target_stern)
         A_inter[3, 1] = zero_op(source_diel, target_stern, target_stern)
-        A_inter[3, 2] = - dlp
+        A_inter[3, 2] = -dlp
         A_inter[3, 3] = e_hat_stern * slp
-        
-        
+
     solute_target.matrices["A_inter"].append(A_inter)
-    
-    #return A_inter
+
+    # return A_inter

@@ -1,4 +1,5 @@
 """Poisson Boltzmann & Jupyter: Bempp based biomolecular electrostatics solver."""
+
 # Add imports here
 import os
 from pbj.implicit_solvent.solute import Solute
