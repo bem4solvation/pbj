@@ -1,6 +1,7 @@
 import sys
 import os
-sys.path.insert(0, os.path.abspath('../..'))
+
+# sys.path.insert(0, os.path.abspath("../.."))
 import pbj
 import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
 from pbj.implicit_solvent.utils.analytical import an_P
@@ -83,7 +84,7 @@ def test_verification():
     his_2 = -24.48630195977033
     his_3 = -23.875642908991132
     _, solvation_value_his = richardson_extrapolation(his_3, his_2, his_1, 1.3)
-    tol = 0.5
+    tol = 0.5  # cambiar a reltol 0.05% ideal, 0.01% probar
     file.write(
         "The expected value for the solvation of the sphere is: {}, with a tolerance of {}.\n\n".format(
             solvation_value, tol
@@ -100,7 +101,9 @@ def test_verification():
         formulations.remove("slic")
         formulations.remove("slic_prop")
         for formulation in formulations:
-            print("Computing for {} with {}".format(formulation, sphere.sas_mesh_density))
+            print(
+                "Computing for {} with {}".format(formulation, sphere.sas_mesh_density)
+            )
             for preconditioner in values[formulation].keys():
                 simulation = pbj.implicit_solvent.Simulation()
                 simulation.pb_formulation = formulation
@@ -110,15 +113,27 @@ def test_verification():
                     simulation.calculate_solvation_energy()
                     values[formulation]["no_precond"] = np.append(
                         values[formulation]["no_precond"],
-                        (simulation.solutes[0].results["electrostatic_solvation_energy"], sphere.sas_mesh_density),
+                        (
+                            simulation.solutes[0].results[
+                                "electrostatic_solvation_energy"
+                            ],
+                            sphere.sas_mesh_density,
+                        ),
                     )
                 else:
                     simulation.solutes[0].pb_formulation_preconditioning = True
-                    simulation.solutes[0].pb_formulation_preconditioning_type = preconditioner
+                    simulation.solutes[0].pb_formulation_preconditioning_type = (
+                        preconditioner
+                    )
                     simulation.calculate_solvation_energy()
                     values[formulation][preconditioner] = np.append(
                         values[formulation][preconditioner],
-                        (simulation.solutes[0].results["electrostatic_solvation_energy"], sphere.sas_mesh_density),
+                        (
+                            simulation.solutes[0].results[
+                                "electrostatic_solvation_energy"
+                            ],
+                            sphere.sas_mesh_density,
+                        ),
                     )
 
     for his in histidines:
@@ -138,15 +153,27 @@ def test_verification():
                     simulation.calculate_solvation_energy()
                     values[formulation]["no_precond"] = np.append(
                         values[formulation]["no_precond"],
-                        (simulation.solutes[0].results["electrostatic_solvation_energy"], his.nanoshaper_grid_scale),
+                        (
+                            simulation.solutes[0].results[
+                                "electrostatic_solvation_energy"
+                            ],
+                            his.nanoshaper_grid_scale,
+                        ),
                     )
                 else:
                     simulation.solutes[0].pb_formulation_preconditioning = True
-                    simulation.solutes[0].pb_formulation_preconditioning_type = preconditioner
+                    simulation.solutes[0].pb_formulation_preconditioning_type = (
+                        preconditioner
+                    )
                     simulation.calculate_solvation_energy()
                     values[formulation][preconditioner] = np.append(
                         values[formulation][preconditioner],
-                        (simulation.solutes[0].results["electrostatic_solvation_energy"], his.nanoshaper_grid_scale),
+                        (
+                            simulation.solutes[0].results[
+                                "electrostatic_solvation_energy"
+                            ],
+                            his.nanoshaper_grid_scale,
+                        ),
                     )
 
     solvation_energy_values = np.array([])
