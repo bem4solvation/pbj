@@ -7,7 +7,8 @@ from .common import calculate_potential_stern
 import pbj
 import time
 import pbj.implicit_solvent.utils as utils
-from pbj.implicit_solvent.utils import matrix_to_discrete_form
+
+# from pbj.implicit_solvent.utils import matrix_to_discrete_form
 import scipy.sparse.linalg
 
 invert_potential = False
@@ -429,8 +430,8 @@ def calculate_potential_slic(simulation):
 
 
 def update_and_assemble_linear_system_slic(simulation, matrix_cache):
-    from scipy.sparse import bmat, dok_matrix
-    from scipy.sparse.linalg import aslinearoperator
+    # from scipy.sparse import bmat, dok_matrix
+    # from scipy.sparse.linalg import aslinearoperator
 
     solute_count = len(simulation.solutes)
 

@@ -1,8 +1,10 @@
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
-import os
-from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
+
+# import os
+# from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
+from bempp_cl.api.operators.boundary import modified_helmholtz
 from numba import jit
 import time
 import pbj
@@ -29,7 +31,7 @@ def rhs(self):
     if force_field == "amoeba":
         d = self.d
         Q = self.Q
-        d_induced = self.d_induced
+        # d_induced = self.d_induced
     ep_in = self.ep_in
     rhs_constructor = self.rhs_constructor
 
@@ -485,7 +487,7 @@ def calculate_coulomb_energy_multipole(solute, state):
     state: (string) dissolved or vacuum, to choose which induced dipole to use
     """
 
-    N = len(solute.x_q)
+    # N = len(solute.x_q)
 
     q = solute.q
     d = solute.d
@@ -766,7 +768,7 @@ def _calculate_coulomb_dphi_multipole(
             R5 = Rnorm[j] ** 5
             R7 = Rnorm[j] ** 7
 
-            if flag_polar_group == False:
+            if not flag_polar_group:
 
                 not_same_polar_group = True
 
@@ -790,26 +792,26 @@ def _calculate_coulomb_dphi_multipole(
 
                     not_same_polar_group = False
 
-            if not_same_polar_group == True:
+            if not_same_polar_group:
 
                 for k in range(3):
 
                     T0 = -Ri[j, k] / R3 * scale3
 
-                    for l in range(3):
+                    for ll in range(3):
 
-                        dkl = (k == l) * 1.0
+                        dkl = (k == ll) * 1.0
 
-                        T1[l] = (
-                            dkl / R3 * scale3 - 3 * Ri[j, k] * Ri[j, l] / R5 * scale5
+                        T1[ll] = (
+                            dkl / R3 * scale3 - 3 * Ri[j, k] * Ri[j, ll] / R5 * scale5
                         )
 
                         for m in range(3):
 
                             dkm = (k == m) * 1.0
-                            T2[l][m] = (
-                                dkm * Ri[j, l] + dkl * Ri[j, m]
-                            ) / R5 * scale5 - 5 * Ri[j, l] * Ri[j, m] * Ri[
+                            T2[ll][m] = (
+                                dkm * Ri[j, ll] + dkl * Ri[j, m]
+                            ) / R5 * scale5 - 5 * Ri[j, ll] * Ri[j, m] * Ri[
                                 j, k
                             ] / R7 * scale7
 
@@ -870,33 +872,35 @@ def _calculate_coulomb_ddphi_multipole(xq, q, d, Q):
 
             for k in range(3):
 
-                for l in range(3):
+                for ll in range(3):
 
-                    dkl = (k == l) * 1.0
-                    T0 = -dkl / R3 + 3 * Ri[j, k] * Ri[j, l] / R5
+                    dkl = (k == ll) * 1.0
+                    T0 = -dkl / R3 + 3 * Ri[j, k] * Ri[j, ll] / R5
 
                     for m in range(3):
 
                         dkm = (k == m) * 1.0
-                        dlm = (l == m) * 1.0
+                        dlm = (ll == m) * 1.0
 
                         T1[m] = (
-                            -3 * (dkm * Ri[j, l] + dkl * Ri[j, m] + dlm * Ri[j, k]) / R5
-                            + 15 * Ri[j, l] * Ri[j, m] * Ri[j, k] / R7
+                            -3
+                            * (dkm * Ri[j, ll] + dkl * Ri[j, m] + dlm * Ri[j, k])
+                            / R5
+                            + 15 * Ri[j, ll] * Ri[j, m] * Ri[j, k] / R7
                         )
 
                         for n in range(3):
 
                             dkn = (k == n) * 1.0
-                            dln = (l == n) * 1.0
+                            dln = (ll == n) * 1.0
 
                             T2[m][n] = (
-                                35 * Ri[j, k] * Ri[j, l] * Ri[j, m] * Ri[j, n] / R9
+                                35 * Ri[j, k] * Ri[j, ll] * Ri[j, m] * Ri[j, n] / R9
                                 - 5
                                 * (
                                     Ri[j, m] * Ri[j, n] * dkl
-                                    + Ri[j, l] * Ri[j, n] * dkm
-                                    + Ri[j, m] * Ri[j, l] * dkn
+                                    + Ri[j, ll] * Ri[j, n] * dkm
+                                    + Ri[j, m] * Ri[j, ll] * dkn
                                     + Ri[j, k] * Ri[j, n] * dlm
                                     + Ri[j, m] * Ri[j, k] * dln
                                 )
@@ -904,7 +908,7 @@ def _calculate_coulomb_ddphi_multipole(xq, q, d, Q):
                                 + (dkm * dln + dlm * dkn) / R5
                             )
 
-                    aux[k][l] += (
+                    aux[k][ll] += (
                         T0 * q[j]
                         + np.sum(T1[:] * d[j, :])
                         + 0.5 * np.sum(np.sum(T2[:, :] * Q[j, :, :], axis=1), axis=0)
@@ -1137,12 +1141,12 @@ def _calculate_coulomb_dphi_multipole_Thole(
 
             for k in range(3):
 
-                for l in range(3):
+                for ll in range(3):
 
-                    dkl = (k == l) * 1.0
-                    T1[l] = (
+                    dkl = (k == ll) * 1.0
+                    T1[ll] = (
                         scale3 * dkl * r3 * pscale
-                        - scale5 * 3 * Ri[j, k] * Ri[j, l] * r5 * pscale
+                        - scale5 * 3 * Ri[j, k] * Ri[j, ll] * r5 * pscale
                     )
 
                 aux[k] += np.sum(T1[:] * induced_dipole[j, :])
@@ -1260,25 +1264,31 @@ def _calculate_coulomb_ddphi_multipole_Thole(
 
             for k in range(3):
 
-                for l in range(3):
+                for ll in range(3):
 
-                    dkl = (k == l) * 1.0
+                    dkl = (k == ll) * 1.0
 
                     for m in range(3):
 
                         dkm = (k == m) * 1.0
-                        dlm = (l == m) * 1.0
+                        dlm = (ll == m) * 1.0
 
                         T1[m] = (
                             -3
-                            * (dkm * Ri[j, l] + dkl * Ri[j, m] + dlm * Ri[j, k])
+                            * (dkm * Ri[j, ll] + dkl * Ri[j, m] + dlm * Ri[j, k])
                             * r5
                             * scale5
                             * pscale
-                            + 15 * Ri[j, l] * Ri[j, m] * Ri[j, k] * r7 * scale7 * pscale
+                            + 15
+                            * Ri[j, ll]
+                            * Ri[j, m]
+                            * Ri[j, k]
+                            * r7
+                            * scale7
+                            * pscale
                         )
 
-                    aux[k][l] += np.sum(T1[:] * induced_dipole[j, :])
+                    aux[k][ll] += np.sum(T1[:] * induced_dipole[j, :])
 
         ddphi[i, :, :] += aux[:, :]
 

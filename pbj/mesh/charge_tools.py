@@ -478,21 +478,27 @@ def load_tinker_multipoles_to_solute(solute):
                 polar_group_list[line[1]][:] = line[4:]
 
             if line[0].lower() == "mpole-12-scale":
-                m12scale = float(line[1])
+                pass
+                # m12scale = float(line[1])
             if line[0].lower() == "mpole-13-scale":
-                m13scale = float(line[1])
+                pass
+                # m13scale = float(line[1])
             if line[0].lower() == "mpole-14-scale":
-                m14scale = float(line[1])
+                pass
+                # m14scale = float(line[1])
             if line[0].lower() == "mpole-15-scale":
-                m15scale = float(line[1])
+                pass
+                # m15scale = float(line[1])
             if line[0].lower() == "polar-12-scale":
                 p12scale = float(line[1])
             if line[0].lower() == "polar-13-scale":
                 p13scale = float(line[1])
             if line[0].lower() == "polar-14-scale":
-                p14scale = float(line[1])
+                pass
+                # p14scale = float(line[1])
             if line[0].lower() == "polar-15-scale":
-                p15scale = float(line[1])
+                pass
+                # p15scale = float(line[1])
 
             if line[0].lower() == "multipole" or (
                 multipole_flag > 0 and multipole_flag < 5

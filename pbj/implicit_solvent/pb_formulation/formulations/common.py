@@ -2,8 +2,9 @@
 import numpy as np
 import time
 import pbj.implicit_solvent.utils as utils
-import bempp_cl as bempp
-import bempp_cl.api
+
+# import bempp_cl as bempp
+# import bempp_cl.api
 
 
 def calculate_potential_one_surface(simulation, rerun_all=False, rerun_rhs=False):

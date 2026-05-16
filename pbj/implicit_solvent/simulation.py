@@ -6,7 +6,8 @@ import trimesh
 import numpy as np
 import pbj.implicit_solvent.solute
 import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
-import pbj.implicit_solvent.utils as utils
+
+# import pbj.implicit_solvent.utils as utils
 
 
 class Simulation:
@@ -158,7 +159,7 @@ class Simulation:
                 )
                 if (
                     self.pb_formulation[-5:] == "stern" or self.pb_formulation == "slic"
-                ):  ## Think of better way to do this
+                ):  # Think of better way to do this
                     solute.stern_mesh_density = (
                         solute.stern_mesh_density_ratio * solute.sas_mesh_density
                     )
@@ -329,10 +330,10 @@ class Simulation:
         self.rhs["rhs_discrete"] = rhs_final_discrete
 
     def create_and_assemble_rhs(self):
-        from scipy.sparse import bmat, dok_matrix
-        from scipy.sparse.linalg import aslinearoperator
+        # from scipy.sparse import bmat, dok_matrix
+        # from scipy.sparse.linalg import aslinearoperator
 
-        solute_count = len(self.solutes)
+        # solute_count = len(self.solutes)
 
         rhs_final_discrete = []
 
@@ -673,10 +674,10 @@ class Simulation:
         ang_to_m = 1e-10
         to_V = qe / (eps0 * ang_to_m)
         kT = 4.11e-21
-        Na = 6.02214076e23
+        # Na = 6.02214076e23
 
         # check if atom_name is a single string
-        if type(atom_name) == str:
+        if isinstance(atom_name, str):
             atom_name = [atom_name]
 
         r_explode = np.array([])
@@ -721,7 +722,7 @@ class Simulation:
                     inside_local_index = np.nonzero(r_q_mesh < r_explode[j])[0]
                     inside[inside_local_index] += 1
 
-                r_mesh = np.linalg.norm(ctr - pos_mesh.transpose(), axis=1)
+                # r_mesh = np.linalg.norm(ctr - pos_mesh.transpose(), axis=1)
 
                 outside = np.nonzero(inside == 0)[0]
 

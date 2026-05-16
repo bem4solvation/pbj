@@ -274,8 +274,9 @@ def rhs(self):
 
 
 def block_diagonal_preconditioner(solute):
-    from scipy.sparse import diags, bmat, block_diag, dok_matrix
-    from scipy.sparse.linalg import aslinearoperator
+    # from scipy.sparse import diags, bmat, block_diag, dok_matrix
+    # from scipy.sparse.linalg import aslinearoperator
+    from scipy.sparse import diags, dok_matrix
     from pbj.implicit_solvent.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     dirichl_space_diel = solute.dirichl_space

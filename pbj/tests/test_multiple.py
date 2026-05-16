@@ -1,11 +1,9 @@
-import sys
-import os
-
+# import sys
+# import os
 # sys.path.insert(0, os.path.abspath("../.."))
 import pbj
-import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
-from pbj.implicit_solvent.utils.analytical import an_P
-from inspect import getmembers, ismodule, isfunction
+
+# from inspect import getmembers, ismodule, isfunction
 import numpy as np
 from pbj import PBJ_PATH
 import os
@@ -73,7 +71,7 @@ def test_multiple():
         )
 
     file.write("\n\nReference values (Paper JCTC 2023):\n")
-    file.write(f"Force value (by virtual work) (kcal/molA): 1.9425 \n")
-    file.write(f"Binding energy value (kcal/mol): 3.9689 \n")
+    file.write("Force value (by virtual work) (kcal/molA): 1.9425 \n")
+    file.write("Binding energy value (kcal/mol): 3.9689 \n")
 
     file.close()

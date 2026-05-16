@@ -695,7 +695,7 @@ class Solute:
             f_db = np.zeros(3)
             convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
             for i in range(N_elements):
-                eps = self.mesh.normals[i]
+                # eps = self.mesh.normals[i]
 
                 # get vertex indices adyacent to a triangular element
                 v1_index = self.mesh.elements[0, i]
@@ -724,8 +724,8 @@ class Solute:
                     v21_norm * np.tan(alpha)
                 )
 
-                eta = v21 / v21_norm
-                tau = np.cross(eps, eta)
+                # eta = v21 / v21_norm
+                # tau = np.cross(eps, eta)
 
                 E_eps = -dphi_centers[i]
                 E_eta = -a
@@ -912,7 +912,7 @@ class Solute:
 
     def create_sas_mesh(self, sas_mesh_density=None):
 
-        if sas_mesh_density != None:
+        if sas_mesh_density is not None:
             self.sas_mesh_density = sas_mesh_density
 
         sas_mesh_dir = os.path.abspath("mesh_files/")

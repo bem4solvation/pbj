@@ -46,7 +46,7 @@ def lhs(self):
 
 def rhs(self):
 
-    force_field = self.force_field
+    # force_field = self.force_field
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     q = self.q
@@ -106,8 +106,9 @@ def rhs(self):
 
 
 def block_diagonal_preconditioner(solute):
-    from scipy.sparse import diags, bmat
-    from scipy.sparse.linalg import aslinearoperator
+    # from scipy.sparse import diags, bmat
+    # from scipy.sparse.linalg import aslinearoperator
+    from scipy.sparse import diags
     import pbj.implicit_solvent.utils as utils
 
     matrix_A = solute.matrices["A"]

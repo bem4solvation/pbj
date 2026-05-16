@@ -1,13 +1,10 @@
-import sys
-import os
-
+# import sys
+# import os
 # sys.path.insert(0, os.path.abspath("../.."))
 import pbj
-from pbj.implicit_solvent import simulation
-from pbj.implicit_solvent import simulation
-import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
 from pbj.implicit_solvent.utils.analytical import an_P
-from inspect import getmembers, ismodule, isfunction
+
+# from inspect import getmembers, ismodule, isfunction
 import numpy as np
 from pbj import PBJ_PATH
 import os
@@ -50,6 +47,7 @@ def test_single():
         q = solute.q[0]
         return q / (epsilon_1 * r)
 
+    spheres = spheres()
     solvation_value = an_P(
         spheres[0].q,  # charge
         spheres[0].x_q,  # position of the charge
@@ -61,9 +59,7 @@ def test_single():
         3,  # number of terms desired in the polinomial expansion
     )
 
-    spheres = spheres()
     file = open("test_results_single.txt", "w")
-
     for sphere in spheres:
         simulation = pbj.implicit_solvent.Simulation()
         simulation.add_solute(sphere)
