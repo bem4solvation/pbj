@@ -97,8 +97,8 @@ def test_single():
         vals_solv, _ = simulation.calculate_potential_solvent(
             [[r, 0, 0] for r in r_test]
         )
-        solute_str = ", ".join([f"{x/1000:.4f}" for x in vals_solute])
-        solv_str = ", ".join([f"{x/1000:.4f}" for x in vals_solv])
+        solute_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solute])
+        solv_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solv])
         file.write(
             f"Mesh density: {sphere.mesh_density}, "
             f"Reac potential Solute: [{solute_str}] "
