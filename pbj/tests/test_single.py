@@ -15,6 +15,17 @@ import os
 def test_single():
 
     def spheres():
+        """Generate a list of standard sphere solute meshes at powers-of-two densities.
+
+        Loads the ion_born pqr file (sphere radius 1, charge 1) file and generates
+        four distinct sphere meshes with exponentially increasing mesh densities (2, 4, 8, and 16) using
+        the MSMS generator.
+
+        Returns:
+            list of pbj.implicit_solvent.Solute: A list containing four initialized Solute
+                                                 mesh objects corresponding to the
+                                                 specified mesh densities.
+        """
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere_born.pqr")
@@ -26,6 +37,25 @@ def test_single():
         return spheres
 
     def analytic_Born_Ion_reac(r, solute):
+        """Calculate the analytical reaction potential of a Born Ion.
+
+        Computes the reaction potential at a given distance or array of distances
+        from the center of a single-charge spherical solute
+
+        Args:
+            r (float or array_like): Radial distance(s) from the center of the ion where
+                                     the potential is evaluated.
+            solute (pbj.Solute): Solute object containing physical properties:
+                                  - ep_in: Permittivity inside the ion (epsilon_1)
+                                  - ep_ex: Permittivity of the solvent (epsilon_2)
+                                  - kappa: Debye-Hückel screening parameter
+                                  - r_q: Array of charge radii (r_q[0] is used)
+                                  - q: Array of charges (q[0] is used)
+
+        Returns:
+            float or array_like: The reaction potential (phi_reac) value(s) corresponding
+                                 to the input distance(s).
+        """
         epsilon_1 = solute.ep_in
         epsilon_2 = solute.ep_ex
         kappa = solute.kappa
@@ -43,6 +73,19 @@ def test_single():
         return phi_reac
 
     def analytic_Born_Ion_vacuum(r, solute):
+        """Calculate the analytical Coulomb potential of a Born Ion in a vacuum/uniform medium.
+
+        Args:
+            r (float or array_like): Radial distance(s) from the center of the ion where
+                                     the potential is evaluated.
+            solute (pbj.Solute): Solute object containing physical properties:
+                                  - ep_in: Permittivity inside the ion (epsilon_1)
+                                  - q: Array of charges (q[0] is used)
+
+        Returns:
+            float or array_like: The vacuum potential value(s) corresponding to the
+                                 input distance(s).
+        """
         epsilon_1 = solute.ep_in
         q = solute.q[0]
         return q / (epsilon_1 * r)
@@ -92,16 +135,21 @@ def test_single():
         simulation = pbj.implicit_solvent.Simulation()
         simulation.add_solute(sphere)
         vals_solute, _ = simulation.calculate_reaction_potential_solute(
-            [[r, 0, 0] for r in r_test]
+            np.array([[r, 0, 0] for r in r_test])
+        )
+        vals_solute_coul, _ = simulation.calculate_coulomb_potential_solute(
+            np.array([[r, 0, 0] for r in r_test])
         )
         vals_solv, _ = simulation.calculate_potential_solvent(
-            [[r, 0, 0] for r in r_test]
+            np.array([[r, 0, 0] for r in r_test])
         )
         solute_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solute])
+        solute_coul_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solute_coul])
         solv_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solv])
         file.write(
             f"Mesh density: {sphere.mesh_density}, "
             f"Reac potential Solute: [{solute_str}] "
+            f"Coulomb potential Solute: [{solute_coul_str}] "
             f"Total potential Solvent: [{solv_str}]\n"
         )
     file.write("\n\nAnalytical potential values (V) at different points:\n")

@@ -11,7 +11,25 @@ import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
 
 
 class Simulation:
+    """Manages the boundary element method (BEM) simulation environment for implicit solvent models.
+
+    Coordinates one or more solute molecules, sets up the Poisson-Boltzmann (PB) formulation,
+    assembles the global linear systems, applies preconditioning, and executes boundary element
+    solvers to calculate electrostatic potentials, solvation energies, forces, and effective
+    near-surface (ENS) potentials.
+    """
+
     def __init__(self, formulation="direct", stern_layer=False, print_times=False):
+        """Initializes a Simulation environment with a specific Poisson-Boltzmann formulation.
+
+        Args:
+            formulation (str, optional): The PB boundary integral formulation to use
+                (e.g., 'direct', 'direct_stern', 'slic', 'direct_amoeba'). Defaults to "direct".
+            stern_layer (bool, optional): If True, incorporates a Stern (ion-exclusion) layer
+                into the formulation workspace. Defaults to False.
+            print_times (bool, optional): If True, displays execution times during major solver
+                phases. Defaults to False.
+        """
 
         if stern_layer and formulation != "slic":
             self._pb_formulation = "direct_stern"
@@ -137,6 +155,19 @@ class Simulation:
                 solute.kappa = self.kappa
 
     def add_solute(self, solute):
+        """Registers a solute molecule into the simulation context and synchronizes parameters.
+
+        Validates that the provided object conforms to the expected `Solute` specification,
+        then propagates simulation-wide global variables (e.g., external permittivity, ionic
+        strength parameter, preconditioning types) down to the solute object.
+
+        Args:
+            solute (Solute): An instance of the `pbj.implicit_solvent.solute.Solute` class to be modeled.
+
+        Raises:
+            ValueError: If the input object is not an instance of the `Solute` class or lacks
+                proper structural initialization.
+        """
 
         if isinstance(solute, pbj.implicit_solvent.solute.Solute) and hasattr(
             solute, "solute_name"
@@ -176,6 +207,15 @@ class Simulation:
             )
 
     def create_and_assemble_linear_system(self):
+        """Builds and assembles the global blocked discrete operator matrix and right-hand side vectors.
+
+        Iterates through all registered solutes to compute self-interaction matrices, cross-interaction
+        coupling operators between distinct solute groups, global boundary condition right-hand side
+        vectors, and a block-diagonal or mass-matrix preconditioning operator for the global GMRES system.
+
+        Returns:
+            None
+        """
         from scipy.sparse import bmat, dok_matrix
         from scipy.sparse.linalg import aslinearoperator
 
@@ -330,6 +370,14 @@ class Simulation:
         self.rhs["rhs_discrete"] = rhs_final_discrete
 
     def create_and_assemble_rhs(self):
+        """Re-initializes and assembles the global right-hand side vectors for all solutes.
+
+        Useful when atomic coordinates, charges, or boundary conditions have changed but the
+        integral operator matrices remain invariant.
+
+        Returns:
+            None
+        """
         # from scipy.sparse import bmat, dok_matrix
         # from scipy.sparse.linalg import aslinearoperator
 
@@ -353,6 +401,21 @@ class Simulation:
         self.rhs["rhs_discrete"] = rhs_final_discrete
 
     def calculate_surface_potential(self, rerun_all=False, rerun_rhs=False):
+        r"""Solves the boundary element matrix equation to obtain the surface electrostatic potential.
+
+        Invokes the underlying formulation object's calculation routine to execute the
+        Krylov subspace solver (e.g., GMRES) and determine the Dirichlet ($\\phi$) and
+        Neumann ($\\partial\\phi/\\partial n$) distributions across the molecular interface.
+
+        Args:
+            rerun_all (bool, optional): Forces a full re-assembly of the matrix operators
+                and RHS vectors. Defaults to False.
+            rerun_rhs (bool, optional): Forces a re-assembly of only the RHS vector before solving.
+                Defaults to False.
+
+        Returns:
+            None
+        """
 
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
@@ -371,7 +434,24 @@ class Simulation:
         rerun_all=False,
         rerun_rhs=False,
     ):
+        """Computes the total solvation free energy for all registered solute molecules.
 
+        Calculates the electrostatic contribution via boundary surface integrations and/or
+        nonpolar cavitation/dispersion terms based on the solved interface state.
+
+        Args:
+            electrostatic_energy (bool, optional): If True, evaluates the polar/electrostatic
+                component of solvation. Defaults to True.
+            nonpolar_energy (bool, optional): If True, evaluates the nonpolar/cavitation
+                component of solvation. Defaults to False.
+            rerun_all (bool, optional): Triggers full operator re-assembly before potential calculation.
+                Defaults to False.
+            rerun_rhs (bool, optional): Triggers RHS re-assembly before potential calculation.
+                Defaults to False.
+
+        Returns:
+            None
+        """
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
             return
@@ -400,7 +480,24 @@ class Simulation:
         force_formulation="maxwell_tensor",
         fdb_approx=False,
     ):
+        """Evaluates the solvation forces acting on each atom of the solute molecules.
 
+        Computes the gradient of the solvation energy using boundary integral distributions,
+        supporting methods such as the Maxwell stress tensor integration or direct boundary
+        derivative approximations.
+
+        Args:
+            h (float, optional): Finite difference step size or regularization parameter. Defaults to 0.001.
+            rerun_all (bool, optional): Triggers full re-computation of surface potentials if True.
+                Defaults to False.
+            force_formulation (str, optional): Formulation type for force evaluation, such as
+                'maxwell_tensor' or 'energy_functional'. Defaults to "maxwell_tensor".
+            fdb_approx (bool, optional): If True, applies an normal-approximation to the dielectric
+                boundary force component when using the energy functional formulation.
+
+        Returns:
+            None
+        """
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
             return
@@ -420,18 +517,26 @@ class Simulation:
     def calculate_potential_solvent(
         self, eval_points, units="mV", rerun_all=False, rerun_rhs=False
     ):
-        """
-        Evaluates the potential on a cloud of points in the solvent. Needs check for multiple molecules.
-        Inputs:
-        -------
-        eval_points: (Nx3 array) with 3D position of N points.
-                     If point lies in a solute it is masked out.
-        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
-                       defaults to mV
+        """Evaluates the electrostatic potential at specified points residing in the solvent region.
 
-        Outputs:
-        --------
-        phi_solvent: (array) electrostatic potential at eval_points
+        Excludes and masks any points located inside the interior domain of any registered solute
+        using a spatial containment check, then evaluates Laplace or modified Helmholtz single-
+        and double-layer potential operators.
+
+        Args:
+            eval_points (numpy.ndarray): 2D array of shape $(N, 3)$ specifying the Cartesian coordinates
+                of the $N$ evaluation target points.
+            units (str, optional): Target conversion units for the potential output ('mV', 'kT_e',
+                'kcal_mol_e', 'kJ_mol_e', 'e_eps0_angs'). Defaults to "mV".
+            rerun_all (bool, optional): Forces full potential re-assembly if True. Defaults to False.
+            rerun_rhs (bool, optional): Forces RHS re-assembly if True. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - phi_solvent (numpy.ndarray): 1D array of shape $(N,)$ representing the converted
+                  electrostatic potentials at the valid points (points inside solutes are set to $0.0$).
+                - points_solvent (numpy.ndarray): 1D boolean array of shape $(N,)$ marking True for
+                  points belonging to the exterior solvent region.
         """
 
         if len(self.solutes) == 0:
@@ -503,22 +608,27 @@ class Simulation:
         rerun_all=False,
         rerun_rhs=False,
     ):
-        """
-        Evaluates the reaction potential on a cloud of points in the solute.
-        Inputs:
-        -------
-        eval_points: (Nx3 array) with 3D position of N points.
-                     If point lies in a solute it is masked out.
-        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
-                       defaults to mV
-        solute_subset: (array of int) subset of solutes that want to be
-                    computed. Defaults to None to compute all.
+        """Evaluates the reaction electrostatic potential at specified points inside the solute domain.
 
-        Outputs:
-        --------
-        phi_solute: (array) electrostatic potential at eval_points
-        point_solute: (array) int with index of solute where the point is
-                    if -1 point is in solvent
+        Computes the reaction component (the potential induced by the polarized solvent environment)
+        by projecting boundary distributions back onto the internal evaluation coordinates.
+
+        Args:
+            eval_points (numpy.ndarray): 2D array of shape $(N, 3)$ specifying the Cartesian coordinates
+                of the $N$ evaluation target points.
+            units (str, optional): Target conversion units for the potential output ('mV', 'kT_e',
+                'kcal_mol_e', 'kJ_mol_e', 'e_eps0_angs'). Defaults to "mV".
+            solute_subset (numpy.ndarray or list, optional): Sub-indices of specific solutes to compute.
+                If None, evaluates all solutes. Defaults to None.
+            rerun_all (bool, optional): Forces full potential re-assembly if True. Defaults to False.
+            rerun_rhs (bool, optional): Forces RHS re-assembly if True. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - phi_solute (numpy.ndarray): 1D array of shape $(N,)$ representing the reaction
+                  potentials at the target coordinates.
+                - points_solute (numpy.ndarray): 1D integer array of shape $(N,)$ indicating the index of
+                  the containing solute for each point (or $-1$ if the point resides in the solvent).
         """
 
         if len(self.solutes) == 0:
@@ -581,22 +691,26 @@ class Simulation:
         rerun_all=False,
         rerun_rhs=False,
     ):
-        """
-        Evaluates the vacuum (Coulomb) potential on a cloud of points in the solute.
-        Inputs:
-        -------
-        eval_points: (Nx3 array) with 3D position of N points.
-                     If point lies in a solute it is masked out.
-        units      : (str) units of output. Can be mV, kT_e, kcal_mol_e, kJ_mol_e, qe_eps0_angs.
-                       defaults to mV
-        solute_subset: (array of int) subset of solutes that want to be
-                    computed. Defaults to None to compute all.
+        """Evaluates the vacuum (Coulomb) electrostatic potential at specified points inside the solute domain.
 
-        Outputs:
-        --------
-        phi_coul_solute: (array) electrostatic potential at eval_points
-        point_solute: (array) int with index of solute where the point is
-                    if -1 point is in solvent
+        Calculates the direct potential generated by permanent atomic source charges in a homogeneous vacuum
+        environment.
+
+        Args:
+            eval_points (numpy.ndarray): 2D array of shape $(N, 3)$ specifying the Cartesian coordinates
+                of the $N$ evaluation target points.
+            units (str, optional): Target conversion units for the potential output ('mV', 'kT_e',
+                'kcal_mol_e', 'kJ_mol_e', 'e_eps0_angs'). Defaults to "mV".
+            solute_subset (numpy.ndarray or list, optional): Sub-indices of specific solutes to compute.
+                If None, evaluates all solutes. Defaults to None.
+            rerun_all (bool, optional): Retained for signature consistency. Defaults to False.
+            rerun_rhs (bool, optional): Retained for signature consistency. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing two elements:
+                - phi_coul_solute (numpy.ndarray): 1D array of shape $(N,)$ with the vacuum Coulomb potentials.
+                - points_solute (numpy.ndarray): 1D integer array of shape $(N,)$ mapping each point
+                  to its parent solute index (or $-1$ if in the solvent region).
         """
 
         if len(self.solutes) == 0:
@@ -641,18 +755,27 @@ class Simulation:
         rerun_all=False,
         rerun_rhs=False,
     ):
-        """
-        Calculates effective near surface (ENS) potential. See Yu, Pettit, Iwahara (2021) PNAS.
-        Inputs:
-        -------
-        atom_name: (array of str) array with atom names in pqr file where phi_ens will be calculated
-        mesh_dx  : (float) spacing in mesh for integration
-        mesh_length: (float) length of mesh for integration
-        ion_radius_explode: (float) exploded radius for ion accessibility
+        """Calculates the Effective Near Surface (ENS) electrostatic potential for target atom types.
 
-        Output:
-        -------
-        phi_ens: ENS potential for each atom with atom_name
+        Implements spatial numerical integrations over local grids to evaluate ion accessibility
+        and effective screening potential fields adjacent to the molecular boundaries.
+
+        Args:
+            atom_name (list of str, optional): Atom identifiers from the topology map (e.g., `['H']`)
+                for which the ENS potential will be computed. Defaults to ["H"].
+            mesh_dx (float, optional): Grid cell spacing/increment size used for spatial numerical
+                integration. Defaults to 1.0.
+            mesh_length (float, optional): Linear cross-sectional dimension of the local bounding
+                integration mesh. Defaults to 40.0.
+            ion_radius_explode (float, optional): Inflated offset distance appended to atomic radii
+                to establish steric ion-exclusion zones. Defaults to 3.5.
+            rerun_all (bool, optional): Triggers full operator re-assembly before calculation if True.
+                Defaults to False.
+            rerun_rhs (bool, optional): Triggers RHS re-assembly before calculation if True.
+                Defaults to False.
+
+        Returns:
+            None
         """
 
         if len(self.solutes) == 0:
@@ -773,15 +896,16 @@ class Simulation:
 
 
 def convert_units(units):
-    """
-    Convert units from e_eps0_angs to "units"
-    Input:
-    ------
-        units: (str) Can be mV, kT_e, kcal_mol_e, kJ_mol_e, e_eps0_angs.
-                     Defaults to mV. Check kcal_mol_e and kJ_mol_e.
-    Output:
-    -------
-        unit_conversion: (float) coefficient for unit conversion
+    """Computes the scalar conversion factor from standard atomic units ($\text{e}/\varepsilon_0\text{Å}$) to target units.
+
+    Supports conversion into SI millivolts, thermal voltage equivalents, or thermodynamic energy units per charge.
+
+    Args:
+        units (str): The desired output unit key identifier. Acceptable values include
+            'mV', 'kT_e', 'kJ_mol_e', 'kcal_mol_e', and 'e_eps0_angs'.
+
+    Returns:
+        float: Multiplicative scaling coefficient to transform the raw electrostatic potential value.
     """
     qe = 1.60217663e-19
     eps0 = 8.8541878128e-12

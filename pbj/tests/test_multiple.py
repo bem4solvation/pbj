@@ -14,6 +14,17 @@ import os
 def test_multiple():
 
     def spheres1():
+        """Generate a list of standard sphere solute meshes at powers-of-two densities.
+
+        Loads the `test_sphere1.pqr` (sphere radius 2, charge 1) file and generates four
+        distinct sphere meshes with exponentially increasing mesh densities (2, 4, 8, and 16)
+        using the MSMS generator.
+
+        Returns:
+            list of pbj.implicit_solvent.Solute: A list containing four initialized Solute
+                                                 mesh objects corresponding to the
+                                                 specified mesh densities.
+        """
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere1.pqr")
@@ -25,6 +36,17 @@ def test_multiple():
         return spheres
 
     def spheres2():
+        """Generate a list of standard sphere solute meshes at powers-of-two densities.
+
+        Loads the `test_sphere2.pqr` (sphere radius 2, charge 1, distance +3 A) file and generates
+        four distinct sphere meshes with exponentially increasing mesh densities (2, 4, 8, and 16) using
+        the MSMS generator.
+
+        Returns:
+            list of pbj.implicit_solvent.Solute: A list containing four initialized Solute
+                                                 mesh objects corresponding to the
+                                                 specified mesh densities.
+        """
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere2.pqr")

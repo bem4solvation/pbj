@@ -11,38 +11,35 @@ from .mesh_tools import (
 
 
 def import_charges_from_pqr(pqr_path):
-    """
-    Given a pqr file, import the charges and the coordinates of them. Returns three arrays,
-    q with the charges, x_q with the coordinates and r_q with the radii.
+    """Imports the charges, coordinates, radii, and residue metadata from a PQR file.
 
-    Parameters
-    ----------
-    pqr_path : str
-        Path to the pqr file.
+    Args:
+        pqr_path (str): Path to the PQR file.
 
-    Returns
-    -------
-        q : numpy.array
-            Array with the charges.
-        x_q : numpy.array
-            Array with the coordinates of the charges.
+    Returns:
+        tuple: A tuple containing six elements:
+            - q (numpy.ndarray): 1-dim array of atom charges.
+            - x_q (numpy.ndarray): 2-dim array of shape $(N, 3)$ with the Cartesian coordinates of the charges.
+            - r_q (numpy.ndarray): 1-dim array of atom radii.
+            - atom_name (numpy.ndarray): 1-dim array of strings containing atom names.
+            - res_name (numpy.ndarray): 1-dim array of strings containing residue names.
+            - res_num (numpy.ndarray): 1-dim array of strings containing residue sequence numbers.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> import pbj.mesh.charge_tools as ct
-    >>> pqr_path = "methane.pqr"
-    >>> q, x_q, r_q, atom_name, res_name, res_num = ct.import_charges_from_pqr(pqr_path)
-    >>> print(q)
-    [-0.1048  0.0262  0.0262  0.0262  0.0262]
-    >>> print(x_q)
-    [[-0.683  0.813  0.254]
-     [-0.129  1.613  0.75 ]
-     [ 0.     0.    -0.   ]
-     [-1.462  0.44   0.923]
-     [-1.142  1.201 -0.658]]
-    >>> print(r_q)
-    [0.0262 0.0262 0.0262 0.0262 0.0262]
+    Examples:
+        >>> import numpy as np
+        >>> import pbj.mesh.charge_tools as ct
+        >>> pqr_path = "methane.pqr"
+        >>> q, x_q, r_q, atom_name, res_name, res_num = ct.import_charges_from_pqr(pqr_path)
+        >>> print(q)
+        [-0.1048  0.0262  0.0262  0.0262  0.0262]
+        >>> print(x_q)
+        [[-0.683  0.813  0.254]
+         [-0.129  1.613  0.75 ]
+         [ 0.     0.    -0.   ]
+         [-1.462  0.44   0.923]
+         [-1.142  1.201 -0.658]]
+        >>> print(r_q)
+        [0.0262 0.0262 0.0262 0.0262 0.0262]
     """
     # Read charges and coordinates from the .pqr file
     molecule_file = open(pqr_path, "r")
@@ -80,25 +77,25 @@ def import_charges_from_pqr(pqr_path):
 
 
 def generate_msms_mesh_import_charges(solute):
-    """
-    Generate mesh grid for the solute class given by parameter. It returns a grid class,
-    and two arrays for the charges and the coordinates of the charges.
+    """Generates the molecular mesh grid and imports charges for the given solute object.
 
-    Parameters
-    ----------
-    solute : class
-        Solute class.
+    Handles file format conversions (PDB to PQR if needed, then to XYZR), runs the
+    specified mesh generator (MSMS or NanoShaper), and extracts all charge and residue
+    metadata.
 
-    Returns
-    -------
-        grid : class
-            Bempp Grid object.
-        q : numpy.array
-            Array with the charges of the solute.
-        x_q : numpy.array
-            Array with the coordinates of the charges.
-        r_q : numpy.array
-            Array with the radii of the charges.
+    Args:
+        solute (Solute): An instance of the Solute class containing the molecule's
+            configuration parameters.
+
+    Returns:
+        tuple: A tuple containing seven elements:
+            - grid (bempp.api.Grid): The imported Bempp Grid object.
+            - q (numpy.ndarray): 1-dim array of atom charges.
+            - x_q (numpy.ndarray): 2-dim array of shape $(N, 3)$ with the Cartesian coordinates of the charges.
+            - r_q (numpy.ndarray): 1-dim array of atom radii.
+            - atom_name (numpy.ndarray): 1-dim array of strings containing atom names.
+            - res_name (numpy.ndarray): 1-dim array of strings containing residue names.
+            - res_num (numpy.ndarray): 1-dim array of strings containing residue sequence numbers.
     """
     mesh_dir = os.path.abspath("mesh_temp/")
     if solute.save_mesh_build_files:
@@ -163,23 +160,24 @@ def generate_msms_mesh_import_charges(solute):
 
 
 def load_charges_to_solute(solute):
-    """
-    Given a class solute as a parameter, it loads the charges and the coordinates of the charges to the class,
-    using the paths saved in the class and the function import_charges_from_pqr.
+    """Loads the charges, coordinates, and residue metadata for the given solute object.
 
-    Parameters
-    ----------
-        solute : class
-            Solute class.
+    Handles file format conversions (PDB to PQR if needed) based on the solute's
+    configuration, and extracts all charge and structural metadata using the
+    corresponding PQR file.
 
-    Returns
-    -------
-        q : numpy.array
-            Array with the charges of the solute.
-        x_q : numpy.array
-            Array with the coordinates of the charges.
-        r_q : numpy.array
-            Array with the radii of the charges.
+    Args:
+        solute (Solute): An instance of the Solute class containing the molecule's
+            configuration parameters and file paths.
+
+    Returns:
+        tuple: A tuple containing six elements:
+            - q (numpy.ndarray): 1-dim array of atom charges.
+            - x_q (numpy.ndarray): 2-dim array of shape $(N, 3)$ with the Cartesian coordinates of the charges.
+            - r_q (numpy.ndarray): 1-dim array of atom radii.
+            - atom_name (numpy.ndarray): 1-dim array of strings containing atom names.
+            - res_name (numpy.ndarray): 1-dim array of strings containing residue names.
+            - res_num (numpy.ndarray): 1-dim array of strings containing residue sequence numbers.
     """
 
     mesh_dir = os.path.abspath("mesh_temp/")
@@ -204,16 +202,24 @@ def load_charges_to_solute(solute):
 
 
 def read_tinker_radius(filename, radius_keyword="solute", solute_radius_type="PB"):
+    r"""Reads atomic coordinates and maps the corresponding molecular radii from Tinker files.
+
+    Parses the companion `.xyz` file for coordinates and atom types, and the `.key`
+    file (or its linked parameter file) to extract and scale Van der Waals or optimized
+    implicit solvent radii.
+
+    Args:
+        filename (str): Base filename without extension (used to look for `.xyz` and `.key` files).
+        radius_keyword (str, optional): Type of radius set to extract. Choose between
+            'solute' (optimized for implicit solvent calculations) or 'vdw'. Defaults to 'solute'.
+        solute_radius_type (str, optional): Optimization tool variant for the solute keyword.
+            Choose between 'PB', 'DDCOSMO', or 'GK'. Defaults to 'PB'.
+
+    Returns:
+        numpy.ndarray: 1-dim array of shape $(N,)$ containing the mapped atomic radii for
+            each of the $N$ atoms in the structure.
     """
-    Read atomic radius from a Tinker prm file.
-    Input:
-    ------
-    filename: (string) prm file name
-    radius_keyword: (string) 'vdw' (default) or 'solute' depending on the radius to be used. Radii under the 'solute'
-                     keyword have been optimized for implicit solvent calculations
-    radius_type: (string) 'PB' (default), 'DDCOSMO' or 'GK'. The radius read from the 'solute' keyword has three alternatives
-                     depending on the tool used to optimize.
-    """
+
     file_xyz = filename + ".xyz"
     file_key = filename + ".key"
 
@@ -317,6 +323,28 @@ def read_tinker_radius(filename, radius_keyword="solute", solute_radius_type="PB
 
 
 def find_multipole(multipole_list, connections, atom_type, pos, i, N):
+    """Identifies the correct local multipole parameters for a specific atom based on its chemical environment.
+
+    Filters available multipole definitions by matching the central atom type, followed
+    by hierarchical filtering of the neighbors that define the local $z$-axis (must be bonded)
+    and $x$-axis (the closest matching atom type in space).
+
+    Args:
+        multipole_list (list of list): Database of available multipole definitions. Each entry
+            is a list/tuple containing at least `[central_type, zaxis_type, xaxis_type, ...]`.
+        connections (dict or list of list): Adjacency list mapping each atom index to a
+            list of its bonded neighbor indices.
+        atom_type (numpy.ndarray): 1-dim array containing the string identifiers or types
+            for all atoms in the system.
+        pos (numpy.ndarray): 2-dim array of shape $(N, 3)$ containing the Cartesian coordinates
+            of all atoms.
+        i (int): Index of the target atom for which the multipole is being resolved.
+        N (int): Total number of atoms in the molecular system.
+
+    Returns:
+        list: The matching multipole parameter entry from `multipole_list` that best fits
+            the local frame rules.
+    """
     #   filter possible multipoles by atom type
     atom_possible = []
     for j in range(len(multipole_list)):
@@ -387,19 +415,35 @@ def find_multipole(multipole_list, connections, atom_type, pos, i, N):
 
 
 def load_tinker_multipoles_to_solute(solute):
-    """
-    Reads input file from tinker
-    Input:
-    -----
-    solute: (class)
+    r"""Loads and resolves permanent multipoles, polarizabilities, and connectivity maps from Tinker files.
+
+    Parses the molecular companion `.xyz` and `.key` files (or external parameter files)
+    to extract coordinates, topology, permanent multipoles (monopoles, dipoles, and quadrupoles),
+    and polarization groups. It computes local coordinate frames ($\mathbf{i}, \mathbf{j}, \mathbf{k}$)
+    to rotate local multipole moments into the global reference frame and applies appropriate
+    Bohr radius scalings.
+
+    Args:
+        solute (Solute): An instance of the Solute class containing configuration paths
+            such as `xyz_path`, `radius_keyword`, and `solute_radius_type`.
+
     Returns:
-    -------
-    pos: Nx3 array with position of multipoles
-    q  : array size N with charges (monopoles)
-    p  : array size Nx3 with dipoles
-    Q  : array size Nx3x3 with quadrupoles
-    alpha: array size Nx3x3 with polarizabilities
-            (tinker considers an isotropic value, not tensor)
+        tuple: A tuple containing fifteen elements:
+            - pos (numpy.ndarray): 2-dim array of shape $(N, 3)$ with the Cartesian positions of the multipoles.
+            - q (numpy.ndarray): 1-dim array of shape $(N,)$ containing atomic charges (monopoles).
+            - p (numpy.ndarray): 2-dim array of shape $(N, 3)$ containing global dipole moments.
+            - Q (numpy.ndarray): 3-dim array of shape $(N, 3, 3)$ containing global quadrupole moments.
+            - alpha (numpy.ndarray): 3-dim array of shape $(N, 3, 3)$ with atomic isotropic polarizability matrices.
+            - r (numpy.ndarray): 1-dim array of shape $(N,)$ containing the mapped atomic radii.
+            - mass (numpy.ndarray): 1-dim array of shape $(N,)$ containing atomic masses.
+            - polar_group (numpy.ndarray): 1-dim array of shape $(N,)$ containing polarization group identifiers.
+            - thole (numpy.ndarray): 1-dim array of shape $(N,)$ containing atomic Thole damping factors.
+            - connections_12 (numpy.ndarray): 1-dim array containing flattened 1-2 (bonded) neighbor indices.
+            - connections_13 (numpy.ndarray): 1-dim array containing flattened 1-3 neighbor indices.
+            - pointer_connections_12 (numpy.ndarray): 1-dim index pointer array for parsing `connections_12`.
+            - pointer_connections_13 (numpy.ndarray): 1-dim index pointer array for parsing `connections_13`.
+            - p12scale (float): Polarization scaling factor for 1-2 interactions.
+            - p13scale (float): Polarization scaling factor for 1-3 interactions.
     """
     filename = solute.xyz_path[:-4]  # remove extension
 
@@ -799,20 +843,35 @@ def load_tinker_multipoles_to_solute(solute):
 
 
 def generate_msms_mesh_import_tinker_multipoles(solute):
-    """
-    Generate mesh grid for the solute class given by parameter. It returns a grid class,
-    and two arrays for the charges and the coordinates of the charges.
+    """Generates the molecular surface mesh and extracts comprehensive Tinker multipole parameters.
 
-    Parameters
-    ----------
-    solute : class
-        Solute class.
+    Handles the generation of `.xyzr` files, orchestrates the execution of the
+    specified surface mesh generator (MSMS or NanoShaper) to build the molecular boundary,
+    and unpacks all electrostatic, polarization, and connectivity matrices required for
+    implicit solvent modeling.
 
-    Returns
-    -------
-        grid : class
-            Bempp Grid object.
-        tinker params
+    Args:
+        solute (Solute): An instance of the Solute class containing mesh options (generator,
+            density, probe radius) and Tinker file paths.
+
+    Returns:
+        tuple: A tuple containing sixteen elements:
+            - grid (bempp.api.Grid): The generated/imported Bempp Grid surface object.
+            - x_q (numpy.ndarray): 2-dim array of shape $(N, 3)$ with the Cartesian positions of the multipoles.
+            - q (numpy.ndarray): 1-dim array of shape $(N,)$ containing atomic charges (monopoles).
+            - d (numpy.ndarray): 2-dim array of shape $(N, 3)$ containing global dipole moments.
+            - Q (numpy.ndarray): 3-dim array of shape $(N, 3, 3)$ containing global quadrupole moments.
+            - alpha (numpy.ndarray): 3-dim array of shape $(N, 3, 3)$ with atomic isotropic polarizability matrices.
+            - r_q (numpy.ndarray): 1-dim array of shape $(N,)$ containing the mapped atomic radii.
+            - mass (numpy.ndarray): 1-dim array of shape $(N,)$ containing atomic masses.
+            - polar_group (numpy.ndarray): 1-dim array of shape $(N,)$ containing polarization group identifiers.
+            - thole (numpy.ndarray): 1-dim array of shape $(N,)$ containing atomic Thole damping factors.
+            - connections_12 (numpy.ndarray): 1-dim array containing flattened 1-2 (bonded) neighbor indices.
+            - connections_13 (numpy.ndarray): 1-dim array containing flattened 1-3 neighbor indices.
+            - pointer_connections_12 (numpy.ndarray): 1-dim index pointer array for parsing `connections_12`.
+            - pointer_connections_13 (numpy.ndarray): 1-dim index pointer array for parsing `connections_13`.
+            - p12scale (float): Polarization scaling factor for 1-2 interactions.
+            - p13scale (float): Polarization scaling factor for 1-3 interactions.
     """
 
     mesh_dir = os.path.abspath("mesh_temp/")

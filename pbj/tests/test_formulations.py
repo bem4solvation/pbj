@@ -9,16 +9,38 @@ import numpy as np
 from pbj import PBJ_PATH
 import os
 
-# run with: python -m pytest -qq test_verification.py -s
+# run with: python -m pytest -qq test_formulations.py -s
 
 
-def test_verification():
+def test_formulations():
     def richardson_extrapolation(f1, f2, f3, r):
+        """Perform Richardson extrapolation to estimate the order of accuracy
+        and the continuum-truncated exact solution.
+
+        Args:
+            f1 (float or array_like): Solution on the finest grid.
+            f2 (float or array_like): Solution on the medium grid.
+            f3 (float or array_like): Solution on the coarsest grid.
+            r (float): Grid refinement ratio (e.g., r = h_coarse / h_fine).
+
+        Returns:
+            p (float or array_like): Observed order of accuracy.
+            f (float or array_like): Extrapolated value (zero-grid-spacing estimate).
+        """
         p = np.log((f3 - f2) / (f2 - f1)) / np.log(r)
         f = f1 + (f1 - f2) / (r**p - 1)
         return p, f
 
     def spheres():
+        """Generate a list of sphere solute meshes at different grid densities.
+
+        Loads a test PQR file and generates three distinct sphere meshes with
+        varying mesh densities using the MSMS generator.
+
+        Returns:
+            list of pbj.Solute: A list containing three initialized Solute mesh objects
+                                corresponding to mesh densities of 0.85, 1.7, and 3.4.
+        """
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "test.pqr")
@@ -29,6 +51,15 @@ def test_verification():
         return spheres
 
     def histidines():
+        """Generate a list of histidine solute meshes at different grid scales.
+
+        Loads a test histidine PQR file and generates three distinct molecular
+        meshes with varying grid scales using the NanoShaper mesh generator.
+
+        Returns:
+            list of pbj.Solute: A list containing three initialized Solute mesh objects
+                                corresponding to grid scales of 1.4, 1.82, and 2.366.
+        """
         histidines = []
         print("Creating histidine meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "his", "his.pqr")
@@ -40,6 +71,18 @@ def test_verification():
         return histidines
 
     def values():
+        """Dynamically map available Poisson-Boltzmann formulations and their preconditioners.
+
+        Inspects the `pb_formulations` module to identify valid formulation submodules
+        (excluding the 'common' module). For each formulation, it scans for available
+        preconditioner functions and initializes a nested dictionary structure.
+
+        Returns:
+            dict: A nested dictionary where keys are formulation names. Each formulation
+                  dictionary contains a `"no_precond"` key and keys for each discovered
+                  preconditioner (with the "_preconditioner" suffix stripped), all
+                  initialized to empty `np.array([])` objects.
+        """
         values = {}
         available = getmembers(pb_formulations, ismodule)
         for element in available:
