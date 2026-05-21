@@ -40,7 +40,7 @@ jobs:
             python3 -m black --line-length 88 --check pbj
 
   unit-tests:
-    name: Run unit tests
+    name: Run tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -56,16 +56,16 @@ jobs:
       - name: Run system test (Single sphere)
         shell: bash -el {0}
         run: |
-          python -m pytest -qq test_single.py -s
+          python -m pytest -qq pbj/tests/test_single.py -s
 
       - name: Run system test (Multiple spheres)
         if: always() 
         shell: bash -el {0}
         run: |
-          python -m pytest -qq test_multiple.py -s
+          python -m pytest -qq pbj/tests/test_multiple.py -s
 
       - name: Run system test (Formulations)
         if: always() 
         shell: bash -el {0}
         run: |
-          python -m pytest -qq test_formulations.py -s
+          python -m pytest -qq pbj/tests/test_formulations.py -s
