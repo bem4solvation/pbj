@@ -19,7 +19,7 @@ dependencies:
  # - pocl
   - intel-opencl-rt
   - pybind11
-  - pyopencl #quizas borrar?
+  - pyopencl
   - scipy
   - tbb
   - pip:

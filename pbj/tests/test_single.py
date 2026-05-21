@@ -102,6 +102,7 @@ def test_single():
         3,  # number of terms desired in the polinomial expansion
     )
 
+    energy_vals = []
     file = open("test_results_single.txt", "w")
     for sphere in spheres:
         simulation = pbj.implicit_solvent.Simulation()
@@ -112,6 +113,7 @@ def test_single():
         f_solv_energy_func = sphere.results["f_solv"]
         simulation.calculate_solvation_energy()
         energy_val = sphere.results["electrostatic_solvation_energy"]
+        energy_vals.append(energy_val)
         file.write(
             f"Mesh density: {sphere.mesh_density}, Solvation energy: {energy_val:.4f} "
             f"Solvation forces (Maxwell tensor): {np.linalg.norm(f_solv_maxwell_tensor):.4f} "
@@ -122,6 +124,13 @@ def test_single():
     )
     file.write(f"Analytical solvation forces (kcal/molA): {0.0}\n")
 
+    rel_energy_func = lambda E: (E - solvation_value) / solvation_value
+    rel_energy_vals = np.array([rel_energy_func(E) for E in energy_vals])
+    p_vals = (1 / np.log(2)) * np.log(rel_energy_vals[1:] / rel_energy_vals[:-1])
+    file.write(
+        f"p- observed convergence value for energy (4,8,16): {[f'{abs(val):.4f}' for val in p_vals]}\n"
+    )
+
     qe = 1.60217663e-19
     eps0 = 8.8541878128e-12
     ang_to_m = 1e-10
@@ -131,6 +140,7 @@ def test_single():
     file.write("\n\nPotential values (V) at different points:\n")
     file.write(f"r(Ang) : {r_test} \n")
 
+    vals_solv_p = []
     for sphere in spheres:
         simulation = pbj.implicit_solvent.Simulation()
         simulation.add_solute(sphere)
@@ -143,6 +153,7 @@ def test_single():
         vals_solv, _ = simulation.calculate_potential_solvent(
             np.array([[r, 0, 0] for r in r_test])
         )
+        vals_solv_p.append(vals_solv[-2] / 1000)
         solute_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solute])
         solute_coul_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solute_coul])
         solv_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solv])
@@ -152,13 +163,25 @@ def test_single():
             f"Coulomb potential Solute: [{solute_coul_str}] "
             f"Total potential Solvent: [{solv_str}]\n"
         )
-    file.write("\n\nAnalytical potential values (V) at different points:\n")
+    file.write("\n\nAnalytical potential values (V) at different points\n")
+
+    analytical_potential = []
     for r in r_test:
         phi_r = to_V * analytic_Born_Ion_reac(r, spheres[0])
         phi_v = to_V * analytic_Born_Ion_vacuum(r, spheres[0])
         phi_total = phi_v + phi_r
+        analytical_potential.append(phi_total)
         file.write(
             f"r: {r:.2f} Å, phi_reac: {phi_r:.4f} V, phi_vacuum: {phi_v:.4f} V, phi_total: {phi_total:.4f} V \n"
         )
+
+    rel_potential = (
+        lambda phi: (phi - analytical_potential[-2]) / analytical_potential[-2]
+    )
+    rel_potential_vals = np.array([rel_potential(phi) for phi in vals_solv_p])
+    p_vals = (1 / np.log(2)) * np.log(rel_potential_vals[1:] / rel_potential_vals[:-1])
+    file.write(
+        f"p- observed convergence value for potential at 1.5 A (4,8,16): {[f'{abs(val):.4f}' for val in p_vals]}\n"
+    )
 
     file.close()
