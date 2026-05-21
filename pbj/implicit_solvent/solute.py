@@ -506,6 +506,7 @@ class Solute:
             return
 
         if self.force_field == "amoeba":
+            print("Defaults units for AMOEBA calculations are kcal/mol, ignoring input units argument.")
             self.formulation_object.calculate_solvation_energy_polarizable(self)
             return
 

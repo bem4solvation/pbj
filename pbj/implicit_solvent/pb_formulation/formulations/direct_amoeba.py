@@ -279,7 +279,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
 
         initial_guess = x.copy()
 
-        from bempp.api.assembly.blocked_operator import (
+        from bempp_cl.api.assembly.blocked_operator import (
             grid_function_list_from_coefficients,
         )
 
@@ -429,7 +429,7 @@ def calculate_solvation_energy_polarizable(solute):
     solution_dirichl = solute.results["phi"]
     solution_neumann = solute.results["d_phi"]
 
-    from bempp.api.operators.potential.laplace import single_layer, double_layer
+    from bempp_cl.api.operators.potential.laplace import single_layer, double_layer
 
     slp_q = single_layer(solute.neumann_space, solute.x_q.transpose())
     dlp_q = double_layer(solute.dirichl_space, solute.x_q.transpose())
