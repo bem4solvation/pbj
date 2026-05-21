@@ -443,7 +443,7 @@ class Solute:
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
 
     def calculate_solvation_energy(
-        self, electrostatic_energy=True, nonpolar_energy=False
+        self, electrostatic_energy=True, nonpolar_energy=False, units="kcal_mol"
     ):
         r"""Calculate the total solvation free energy of the solute.
 
@@ -466,20 +466,20 @@ class Solute:
 
         calculate_all = electrostatic_energy and nonpolar_energy
         if calculate_all:
-            self.calculate_electrostatic_solvation_energy()
-            self.calculate_nonpolar_solvation_energy()
+            self.calculate_electrostatic_solvation_energy(units=units)
+            self.calculate_nonpolar_solvation_energy(units=units)
             self.results["solvation_energy"] = (
                 self.results["electrostatic_solvation_energy"]
                 + self.results["nonpolar_solvation_energy"]
             )
 
         elif electrostatic_energy:
-            self.calculate_electrostatic_solvation_energy()
+            self.calculate_electrostatic_solvation_energy(units=units)
 
         elif nonpolar_energy:
-            self.calculate_nonpolar_solvation_energy()
+            self.calculate_nonpolar_solvation_energy(units=units)
 
-    def calculate_electrostatic_solvation_energy(self):
+    def calculate_electrostatic_solvation_energy(self, units="kcal_mol"):
         r"""Calculate the electrostatic component of the solvation free energy.
 
         Computes the electrostatic reaction potential ($\phi_{\text{reac}}$) at each explicit
@@ -523,7 +523,8 @@ class Solute:
         self.results["phir_charges"] = phi_q
 
         # total solvation energy applying constant to get units [kcal/mol]
-        total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
+        factor_units = convert_units(units)
+        total_energy = 0.5 * factor_units * np.sum(self.q * phi_q).real
         self.results["electrostatic_solvation_energy"] = total_energy
         self.timings["time_calc_elec_energy"] = time.time() - start_time
 
@@ -534,7 +535,9 @@ class Solute:
                 " seconds to compute the electrostatic solvation energy",
             )
 
-    def calculate_nonpolar_solvation_energy(self, sas_mesh_density=None):
+    def calculate_nonpolar_solvation_energy(
+        self, sas_mesh_density=None, units="kcal_mol"
+    ):
         r"""Calculate the total nonpolar solvation free energy contribution.
 
         Combines the energy required to form the molecular cavity in the solvent
@@ -549,8 +552,8 @@ class Solute:
                                                 yet been constructed. Defaults to None.
 
         Side Effects:
-            - Triggers `self.calculate_cavity_energy(sas_mesh_density)`.
-            - Triggers `self.calculate_dispersion_energy(sas_mesh_density)`.
+            - Triggers `self.calculate_cavity_energy(sas_mesh_density, units=units)`.
+            - Triggers `self.calculate_dispersion_energy(sas_mesh_density, units=units)`.
             - Modifies `self.results["nonpolar_solvation_energy"]` to store the combined sum.
             - Updates execution profiling timestamps inside `self.timings`.
             - Prints processing time information to standard output if `self.print_times` is True.
@@ -558,8 +561,8 @@ class Solute:
 
         start_time = time.time()
 
-        self.calculate_cavity_energy(sas_mesh_density)
-        self.calculate_dispersion_energy(sas_mesh_density)
+        self.calculate_cavity_energy(sas_mesh_density, units=units)
+        self.calculate_dispersion_energy(sas_mesh_density, units=units)
 
         self.timings["time_calc_nonpol_energy"] = time.time() - start_time
 
@@ -574,7 +577,7 @@ class Solute:
                 " seconds to compute the nonpolar solvation energy",
             )
 
-    def calculate_cavity_energy(self, sas_mesh_density=None):
+    def calculate_cavity_energy(self, sas_mesh_density=None, units="kcal_mol"):
         r"""Calculate the nonpolar cavity formation energy based on the Solvent Accessible Surface Area (SASA).
 
         Computes the reversible work required to create a solute-sized cavity in the
@@ -603,9 +606,10 @@ class Solute:
         b = self.intercept_cav_nonpolar
 
         cavity_energy = gamma * sasa + b
-        self.results["cavity_energy"] = cavity_energy
+        factor_units = convert_units(units) / convert_units("kcal_mol")
+        self.results["cavity_energy"] = factor_units * cavity_energy
 
-    def calculate_dispersion_energy(self, sas_mesh_density=None):
+    def calculate_dispersion_energy(self, sas_mesh_density=None, units="kcal_mol"):
         r"""Calculate the nonpolar dispersion energy based on the Solvent Accessible Surface Area (SASA).
 
         Computes the hydrophobic/nonpolar dispersion contribution to the solvation free
@@ -632,7 +636,8 @@ class Solute:
         b = self.intercept_disp_nonpolar
 
         dispersion_energy = gamma * sasa + b
-        self.results["dispersion_energy"] = dispersion_energy
+        factor_units = convert_units(units) / convert_units("kcal_mol")
+        self.results["dispersion_energy"] = factor_units * dispersion_energy
 
     def calculate_gradient_field(self, h=0.001):
         r"""Compute the gradient vector (first-order spatial derivatives) of the reaction potential.
@@ -813,7 +818,7 @@ class Solute:
                     " seconds to compute the gradient of the gradient field on solute charges",
                 )
 
-    def calculate_charges_forces(self, h=0.001):
+    def calculate_charges_forces(self, h=0.001, units="kcal_molA"):
         r"""Calculate the electrostatic fixed-charge reaction forces acting directly on the solute charges.
 
         Computes the force exerted on each individual point charge within the solute due to
@@ -848,9 +853,9 @@ class Solute:
 
         dphidr = self.results["gradphir_charges"]
 
-        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+        factor_units = convert_units(units)
 
-        f_reac = convert_to_kcalmolA * -np.transpose(np.transpose(dphidr) * self.q)
+        f_reac = factor_units * -np.transpose(np.transpose(dphidr) * self.q)
         f_reactotal = np.sum(f_reac, axis=0)
 
         self.results["f_qf_charges"] = f_reac
@@ -864,7 +869,7 @@ class Solute:
                 " seconds to compute the force on solute charges",
             )
 
-    def calculate_boundary_forces(self, fdb_approx=False):
+    def calculate_boundary_forces(self, fdb_approx=False, units="kcal_molA"):
         """Calculate dielectric and ionic boundary forces (energy functional approach)
         acting on the solute interface.
         (change units conversion to kcal/mol/Å)
@@ -898,14 +903,14 @@ class Solute:
         phi = self.results["phi"].evaluate_on_element_centers()
         d_phi = self.results["d_phi"].evaluate_on_element_centers()
 
-        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+        factor_units = convert_units(units)
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
         if fdb_approx:
             # Dielectric boundary force
             f_db = (
                 -0.5
-                * convert_to_kcalmolA
+                * factor_units
                 * (self.ep_ex - self.ep_in)
                 * (self.ep_in / self.ep_ex)
                 * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
@@ -919,7 +924,6 @@ class Solute:
                 ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
             )
             f_db = np.zeros(3)
-            convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
             for i in range(N_elements):
                 # eps = self.mesh.normals[i]
 
@@ -965,12 +969,12 @@ class Solute:
                     * self.mesh.volumes[i]
                 )
 
-                f_db += convert_to_kcalmolA * F
+                f_db += factor_units * F
 
         # Ionic boundary force
         f_ib = (
             -0.5
-            * convert_to_kcalmolA
+            * factor_units
             * (self.ep_ex)
             * (self.kappa**2)
             * np.sum(np.transpose(np.transpose(dS) * phi[0] ** 2), axis=0)
@@ -988,7 +992,11 @@ class Solute:
             )
 
     def calculate_solvation_forces(
-        self, h=0.001, force_formulation="maxwell_tensor", fdb_approx=False
+        self,
+        h=0.001,
+        force_formulation="maxwell_tensor",
+        fdb_approx=False,
+        units="kcal_molA",
     ):
         """Calculate total electrostatic solvation forces acting on the solute.
         Based on https://doi.org/10.1021/acs.jctc.3c00021
@@ -1025,9 +1033,9 @@ class Solute:
         if force_formulation == "energy_functional":
             if "f_qf" not in self.results:
                 self.calculate_gradient_field(h=h)
-                self.calculate_charges_forces()
+                self.calculate_charges_forces(units=units)
 
-            self.calculate_boundary_forces(fdb_approx=fdb_approx)
+            self.calculate_boundary_forces(fdb_approx=fdb_approx, units=units)
 
             start_time = time.time()
 
@@ -1069,7 +1077,7 @@ class Solute:
                 ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
             )
             total_force = np.zeros(3)
-            convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+            factor_units = convert_units("kcal_molA")
 
             for i in range(N_elements):
                 eps = self.mesh.normals[i]
@@ -1122,10 +1130,8 @@ class Solute:
                     np.dot(F * self.mesh.volumes[i], F * self.mesh.volumes[i])
                 )
 
-            self.results["P_normal"] = convert_to_kcalmolA * P_normal
-            self.results["f_solv"] = (
-                convert_to_kcalmolA * total_force + self.results["f_ib"]
-            )
+            self.results["P_normal"] = factor_units * P_normal
+            self.results["f_solv"] = factor_units * total_force + self.results["f_ib"]
             self.timings["time_calc_solvation_force"] = time.time() - start_time
             if self.print_times:
                 print(
@@ -1277,3 +1283,44 @@ def get_name_from_pdb(pdb_path):
     pdb_file.close()
 
     return solute_name
+
+
+def convert_units(units):
+    """Computes the scalar conversion factor from standard atomic units ($\text{e}/\varepsilon_0\text{Å}$) to target units.
+
+    Supports conversion into SI millivolts, thermal voltage equivalents, or thermodynamic energy units per charge.
+
+    Args:
+        units (str): The desired output unit key identifier. Acceptable values include
+            'mV', 'kT_e', 'kJ_mol_e', 'kJ_mol', 'kJ_molA', 'kcal_mol_e', 'kcal_mol', 'kcal_molA', and 'e_eps0_angs'.
+
+    Returns:
+        float: Multiplicative scaling coefficient to transform the raw electrostatic potential value.
+    """
+    units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
+    units = units.replace("__", "_")
+
+    qe = 1.60217663e-19
+    eps0 = 8.8541878128e-12
+    ang_to_m = 1e-10
+    kb = 1.380649e-23
+    kT = kb * 298.15  # Assuming temperature of 298.15 K
+    Na = 6.02214076e23
+
+    to_V = qe / (eps0 * ang_to_m)
+
+    if units == "mv":
+        unit_conversion = to_V * 1000
+    elif units == "kt_e":
+        unit_conversion = to_V / (kT / qe)
+    elif units in ["kj_mol_e", "kj_mol", "kj_molA"]:
+        unit_conversion = to_V * (qe * Na / 1000)
+    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola"]:
+        unit_conversion = to_V * (qe * Na / (4.184 * 1000))
+    elif units == "e_eps0_angs":
+        unit_conversion = 1.0
+    else:
+        print("Units not recognized. Defaulting to mV")
+        unit_conversion = to_V * 1000
+
+    return unit_conversion

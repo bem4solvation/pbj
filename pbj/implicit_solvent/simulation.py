@@ -433,6 +433,7 @@ class Simulation:
         nonpolar_energy=False,
         rerun_all=False,
         rerun_rhs=False,
+        units="kcal_mol",
     ):
         """Computes the total solvation free energy for all registered solute molecules.
 
@@ -469,7 +470,9 @@ class Simulation:
         start_time = time.time()
         for index, solute in enumerate(self.solutes):
 
-            solute.calculate_solvation_energy(electrostatic_energy, nonpolar_energy)
+            solute.calculate_solvation_energy(
+                electrostatic_energy, nonpolar_energy, units=units
+            )
 
         self.timings["time_calc_energy"] = time.time() - start_time
 
@@ -479,6 +482,7 @@ class Simulation:
         rerun_all=False,
         force_formulation="maxwell_tensor",
         fdb_approx=False,
+        units="kcal_molA",
     ):
         """Evaluates the solvation forces acting on each atom of the solute molecules.
 
@@ -509,7 +513,10 @@ class Simulation:
         start_time = time.time()
         for index, solute in enumerate(self.solutes):
             solute.calculate_solvation_forces(
-                h=h, force_formulation=force_formulation, fdb_approx=fdb_approx
+                h=h,
+                force_formulation=force_formulation,
+                fdb_approx=fdb_approx,
+                units=units,
             )
 
         self.timings["time_calc_force"] = time.time() - start_time
@@ -902,27 +909,31 @@ def convert_units(units):
 
     Args:
         units (str): The desired output unit key identifier. Acceptable values include
-            'mV', 'kT_e', 'kJ_mol_e', 'kcal_mol_e', and 'e_eps0_angs'.
+            'mV', 'kT_e', 'kJ_mol_e', 'kJ_mol', 'kJ_molA', 'kcal_mol_e', 'kcal_mol', 'kcal_molA', and 'e_eps0_angs'.
 
     Returns:
         float: Multiplicative scaling coefficient to transform the raw electrostatic potential value.
     """
+    units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
+    units = units.replace("__", "_")
+
     qe = 1.60217663e-19
     eps0 = 8.8541878128e-12
     ang_to_m = 1e-10
-    kT = 4.11e-21
+    kb = 1.380649e-23
+    kT = kb * 298.15  # Assuming temperature of 298.15 K
     Na = 6.02214076e23
 
     to_V = qe / (eps0 * ang_to_m)
 
-    if units == "mV":
+    if units == "mv":
         unit_conversion = to_V * 1000
-    elif units == "kT_e":
-        unit_conversion = to_V * 1000 / (kT / qe)
-    elif units == "kJ_mol_e":
-        unit_conversion = to_V * 1000 / (kT * Na / qe)
-    elif units == "kcal_mol_e":
-        unit_conversion = to_V * 1000 / (kT * Na / (4.184 * qe))
+    elif units == "kt_e":
+        unit_conversion = to_V / (kT / qe)
+    elif units in ["kj_mol_e", "kj_mol", "kj_molA"]:
+        unit_conversion = to_V * (qe * Na / 1000)
+    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola"]:
+        unit_conversion = to_V * (qe * Na / (4.184 * 1000))
     elif units == "e_eps0_angs":
         unit_conversion = 1.0
     else:
