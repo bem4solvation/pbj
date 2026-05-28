@@ -603,7 +603,7 @@ class Simulation:
             )
             phi_solvent[points_solvent] += phi_aux[0, :]
 
-        unit_conversion = convert_units(units)
+        unit_conversion, _ = convert_units(units)
 
         return unit_conversion * phi_solvent, points_solvent
 
@@ -686,7 +686,7 @@ class Simulation:
 
             phi_solute[points_solute_local] = phi_aux[0, :]
 
-        unit_conversion = convert_units(units)
+        unit_conversion, _ = convert_units(units)
 
         return unit_conversion * phi_solute, points_solute
 
@@ -749,7 +749,7 @@ class Simulation:
                 eval_points[points_solute_local]
             )
 
-        unit_conversion = convert_units(units)
+        unit_conversion, _ = convert_units(units)
 
         return unit_conversion * phi_coul_solute, points_solute
 
@@ -902,42 +902,89 @@ class Simulation:
             solute.results["phi_ens"] = phi_ens
 
 
-def convert_units(units):
-    """Computes the scalar conversion factor from standard atomic units ($\text{e}/\varepsilon_0\text{Å}$) to target units.
-
-    Supports conversion into SI millivolts, thermal voltage equivalents, or thermodynamic energy units per charge.
-
-    Args:
-        units (str): The desired output unit key identifier. Acceptable values include
-            'mV', 'kT_e', 'kJ_mol_e', 'kJ_mol', 'kJ_molA', 'kcal_mol_e', 'kcal_mol', 'kcal_molA', and 'e_eps0_angs'.
-
-    Returns:
-        float: Multiplicative scaling coefficient to transform the raw electrostatic potential value.
+def convert_units(units, magnitude="potential", temperature=298.15):
+    """Computes the scalar conversion factor from standard atomic units (e / eps0 / Å)
+    to target units for electrostatic properties.
     """
     units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
     units = units.replace("__", "_")
+    magnitude = str(magnitude).strip().lower()
 
     qe = 1.60217663e-19
     eps0 = 8.8541878128e-12
     ang_to_m = 1e-10
     kb = 1.380649e-23
-    kT = kb * 298.15  # Assuming temperature of 298.15 K
+    kT = kb * temperature
     Na = 6.02214076e23
 
     to_V = qe / (eps0 * ang_to_m)
 
-    if units == "mv":
-        unit_conversion = to_V * 1000
-    elif units == "kt_e":
-        unit_conversion = to_V / (kT / qe)
-    elif units in ["kj_mol_e", "kj_mol", "kj_molA"]:
-        unit_conversion = to_V * (qe * Na / 1000)
-    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola"]:
-        unit_conversion = to_V * (qe * Na / (4.184 * 1000))
-    elif units == "e_eps0_angs":
-        unit_conversion = 1.0
+    if units in ["mv_m", "mv_a", "mv"]:
+        factor_base, label_base = to_V * 1000, "mV"
+    elif units in ["v", "volt", "volts", "v_m", "v_a"]:
+        factor_base, label_base = to_V, "V"
+    elif units in ["kt_e", "kt_a", "kt"]:
+        factor_base, label_base = to_V / (kT / qe), "kT/e"
+    elif units in ["kj_mol_e", "kj_mol", "kj_mola", "kj_mol_a"]:
+        factor_base, label_base = to_V * (qe * Na / 1000), "kJ/mol"
+    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola", "kcal_mol_a"]:
+        factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
+    elif units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
+        factor_base, label_base = 1.0, "e/(eps0*A)"
+    elif units in ["pn"]:
+        if magnitude != "force":
+            raise ValueError(
+                f"Unit 'pN' is only valid for magnitude='force', not '{magnitude}'."
+            )
+        factor_base, label_base = (qe**2 / (eps0 * ang_to_m**2)) / 1e-12, "pN"
+        return factor_base, label_base
     else:
-        print("Units not recognized. Defaulting to mV")
-        unit_conversion = to_V * 1000
+        if magnitude in ["potential", "d_potential"]:
+            print(
+                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to mV."
+            )
+            factor_base, label_base = to_V * 1000, "mV"
+        else:
+            print(
+                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to kcal/mol."
+            )
+            factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
 
-    return unit_conversion
+    if magnitude == "potential":
+        if "mol" in label_base:
+            label_base += "/e"
+        return factor_base, label_base
+
+    elif magnitude in ["d_potential"]:
+        if units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
+            return 1.0, "e/(eps0*A**2)"
+        elif units in ["v_m"]:
+            return to_V / ang_to_m, "V/m"
+        elif units in ["mv_m"]:
+            return (to_V * 1000) / ang_to_m, "mV/m"
+        return factor_base, f"{label_base}/A"
+
+    elif magnitude == "energy":
+        if "mol" in label_base:
+            return factor_base, label_base
+        elif label_base == "kT/e":
+            return factor_base, "kT"
+        elif label_base == "e/(eps0*A)":
+            return 1.0, "e**2/(eps0*A)"
+        else:
+            return factor_base, f"{label_base}*e"
+
+    elif magnitude == "force":
+        if "mol" in label_base:
+            return factor_base, f"{label_base}/A"
+        elif label_base == "kT/e":
+            return factor_base, "kT/A"
+        elif label_base == "e/(eps0*A)":
+            return 1.0, "e**2/(eps0*A**2)"
+        else:
+            return factor_base, f"{label_base}*e/A"
+
+    else:
+        raise ValueError(
+            f"Magnitude '{magnitude}' not recognized. Choose from: potential, d_potential, energy, force."
+        )

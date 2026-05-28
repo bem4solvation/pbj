@@ -526,9 +526,10 @@ class Solute:
         self.results["phir_charges"] = phi_q
 
         # total solvation energy applying constant to get units [kcal/mol]
-        factor_units = convert_units(units)
-        total_energy = 0.5 * factor_units * np.sum(self.q * phi_q).real
+        unit_conversion, unit_label = convert_units(units, magnitude="energy")
+        total_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q).real
         self.results["electrostatic_solvation_energy"] = total_energy
+        self.results["electrostatic_solvation_energy_units"] = unit_label
         self.timings["time_calc_elec_energy"] = time.time() - start_time
 
         if self.print_times:
@@ -609,8 +610,11 @@ class Solute:
         b = self.intercept_cav_nonpolar
 
         cavity_energy = gamma * sasa + b
-        factor_units = convert_units(units) / convert_units("kcal_mol")
+        unit_conversion, unit_label = convert_units(units, magnitude="energy")
+        unit_conversion_base, _ = convert_units("kcal_mol", magnitude="energy")
+        factor_units = unit_conversion / unit_conversion_base
         self.results["cavity_energy"] = factor_units * cavity_energy
+        self.results["cavity_energy_units"] = unit_label
 
     def calculate_dispersion_energy(self, sas_mesh_density=None, units="kcal_mol"):
         r"""Calculate the nonpolar dispersion energy based on the Solvent Accessible Surface Area (SASA).
@@ -639,8 +643,11 @@ class Solute:
         b = self.intercept_disp_nonpolar
 
         dispersion_energy = gamma * sasa + b
-        factor_units = convert_units(units) / convert_units("kcal_mol")
+        unit_conversion, unit_label = convert_units(units, magnitude="energy")
+        unit_conversion_base, _ = convert_units("kcal_mol", magnitude="energy")
+        factor_units = unit_conversion / unit_conversion_base
         self.results["dispersion_energy"] = factor_units * dispersion_energy
+        self.results["dispersion_energy_units"] = unit_label
 
     def calculate_gradient_field(self, h=0.001):
         r"""Compute the gradient vector (first-order spatial derivatives) of the reaction potential.
@@ -856,13 +863,15 @@ class Solute:
 
         dphidr = self.results["gradphir_charges"]
 
-        factor_units = convert_units(units)
+        unit_conversion, unit_label = convert_units(units, magnitude="force")
 
-        f_reac = factor_units * -np.transpose(np.transpose(dphidr) * self.q)
+        f_reac = unit_conversion * -np.transpose(np.transpose(dphidr) * self.q)
         f_reactotal = np.sum(f_reac, axis=0)
 
         self.results["f_qf_charges"] = f_reac
         self.results["f_qf"] = f_reactotal
+        self.results["f_qf_charges_units"] = unit_label
+        self.results["f_qf_units"] = unit_label
         self.timings["time_calc_solute_force"] = time.time() - start_time
 
         if self.print_times:
@@ -906,14 +915,14 @@ class Solute:
         phi = self.results["phi"].evaluate_on_element_centers()
         d_phi = self.results["d_phi"].evaluate_on_element_centers()
 
-        factor_units = convert_units(units)
+        unit_conversion, unit_label = convert_units(units, magnitude="force")
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
         if fdb_approx:
             # Dielectric boundary force
             f_db = (
                 -0.5
-                * factor_units
+                * unit_conversion
                 * (self.ep_ex - self.ep_in)
                 * (self.ep_in / self.ep_ex)
                 * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
@@ -972,12 +981,12 @@ class Solute:
                     * self.mesh.volumes[i]
                 )
 
-                f_db += factor_units * F
+                f_db += unit_conversion * F
 
         # Ionic boundary force
         f_ib = (
             -0.5
-            * factor_units
+            * unit_conversion
             * (self.ep_ex)
             * (self.kappa**2)
             * np.sum(np.transpose(np.transpose(dS) * phi[0] ** 2), axis=0)
@@ -985,6 +994,8 @@ class Solute:
 
         self.results["f_db"] = f_db
         self.results["f_ib"] = f_ib
+        self.results["f_db_units"] = unit_label
+        self.results["f_ib_units"] = unit_label
         self.timings["time_calc_boundary_force"] = time.time() - start_time
 
         if self.print_times:
@@ -1003,7 +1014,6 @@ class Solute:
     ):
         """Calculate total electrostatic solvation forces acting on the solute.
         Based on https://doi.org/10.1021/acs.jctc.3c00021
-        (change units conversion to kcal/mol/Å)
 
         Computes the forces using either a boundary-integral energy functional approach
         or an integration of the Maxwell stress tensor over the molecular surface mesh.
@@ -1037,18 +1047,21 @@ class Solute:
             if "f_qf" not in self.results:
                 self.calculate_gradient_field(h=h)
                 self.calculate_charges_forces(units=units)
+            if self.results["f_qf_units"] != units:
+                self.calculate_charges_forces(units=units)
 
             self.calculate_boundary_forces(fdb_approx=fdb_approx, units=units)
-
+            _, unit_label = convert_units(units, magnitude="force")
             start_time = time.time()
 
             f_solv = np.zeros([3])
             f_qf = self.results["f_qf"]
             f_db = self.results["f_db"]
             f_ib = self.results["f_ib"]
-            f_solv = f_qf + f_db + f_ib
 
+            f_solv = f_qf + f_db + f_ib
             self.results["f_solv"] = f_solv
+            self.results["f_solv_units"] = unit_label
             self.timings["time_calc_solvation_force"] = (
                 time.time()
                 - start_time
@@ -1068,7 +1081,10 @@ class Solute:
         elif force_formulation == "maxwell_tensor":
 
             if "f_ib" not in self.results:
-                self.calculate_boundary_forces()
+                self.calculate_boundary_forces(units=units)
+
+            if self.results["f_ib_units"] != units:
+                self.calculate_boundary_forces(units=units)
 
             start_time = time.time()
 
@@ -1080,7 +1096,7 @@ class Solute:
                 ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
             )
             total_force = np.zeros(3)
-            factor_units = convert_units("kcal_molA")
+            unit_conversion, unit_label = convert_units(units, magnitude="force")
 
             for i in range(N_elements):
                 eps = self.mesh.normals[i]
@@ -1133,8 +1149,12 @@ class Solute:
                     np.dot(F * self.mesh.volumes[i], F * self.mesh.volumes[i])
                 )
 
-            self.results["P_normal"] = factor_units * P_normal
-            self.results["f_solv"] = factor_units * total_force + self.results["f_ib"]
+            self.results["P_normal"] = unit_conversion * P_normal
+            self.results["P_normal_units"] = unit_label
+            self.results["f_solv"] = (
+                unit_conversion * total_force + self.results["f_ib"]
+            )
+            self.results["f_solv_units"] = unit_label
             self.timings["time_calc_solvation_force"] = time.time() - start_time
             if self.print_times:
                 print(
@@ -1265,6 +1285,26 @@ class Solute:
 
         self.sas_mesh = grid
 
+    def get_surface_potential_derivative(self, units="kcal_molA"):
+        if "phi" not in self.results:
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
+            return
+        unit_conversion, unit_label = convert_units(units, magnitude="d_potential")
+        print(f"Units {unit_label} for potential derivative")
+        return self.results["d_phi"].coefficients * unit_conversion
+
+    def get_surface_potential(self, units="kcal_mol"):
+        if "d_phi" not in self.results:
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
+            return
+        unit_conversion, unit_label = convert_units(units, magnitude="potential")
+        print(f"Units {unit_label} for potential")
+        return self.results["phi"].coefficients * unit_conversion
+
 
 def get_name_from_pdb(pdb_path):
     """Extract the solute name from the first line of a PDB file.
@@ -1288,42 +1328,89 @@ def get_name_from_pdb(pdb_path):
     return solute_name
 
 
-def convert_units(units):
-    """Computes the scalar conversion factor from standard atomic units ($\text{e}/\varepsilon_0\text{Å}$) to target units.
-
-    Supports conversion into SI millivolts, thermal voltage equivalents, or thermodynamic energy units per charge.
-
-    Args:
-        units (str): The desired output unit key identifier. Acceptable values include
-            'mV', 'kT_e', 'kJ_mol_e', 'kJ_mol', 'kJ_molA', 'kcal_mol_e', 'kcal_mol', 'kcal_molA', and 'e_eps0_angs'.
-
-    Returns:
-        float: Multiplicative scaling coefficient to transform the raw electrostatic potential value.
+def convert_units(units, magnitude="potential", temperature=298.15):
+    """Computes the scalar conversion factor from standard atomic units (e / eps0 / Å)
+    to target units for electrostatic properties.
     """
     units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
     units = units.replace("__", "_")
+    magnitude = str(magnitude).strip().lower()
 
     qe = 1.60217663e-19
     eps0 = 8.8541878128e-12
     ang_to_m = 1e-10
     kb = 1.380649e-23
-    kT = kb * 298.15  # Assuming temperature of 298.15 K
+    kT = kb * temperature
     Na = 6.02214076e23
 
     to_V = qe / (eps0 * ang_to_m)
 
-    if units == "mv":
-        unit_conversion = to_V * 1000
-    elif units == "kt_e":
-        unit_conversion = to_V / (kT / qe)
-    elif units in ["kj_mol_e", "kj_mol", "kj_molA"]:
-        unit_conversion = to_V * (qe * Na / 1000)
-    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola"]:
-        unit_conversion = to_V * (qe * Na / (4.184 * 1000))
-    elif units == "e_eps0_angs":
-        unit_conversion = 1.0
+    if units in ["mv_m", "mv_a", "mv"]:
+        factor_base, label_base = to_V * 1000, "mV"
+    elif units in ["v", "volt", "volts", "v_m", "v_a"]:
+        factor_base, label_base = to_V, "V"
+    elif units in ["kt_e", "kt_a", "kt"]:
+        factor_base, label_base = to_V / (kT / qe), "kT/e"
+    elif units in ["kj_mol_e", "kj_mol", "kj_mola", "kj_mol_a"]:
+        factor_base, label_base = to_V * (qe * Na / 1000), "kJ/mol"
+    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola", "kcal_mol_a"]:
+        factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
+    elif units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
+        factor_base, label_base = 1.0, "e/(eps0*A)"
+    elif units in ["pn"]:
+        if magnitude != "force":
+            raise ValueError(
+                f"Unit 'pN' is only valid for magnitude='force', not '{magnitude}'."
+            )
+        factor_base, label_base = (qe**2 / (eps0 * ang_to_m**2)) / 1e-12, "pN"
+        return factor_base, label_base
     else:
-        print("Units not recognized. Defaulting to mV")
-        unit_conversion = to_V * 1000
+        if magnitude in ["potential", "d_potential"]:
+            print(
+                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to mV."
+            )
+            factor_base, label_base = to_V * 1000, "mV"
+        else:
+            print(
+                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to kcal/mol."
+            )
+            factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
 
-    return unit_conversion
+    if magnitude == "potential":
+        if "mol" in label_base:
+            label_base += "/e"
+        return factor_base, label_base
+
+    elif magnitude in ["d_potential"]:
+        if units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
+            return 1.0, "e/(eps0*A**2)"
+        elif units in ["v_m"]:
+            return to_V / ang_to_m, "V/m"
+        elif units in ["mv_m"]:
+            return (to_V * 1000) / ang_to_m, "mV/m"
+        return factor_base, f"{label_base}/A"
+
+    elif magnitude == "energy":
+        if "mol" in label_base:
+            return factor_base, label_base
+        elif label_base == "kT/e":
+            return factor_base, "kT"
+        elif label_base == "e/(eps0*A)":
+            return 1.0, "e**2/(eps0*A)"
+        else:
+            return factor_base, f"{label_base}*e"
+
+    elif magnitude == "force":
+        if "mol" in label_base:
+            return factor_base, f"{label_base}/A"
+        elif label_base == "kT/e":
+            return factor_base, "kT/A"
+        elif label_base == "e/(eps0*A)":
+            return 1.0, "e**2/(eps0*A**2)"
+        else:
+            return factor_base, f"{label_base}*e/A"
+
+    else:
+        raise ValueError(
+            f"Magnitude '{magnitude}' not recognized. Choose from: potential, d_potential, energy, force."
+        )
