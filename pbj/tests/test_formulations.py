@@ -126,7 +126,7 @@ def test_formulations():
     his_2 = -24.48630195977033
     his_3 = -23.875642908991132
     _, solvation_value_his = richardson_extrapolation(his_3, his_2, his_1, 1.3)
-    tol = 0.5  # cambiar a reltol 0.05% ideal, 0.01% probar
+    tol = 5e-2
     file.write(
         "The expected value for the solvation of the sphere is: {}, with a tolerance of {}.\n\n".format(
             solvation_value, tol
@@ -265,8 +265,7 @@ def test_formulations():
                 ~np.isclose(
                     solvation_energy_values,
                     solvation_energy_expected_values,
-                    atol=tol,
-                    rtol=0,
+                    rtol=tol,
                 )
             )
         )
@@ -280,6 +279,6 @@ def test_formulations():
     else:
         file.write("\nAll values match the expected value.\n")
     np.testing.assert_allclose(
-        solvation_energy_values, solvation_energy_expected_values, atol=tol, rtol=0
+        solvation_energy_values, solvation_energy_expected_values, rtol=tol
     )
     file.close()

@@ -64,6 +64,7 @@ def test_multiple():
 
     energy_vals = []
     force_vals_mst = []
+    force_vals_ef = []
     for j in range(len(spheres1)):
         print(
             f"Calculating solvation energy/forces for mesh density {spheres1[j].mesh_density}"
@@ -79,10 +80,13 @@ def test_multiple():
         simulation_mult.calculate_solvation_forces(force_formulation="maxwell_tensor")
         f_solv_maxwell_tensor = spheres1[j].results["f_solv"]
         force_vals_mst.append(np.linalg.norm(f_solv_maxwell_tensor))
+
         simulation_mult.calculate_solvation_forces(
             force_formulation="energy_functional"
         )
         f_solv_energy_func = spheres1[j].results["f_solv"]
+        force_vals_ef.append(np.linalg.norm(f_solv_energy_func))
+
         simulation_mult.calculate_solvation_energy()
         energy_val_multiple = (
             spheres1[j].results["electrostatic_solvation_energy"]
@@ -99,19 +103,50 @@ def test_multiple():
 
     file.write("\n\nReference values (Paper JCTC 2023):\n")
     file.write("Force value (by virtual work) (kcal/molA): 1.9425 \n")
-    file.write("Binding energy value (kcal/mol): 3.9689 \n")
+    file.write("Binding energy value (kcal/mol): 3.9689 \n \n")
 
-    rel_energy_func = lambda E: (E - 3.9689) / 3.9689
-    rel_force_func = lambda E: (E - 1.9425) / 1.9425
-    rel_energy_vals = np.array([rel_energy_func(E) for E in energy_vals])
-    rel_force_vals = np.array([rel_force_func(E) for E in force_vals_mst])
-    p_vals_energy = (1 / np.log(2)) * np.log(rel_energy_vals[1:] / rel_energy_vals[:-1])
-    p_vals_force = (1 / np.log(2)) * np.log(rel_force_vals[1:] / rel_force_vals[:-1])
+    val_energy = (
+        np.log((energy_vals[2] - energy_vals[1]) / (energy_vals[1] - energy_vals[0]))
+    ) / np.log(2)
+    val_force_mst = (
+        np.log(
+            (force_vals_mst[2] - force_vals_mst[1])
+            / (force_vals_mst[1] - force_vals_mst[0])
+        )
+    ) / np.log(2)
+    val_force_ef = (
+        np.log(
+            (force_vals_ef[2] - force_vals_ef[1])
+            / (force_vals_ef[1] - force_vals_ef[0])
+        )
+    ) / np.log(2)
     file.write(
-        f"p- observed convergence value for energy (4,8,16): {[f'{abs(val):.4f}' for val in p_vals_energy]}\n"
+        f"p- observed convergence value for binding energy (2,4,8): {abs(val_energy):.4f}\n"
     )
     file.write(
-        f"p- observed convergence value for force (4,8,16): {[f'{abs(val):.4f}' for val in p_vals_force]}\n"
+        f"p- observed convergence value for force (Maxwell stresses) (2,4,8): {abs(val_force_mst):.4f}\n"
     )
+    file.write(
+        f"p- observed convergence value for force (Energy functional) (2,4,8): {abs(val_force_ef):.4f}\n"
+    )
+
+    reference_energy = 3.9689
+    reference_force = 1.9425
+    rel_error_energy = abs(energy_vals[-1] - reference_energy) / abs(reference_energy)
+    rel_error_force_mst = abs(force_vals_mst[-1] - reference_force) / abs(
+        reference_force
+    )
+    rel_error_force_ef = abs(force_vals_ef[-1] - reference_force) / abs(reference_force)
+    file.write(f"\nRelative error for binding energy: {rel_error_energy:.4e}\n")
+    file.write(
+        f"Relative error for force (Maxwell stresses): {rel_error_force_mst:.4e}\n"
+    )
+    file.write(
+        f"Relative error for force (Energy functional): {rel_error_force_ef:.4e}\n"
+    )
+
+    np.testing.assert_allclose(energy_vals[-1], reference_energy, rtol=5e-3)
+    np.testing.assert_allclose(force_vals_mst[-1], reference_force, rtol=5e-2)
+    np.testing.assert_allclose(force_vals_ef[-1], reference_force, rtol=5e-2)
 
     file.close()
