@@ -470,6 +470,7 @@ def calculate_solvation_energy_polarizable(solute):
     solute.results["electrostatic_solvation_energy"] = (
         solvent_energy + coulomb_energy_dissolved - coulomb_energy_vacuum
     )
+    solute.results["electrostatic_solvation_energy_units"] = "kcal/mol"
     solute.timings["time_calc_energy"] = time.time() - start_time
 
     if solute.print_times:

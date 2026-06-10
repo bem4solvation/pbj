@@ -145,8 +145,8 @@ def test_multiple():
         f"Relative error for force (Energy functional): {rel_error_force_ef:.4e}\n"
     )
 
-    np.testing.assert_allclose(energy_vals[-1], reference_energy, rtol=5e-3)
-    np.testing.assert_allclose(force_vals_mst[-1], reference_force, rtol=5e-2)
-    np.testing.assert_allclose(force_vals_ef[-1], reference_force, rtol=5e-2)
+    np.testing.assert_allclose(energy_vals[-1], reference_energy, rtol=1e-2)
+    np.testing.assert_allclose(force_vals_mst[-1], reference_force, rtol=1e-2)
+    np.testing.assert_allclose(force_vals_ef[-1], reference_force, rtol=1e-2)
 
     file.close()

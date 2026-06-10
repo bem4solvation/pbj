@@ -126,9 +126,9 @@ def test_single():
 
     rel_energy_func = lambda E: (E - solvation_value) / solvation_value
     rel_energy_vals = np.array([rel_energy_func(E) for E in energy_vals])
-    p_vals = (1 / np.log(2)) * np.log(rel_energy_vals[1:] / rel_energy_vals[:-1])
+    p_vals_energy = (1 / np.log(2)) * np.log(rel_energy_vals[1:] / rel_energy_vals[:-1])
     file.write(
-        f"p-analytical convergence value for energy (4,8,16): {[f'{abs(val):.4f}' for val in p_vals]}\n"
+        f"p-analytical convergence value for energy (4,8,16): {[f'{abs(val):.4f}' for val in p_vals_energy]}\n"
     )
 
     qe = 1.60217663e-19
@@ -179,24 +179,38 @@ def test_single():
         lambda phi: (phi - analytical_potential[-3]) / analytical_potential[-3]
     )
     rel_potential_vals = np.array([rel_potential(phi) for phi in vals_solv_p])
-    p_vals = (1 / np.log(2)) * np.log(rel_potential_vals[1:] / rel_potential_vals[:-1])
+    p_vals_potential = (1 / np.log(2)) * np.log(
+        rel_potential_vals[1:] / rel_potential_vals[:-1]
+    )
     file.write(
-        f"p-analytical convergence value for potential at 1.2 A (4,8,16): {[f'{abs(val):.4f}' for val in p_vals]}\n"
+        f"p-analytical convergence value for potential at 1.2 A (4,8,16): {[f'{abs(val):.4f}' for val in p_vals_potential]}\n"
     )
 
     # Calculate and print relative errors
-    rel_error_energy = abs(energy_vals[-1] - solvation_value) / abs(solvation_value)
+    energy_val_extrapolated = energy_vals[-1] + (energy_vals[-1] - energy_vals[-2]) / (
+        (2) ** 1 - 1
+    )
+    rel_error_energy = abs(energy_val_extrapolated - solvation_value) / abs(
+        solvation_value
+    )
     rel_error_potential = abs(vals_solv_p[-1] - analytical_potential[-3]) / abs(
         analytical_potential[-3]
     )
 
-    print(f"\nRelative error for solvation energy: {rel_error_energy:.4e}")
+    print(
+        f"\nRelative error for solvation energy (extrapolated r=1): {rel_error_energy:.4e}"
+    )
     print(f"Relative error for potential at 1.2 A: {rel_error_potential:.4e}")
 
-    file.write(f"\nRelative error for solvation energy: {rel_error_energy:.4e}\n")
+    file.write(
+        f"\nExtrapolated solvation energy at r=1: {energy_val_extrapolated:.4f} kcal/mol\n"
+    )
+    file.write(
+        f"\nRelative error for solvation energy (extrapolated r=1): {rel_error_energy:.4e}\n"
+    )
     file.write(f"Relative error for potential at 1.2 A: {rel_error_potential:.4e}\n")
 
-    np.testing.assert_allclose(energy_vals[-1], solvation_value, rtol=5e-2)
-    np.testing.assert_allclose(vals_solv_p[-1], analytical_potential[-3], rtol=5e-2)
+    np.testing.assert_allclose(energy_val_extrapolated, solvation_value, rtol=1e-2)
+    np.testing.assert_allclose(vals_solv_p[-1], analytical_potential[-3], rtol=1e-2)
 
     file.close()
