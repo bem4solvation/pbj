@@ -7,6 +7,8 @@ from .mesh_tools import (
     convert_pqr2xyzr,
     generate_nanoshaper_mesh,
     import_msms_mesh,
+    fix_mesh,
+    check_cavity,
 )
 
 
@@ -136,15 +138,20 @@ def generate_msms_mesh_import_charges(solute):
             solute.nanoshaper_grid_scale,
             solute.mesh_probe_radius,
             solute.save_mesh_build_files,
+            cavity_cutoff=solute.cavity_cutoff,
+            fill_cavities=solute.fill_cavities,
         )
 
     mesh_off_path = os.path.join(mesh_dir, solute.solute_name + ".off")
 
-    # Esta cuestionable, al parecer era codigo de bempp legacy, pero ahora no es necesario
-    # convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path)
-
     grid = import_msms_mesh(mesh_face_path, mesh_vert_path)
     q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
+
+    grid = check_cavity(
+        grid, fill_cavities=solute.fill_cavities, volume_cutoff=solute.cavity_cutoff
+    )
+    if solute.mesh_generator == "msms":
+        grid = fix_mesh(grid)
 
     if solute.save_mesh_build_files:
         if solute.imported_file_type == "pdb":
@@ -930,14 +937,19 @@ def generate_msms_mesh_import_tinker_multipoles(solute):
             solute.nanoshaper_grid_scale,
             solute.mesh_probe_radius,
             solute.save_mesh_build_files,
+            cavity_cutoff=solute.cavity_cutoff,
+            fill_cavities=solute.fill_cavities,
         )
 
     mesh_off_path = os.path.join(mesh_dir, solute.solute_name + ".off")
 
-    # Esta cuestionable, al parecer era codigo de bempp legacy, pero ahora no es necesario
-    # convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path)
-
     grid = import_msms_mesh(mesh_face_path, mesh_vert_path)
+
+    grid = check_cavity(
+        grid, fill_cavities=solute.fill_cavities, volume_cutoff=solute.cavity_cutoff
+    )
+    if solute.mesh_generator == "msms":
+        grid = fix_mesh(grid)
 
     if solute.save_mesh_build_files:
         solute.mesh_xyzr_path = mesh_xyzr_path

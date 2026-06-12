@@ -31,6 +31,8 @@ class Solute:
         formulation="direct",
         radius_keyword="solute",
         solute_radius_type="PB",
+        fill_cavities=True,
+        cavity_cutoff=11.4,
     ):
         """Initializes the Solute object, sets up simulation parameters,
         and handles mesh/charge loading.
@@ -111,6 +113,8 @@ class Solute:
                 )
         self.mesh_probe_radius = solvent_radius
         self.mesh_generator = mesh_generator
+        self.fill_cavities = fill_cavities
+        self.cavity_cutoff = cavity_cutoff
 
         self.print_times = print_times
 

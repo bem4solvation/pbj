@@ -8,19 +8,60 @@ import platform
 import shutil
 
 
-def fix_mesh(mesh):
-    r"""Iteratively attempts to repair a surface mesh using vertex merging and hole filling.
+def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
 
-    Applies `trimesh` healing operations and iteratively identifies broken faces,
-    merging vertices that lie within a small tolerance to ensure the final surface
-    is closed and watertight.
+    mesh_raw = trimesh.Trimesh(vertices=mesh.vertices.T, faces=mesh.elements.T)
+    mesh_split = mesh_raw.split()
+    if len(mesh_split) == 1 or not fill_cavities:
+        print("No cavities detected in the mesh")
+        return mesh
+
+    largest_mesh = max(mesh_split, key=lambda m: m.volume)
+    idx_remove = []
+    for i in range(len(mesh_split)):  # remove mesh cavities off the largest one
+        if not any(
+            largest_mesh.contains(mesh_split[i].vertices[0:1, :])
+        ):  # evaluate one point to discarf
+            idx_remove.append(i)
+            print(
+                "Cavity far off the largest mesh detected and removed with volume {:.2f}.".format(
+                    mesh_split[i].volume
+                )
+            )
+        if abs(mesh_split[i].volume) < volume_cutoff:
+            idx_remove.append(i)
+            print(
+                "Small inner cavity detected and removed with volume {:.2f}.".format(
+                    mesh_split[i].volume
+                )
+            )
+    mesh_split = [mesh_split[i] for i in range(len(mesh_split)) if i not in idx_remove]
+    print("{} cavities detected and removed.".format(len(idx_remove)))
+
+    return bempp_cl.api.Grid(largest_mesh.vertices.T, largest_mesh.faces.T)
+
+
+def fix_mesh(mesh):
+    r"""Loads a mesh from text files and iteratively attempts to repair it into a watertight surface.
+
+    This function reads face indices and vertex coordinates from separate text files,
+    initializes a `trimesh` object, and applies initial healing operations. If the mesh
+    is not watertight, it runs an iterative loop to identify broken faces and snap/merge
+    vertices that lie within a small distance tolerance.
 
     Args:
-        mesh (trimesh.Trimesh): The original surface mesh object to be repaired.
+        mesh_face_path (str): File path to the text file containing the face indices.
+        mesh_vert_path (str): File path to the text file containing the vertex
+            coordinates (X, Y, Z).
 
     Returns:
-        trimesh.Trimesh): The processed mesh object after applying iterative repair protocols.
+        trimesh.Trimesh: The repaired and processed mesh object.
+
+    Notes:
+        Prints a warning to the console if the mesh cannot be made completely
+        watertight within the maximum iteration limit (20).
     """
+    mesh = trimesh.Trimesh(vertices=mesh.vertices.T, faces=mesh.elements.T)
     mesh.fill_holes()
     mesh.process()
     iter_limit = 20
@@ -37,10 +78,10 @@ def fix_mesh(mesh):
                         mesh.vertices[nf] = mesh.vertices[vert_nf[c]]
         iteration += 1
     if iteration > iter_limit - 1:
-        print(" not watertight")
+        print("Warning: Mesh is not watertight")
     mesh.fill_holes()
     mesh.process()
-    return mesh
+    return bempp_cl.api.Grid(mesh.vertices.T, mesh.faces.T)
 
 
 # Revisar función, elegir paquete correcto o buscar opción de ejecutable:
@@ -151,6 +192,8 @@ def generate_nanoshaper_mesh(
     density,
     probe_radius,
     save_mesh_build_files,
+    cavity_cutoff=11.4,
+    fill_cavities=True,
 ):
     """Generates a molecular surface mesh using NanoShaper via a temporary workspace.
 
@@ -166,6 +209,8 @@ def generate_nanoshaper_mesh(
         probe_radius (float): Rolling probe sphere radius used to construct the analytical interface.
         save_mesh_build_files (bool): If True, retains the raw NanoShaper working directory
             (`/nanotemp`) instead of deleting it.
+        cavity_cutoff (float): Cutoff value for cavity detection.
+        fill_cavities (bool): If True, fills detected cavities.
 
     Returns:
         None
@@ -190,6 +235,16 @@ def generate_nanoshaper_mesh(
             line = "Grid_scale = {:04.1f} \n".format(density)
         elif "Probe_Radius" in line:
             line = "Probe_Radius = {:03.1f} \n".format(probe_radius)
+        elif "Conditional_Volume_Filling_Value" in line:
+            line = "Conditional_Volume_Filling_Value = {:03.1f} \n".format(
+                cavity_cutoff
+            )
+            print(line)
+        elif "Cavity_Detection_Filling" in line:
+            line = "Cavity_Detection_Filling = {:s} \n".format(
+                str(fill_cavities).lower()
+            )
+            print(line)
 
         config_file.write(line)
 
