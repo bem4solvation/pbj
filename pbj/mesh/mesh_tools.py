@@ -9,7 +9,27 @@ import shutil
 
 
 def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
+    r"""Detects, filters, and removes internal or isolated cavities within a mesh.
 
+        Splits a disconnected mesh into its separate connected components, treating the
+        largest component as the main body. The remaining components (cavities) are 
+        evaluated and removed if they reside outside the main body or fall below a 
+        specified volume threshold.
+
+        Args:
+            mesh (object): The input mesh object containing `.vertices.T` and 
+                `.elements.T` attributes compatible with trimesh initialization.
+            fill_cavities (bool, optional): If True, proceeds with cavity detection 
+                and filtering. If False, skips processing and returns the original mesh. 
+                Defaults to True.
+            volume_cutoff (float, optional): The volume threshold below which smaller 
+                internal cavities will be flagged for removal. Defaults to 11.4.
+
+        Returns:
+            bempp_cl.api.Grid or object: A new BEMPP Grid object generated from the 
+                cleaned largest mesh component, or the original input mesh if no 
+                cavities were processed.
+    """
     mesh_raw = trimesh.Trimesh(vertices=mesh.vertices.T, faces=mesh.elements.T)
     mesh_split = mesh_raw.split()
     if len(mesh_split) == 1 or not fill_cavities:
@@ -21,14 +41,14 @@ def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
     for i in range(len(mesh_split)):  # remove mesh cavities off the largest one
         if not any(
             largest_mesh.contains(mesh_split[i].vertices[0:1, :])
-        ):  # evaluate one point to discarf
+        ):  # evaluate one point to discard
             idx_remove.append(i)
             print(
                 "Cavity far off the largest mesh detected and removed with volume {:.2f}.".format(
                     mesh_split[i].volume
                 )
             )
-        if abs(mesh_split[i].volume) < volume_cutoff:
+        if abs(mesh_split[i].volume) > volume_cutoff:
             idx_remove.append(i)
             print(
                 "Small inner cavity detected and removed with volume {:.2f}.".format(
@@ -239,13 +259,10 @@ def generate_nanoshaper_mesh(
             line = "Conditional_Volume_Filling_Value = {:03.1f} \n".format(
                 cavity_cutoff
             )
-            print(line)
         elif "Cavity_Detection_Filling" in line:
             line = "Cavity_Detection_Filling = {:s} \n".format(
                 str(fill_cavities).lower()
             )
-            print(line)
-
         config_file.write(line)
 
     config_file.close()
