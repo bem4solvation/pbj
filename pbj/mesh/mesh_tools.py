@@ -48,7 +48,7 @@ def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
                     mesh_split[i].volume
                 )
             )
-        if abs(mesh_split[i].volume) > volume_cutoff:
+        if abs(mesh_split[i].volume) > volume_cutoff and mesh_split[i].volume != largest_mesh.volume:
             idx_remove.append(i)
             print(
                 "Small inner cavity detected and removed with volume {:.2f}.".format(
