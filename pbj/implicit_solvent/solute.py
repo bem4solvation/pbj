@@ -1337,23 +1337,23 @@ def convert_units(units, magnitude="potential", temperature=298.15):
     to target units for electrostatic properties.
 
     Normalizes the input unit string and scales the base electrostatic values based
-    on the physical magnitude of interest (potential, derivative of potential, energy, 
+    on the physical magnitude of interest (potential, derivative of potential, energy,
     or force) and the system temperature.
 
     Args:
-        units (str/object): The target unit identifier string (e.g., 'mV', 'kcal_mol', 
+        units (str/object): The target unit identifier string (e.g., 'mV', 'kcal_mol',
             'kT', 'V_m'). Is automatically cleaned and normalized to lowercase.
-        magnitude (str, optional): The physical property type being converted. 
-            Must be one of: 'potential', 'd_potential', 'energy', 'force'. 
+        magnitude (str, optional): The physical property type being converted.
+            Must be one of: 'potential', 'd_potential', 'energy', 'force'.
             Defaults to "potential".
-        temperature (float, optional): The absolute temperature in Kelvin, used 
+        temperature (float, optional): The absolute temperature in Kelvin, used
             primarily for thermal energy ($kT$) scaling. Defaults to 298.15.
 
     Returns:
         tuple: A tuple containing:
-            - factor_base (float): The scalar multiplier to convert values from 
+            - factor_base (float): The scalar multiplier to convert values from
               atomic units to the target unit system.
-            - label_base (str): The properly formatted string representation of 
+            - label_base (str): The properly formatted string representation of
               the resulting unit label.
 
     Raises:

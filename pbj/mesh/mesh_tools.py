@@ -11,24 +11,24 @@ import shutil
 def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
     r"""Detects, filters, and removes internal or isolated cavities within a mesh.
 
-        Splits a disconnected mesh into its separate connected components, treating the
-        largest component as the main body. The remaining components (cavities) are 
-        evaluated and removed if they reside outside the main body or fall below a 
-        specified volume threshold.
+    Splits a disconnected mesh into its separate connected components, treating the
+    largest component as the main body. The remaining components (cavities) are
+    evaluated and removed if they reside outside the main body or fall below a
+    specified volume threshold.
 
-        Args:
-            mesh (object): The input mesh object containing `.vertices.T` and 
-                `.elements.T` attributes compatible with trimesh initialization.
-            fill_cavities (bool, optional): If True, proceeds with cavity detection 
-                and filtering. If False, skips processing and returns the original mesh. 
-                Defaults to True.
-            volume_cutoff (float, optional): The volume threshold below which smaller 
-                internal cavities will be flagged for removal. Defaults to 11.4.
+    Args:
+        mesh (object): The input mesh object containing `.vertices.T` and
+            `.elements.T` attributes compatible with trimesh initialization.
+        fill_cavities (bool, optional): If True, proceeds with cavity detection
+            and filtering. If False, skips processing and returns the original mesh.
+            Defaults to True.
+        volume_cutoff (float, optional): The volume threshold below which smaller
+            internal cavities will be flagged for removal. Defaults to 11.4.
 
-        Returns:
-            bempp_cl.api.Grid or object: A new BEMPP Grid object generated from the 
-                cleaned largest mesh component, or the original input mesh if no 
-                cavities were processed.
+    Returns:
+        bempp_cl.api.Grid or object: A new BEMPP Grid object generated from the
+            cleaned largest mesh component, or the original input mesh if no
+            cavities were processed.
     """
     mesh_raw = trimesh.Trimesh(vertices=mesh.vertices.T, faces=mesh.elements.T)
     mesh_split = mesh_raw.split()
@@ -48,7 +48,10 @@ def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
                     mesh_split[i].volume
                 )
             )
-        if abs(mesh_split[i].volume) > volume_cutoff and mesh_split[i].volume != largest_mesh.volume:
+        if (
+            abs(mesh_split[i].volume) > volume_cutoff
+            and mesh_split[i].volume != largest_mesh.volume
+        ):
             idx_remove.append(i)
             print(
                 "Small inner cavity detected and removed with volume {:.2f}.".format(
