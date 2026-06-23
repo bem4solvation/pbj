@@ -2,7 +2,7 @@ import bempp_cl as bempp
 import bempp_cl.api
 import time
 import trimesh
-
+import pbj.mesh.plotting_tools as plotting_tools
 import numpy as np
 import pbj.implicit_solvent.solute
 import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
@@ -900,6 +900,67 @@ class Simulation:
                 )
 
             solute.results["phi_ens"] = phi_ens
+
+    def plot_surface_values(
+        self,
+        values="phi",
+        units="kt",
+        max_colorbar_scale=1,
+        name="plot_surface.png",
+        savefig=True,
+        location="ses",
+        show_axis=True,
+        camera_view=None,
+        isosurface_potential=None,
+        min_max_vals=None,
+        figsize=(900, 800),
+    ):
+
+        if len(self.solutes) == 0:
+            print("Simulation has no solutes loaded")
+            return
+
+        if "phi" not in self.solutes[0].results:
+            # If surface potential has not been calculated, calculate it now
+            self.calculate_surface_potential()
+
+        if isosurface_potential:
+            bboxes = np.array([solute.mesh.bounding_box for solute in self.solutes])
+            x_min, y_min, z_min = bboxes[:, :, 0].min(axis=0)
+            x_max, y_max, z_max = bboxes[:, :, 1].max(axis=0)
+            extension, ref = 10, 25j
+            X, Y, Z = np.mgrid[
+                (x_min - extension) : (x_max + extension) : ref,
+                (y_min - extension) : (y_max + extension) : ref,
+                (z_min - extension) : (z_max + extension) : ref,
+            ]
+            coordinates = [X, Y, Z]
+            potential, _ = self.calculate_potential_solvent(
+                np.stack((X.ravel(), Y.ravel(), Z.ravel()), axis=1), units=units
+            )
+            isosurface_potential_vals = (
+                coordinates,
+                potential,
+                isosurface_potential,
+            )
+        else:
+            isosurface_potential_vals = (None, None, None)
+
+        plotting_tools.plot_multiple_surfaces(
+            self,
+            values=values,
+            units=units,
+            max_colorbar_scale=max_colorbar_scale,
+            name=name,
+            savefig=savefig,
+            location=location,
+            show_axis=show_axis,
+            camera_view=camera_view,
+            isosurface_potential_vals=isosurface_potential_vals,
+            min_max_vals=min_max_vals,
+            figsize=figsize,
+        )
+        return None
 
 
 def convert_units(units, magnitude="potential", temperature=298.15):
