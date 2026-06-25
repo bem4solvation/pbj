@@ -2,6 +2,7 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+
 """Lü formulation for the Poisson-Boltzmann problem.
 
 This module implements the scaled first-kind boundary-integral formulation and its

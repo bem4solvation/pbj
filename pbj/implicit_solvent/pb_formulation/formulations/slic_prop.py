@@ -1,6 +1,7 @@
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
+
 """SLIC-prop formulation for the Stern-layer PB problem.
 
 This module extends SLIC by updating additional Stern-layer properties during the

@@ -2,6 +2,7 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+
 """Direct permuted formulation for the Poisson-Boltzmann problem.
 
 This module implements the direct formulation with a permuted unknown ordering,

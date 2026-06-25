@@ -1,6 +1,7 @@
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
+
 """SLIC formulation for implicit-solvent electrostatics.
 
 This module implements the SLIC approach, including the coupled Stern-layer update

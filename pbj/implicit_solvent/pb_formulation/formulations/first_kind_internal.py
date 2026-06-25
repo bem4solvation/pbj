@@ -2,6 +2,7 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+
 """First-kind boundary integral formulation for interior PB problems.
 
 This module assembles the first-kind boundary system for the interior dielectric

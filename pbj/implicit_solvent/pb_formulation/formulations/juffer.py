@@ -2,6 +2,7 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+
 """Juffer-style formulation for the Poisson-Boltzmann problem.
 
 This module constructs the coupled boundary-integral system used by the Juffer

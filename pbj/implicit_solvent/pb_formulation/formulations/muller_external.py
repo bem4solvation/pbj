@@ -1,6 +1,7 @@
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
+
 """Müller external formulation for the Poisson-Boltzmann problem.
 
 This module implements the exterior Müller formulation, assembling the operator
