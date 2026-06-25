@@ -60,6 +60,7 @@ class Simulation:
         self.slic_tolerance = 1e-4
 
         self.solutes = list()
+        self.solutes_names = list()
         self.matrices = dict()
         self.rhs = dict()
         self.timings = dict()
@@ -154,7 +155,7 @@ class Simulation:
             for index, solute in enumerate(self.solutes):
                 solute.kappa = self.kappa
 
-    def add_solute(self, solute):
+    def add_solute(self, solute, name=None):
         """Registers a solute molecule into the simulation context and synchronizes parameters.
 
         Validates that the provided object conforms to the expected `Solute` specification,
@@ -163,6 +164,7 @@ class Simulation:
 
         Args:
             solute (Solute): An instance of the `pbj.implicit_solvent.solute.Solute` class to be modeled.
+            name (str):
 
         Raises:
             ValueError: If the input object is not an instance of the `Solute` class or lacks
@@ -201,6 +203,10 @@ class Simulation:
                         )
                     self.pb_formulation = "direct_amoeba"
                 self.solutes.append(solute)
+                if isinstance(name, str):
+                    self.solutes_names.append(name)
+                else:
+                    self.solutes_names.append(solute.solute_name)
         else:
             raise ValueError(
                 "Given object is not of the 'Solute' class or pdb/pqr file not correctly loaded."
@@ -914,6 +920,8 @@ class Simulation:
         isosurface_potential=None,
         min_max_vals=None,
         figsize=(900, 800),
+        solutes_names=None,
+        internal_derivative_plot=False,
     ):
 
         if len(self.solutes) == 0:
@@ -923,6 +931,24 @@ class Simulation:
         if "phi" not in self.solutes[0].results:
             # If surface potential has not been calculated, calculate it now
             self.calculate_surface_potential()
+        if solutes_names:
+            if isinstance(solutes_names[0], int):
+                solutes_plot = [
+                    index
+                    for index in range(len(self.solutes_names))
+                    if index in solutes_names
+                ]
+            elif isinstance(solutes_names[0], str):
+                solutes_plot = [
+                    solute for solute in self.solutes_names if solute in solutes_names
+                ]
+        else:
+            solutes_plot = self.solutes_names
+        if len(solutes_plot) == 0:
+            print("Check valid solute name/index before plotting")
+            return
+
+        print(f"Plotting solutes {solutes_plot}")
 
         if isosurface_potential:
             bboxes = np.array([solute.mesh.bounding_box for solute in self.solutes])
@@ -959,6 +985,8 @@ class Simulation:
             isosurface_potential_vals=isosurface_potential_vals,
             min_max_vals=min_max_vals,
             figsize=figsize,
+            solutes_plot=solutes_plot,
+            internal_derivative_plot=internal_derivative_plot,
         )
         return None
 

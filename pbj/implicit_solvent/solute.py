@@ -7,7 +7,6 @@ import time
 import shutil
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.mesh.plotting_tools as plotting_tools
 import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
 import pbj.implicit_solvent.utils as utils
 
@@ -1290,16 +1289,27 @@ class Solute:
 
         self.sas_mesh = grid
 
-    def get_surface_potential_derivative(self, units="kcal_molA", print_units=True):
+    def get_surface_potential_derivative(
+        self, units="kcal_molA", print_units=True, internal_derivative=False
+    ):
+
         if "phi" not in self.results:
             print(
                 "Please compute surface potential first with simulation.calculate_potentials()"
             )
             return
+        factor_ep = 1
+        if internal_derivative:
+            factor_ep = self.ep_in / self.ep_ex
+
         unit_conversion, unit_label = convert_units(units, magnitude="d_potential")
         if print_units:
             print(f"Units {unit_label} for potential")
-        return self.results["d_phi"].coefficients * unit_conversion, unit_label
+
+        return (
+            self.results["d_phi"].coefficients * unit_conversion * factor_ep,
+            unit_label,
+        )
 
     def get_surface_potential(self, units="kcal_mol", print_units=True):
         if "d_phi" not in self.results:
@@ -1311,66 +1321,6 @@ class Solute:
         if print_units:
             print(f"Units {unit_label} for potential")
         return self.results["phi"].coefficients * unit_conversion, unit_label
-
-    def plot_surface_values(
-        self,
-        values="phi",
-        units="kt",
-        max_colorbar_scale=1,
-        name="plot_surface.png",
-        savefig=True,
-        location="ses",
-        show_axis=True,
-        camera_view=None,
-        min_max_vals=None,
-    ):
-
-        if values not in self.results:
-            print(
-                f"Please compute {values} first with simulation.calculate_surface_potential()"
-            )
-            return
-
-        if location == "stern" and not self.stern_object:
-            print(
-                "Stern layer not included, please rerun simulation with stern_layer=True. Defaulting to SES"
-            )
-
-        if self.stern_object and location == "stern":
-            stern_mesh = self.stern_object.mesh
-        else:
-            stern_mesh = None
-
-        if values == "phi":
-            phi_vertices, unit_label = self.get_surface_potential(
-                units=units, print_units=False
-            )
-        elif values == "d_phi":
-            phi_vertices, unit_label = self.get_surface_potential_derivative(
-                units=units, print_units=False
-            )
-        else:
-            print("Unrecognized values, using phi as example")
-            values = "phi"
-            phi_vertices, unit_label = self.get_surface_potential(
-                units=units, print_units=False
-            )
-
-        surfaces_values = np.mean(phi_vertices[self.mesh.elements.T], axis=1)
-
-        plotting_tools.plot_surface(
-            self,
-            surfaces_values,
-            values=values,
-            units=unit_label,
-            max_colorbar_scale=max_colorbar_scale,
-            name=name,
-            savefig=savefig,
-            stern_mesh=stern_mesh,
-            show_axis=show_axis,
-            camera_view=camera_view,
-            min_max_vals=min_max_vals,
-        )
 
 
 def get_name_from_pdb(pdb_path):
