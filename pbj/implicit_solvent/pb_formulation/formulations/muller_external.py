@@ -1,6 +1,12 @@
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
+"""Müller external formulation for the Poisson-Boltzmann problem.
+
+This module implements the exterior Müller formulation, assembling the operator
+and source terms required to solve the exterior PB boundary system.
+"""
+
 from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 

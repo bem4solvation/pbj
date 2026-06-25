@@ -3,6 +3,12 @@ import bempp_cl as bempp
 import bempp_cl.api
 import os
 import shutil
+"""Direct formulation with a Stern-layer interface.
+
+This module extends the direct PB system with an additional Stern surface so that
+ion-exclusion effects can be represented through a two-interface boundary problem.
+"""
+
 from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 import pbj
 from .common import calculate_potential_stern

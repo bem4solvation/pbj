@@ -1,4 +1,10 @@
-# import bempp.api
+r"""Shared helpers for the Poisson-Boltzmann formulation modules.
+
+This module collects the common solve-and-postprocess routines used by the
+single-surface and Stern-layer formulations, including potential reconstruction
+and the shared workflow for running the boundary-element solve.
+"""
+
 import numpy as np
 import time
 import pbj.implicit_solvent.utils as utils

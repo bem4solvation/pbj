@@ -2,6 +2,12 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+"""First-kind boundary integral formulation for exterior PB problems.
+
+This module builds the first-kind boundary system for the exterior dielectric region
+and exposes the associated preconditioners and potential reconstruction helpers.
+"""
+
 from bempp_cl.api.operators.boundary import laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 

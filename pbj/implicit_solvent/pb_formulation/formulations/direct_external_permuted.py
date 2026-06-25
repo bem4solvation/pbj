@@ -1,3 +1,9 @@
+"""Direct external permuted formulation for the Poisson-Boltzmann problem.
+
+The permuted variant rearranges the boundary unknowns to expose the exterior
+operator structure more directly in the assembled system.
+"""
+
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api

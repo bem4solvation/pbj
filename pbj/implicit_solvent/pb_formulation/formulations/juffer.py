@@ -2,6 +2,12 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+"""Juffer-style formulation for the Poisson-Boltzmann problem.
+
+This module constructs the coupled boundary-integral system used by the Juffer
+formulation, combining interior and exterior operators in a single blocked system.
+"""
+
 from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 

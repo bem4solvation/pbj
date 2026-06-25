@@ -34,8 +34,11 @@ class Solute:
         fill_cavities=True,
         cavity_cutoff=60,
     ):
-        """Initializes the Solute object, sets up simulation parameters,
-        and handles mesh/charge loading.
+        """Initialize a solute object, configure solver parameters, and load mesh/charge data.
+
+        The constructor imports the requested structure file, generates or loads a surface mesh,
+        and initializes the electrostatic formulation, radii, and cavity settings used later
+        by the Poisson-Boltzmann workflow.
 
         Args:
             solute_file_path (str): Path to the molecular structure file (.pdb, .pqr, or .xyz).
@@ -57,12 +60,23 @@ class Solute:
                 for benchmarking. Defaults to False.
             force_field (str, optional): Force field model to apply (e.g., "amber", "amoeba").
                 Defaults to "amber".
-            formulation (str, optional): Electrostatic formulation type to be used
-                by pb_formulations. Defaults to "direct".
-            radius_keyword (str, optional): Keyword identifier for atom radii selection.
+            formulation (str, optional): Electrostatic formulation type used by the PB solver.
+                Common choices include "direct", "direct_external", "direct_permuted",
+                "direct_external_permuted", "direct_stern", "direct_amoeba",
+                "alpha_beta", "alpha_beta_external_potential",
+                "alpha_beta_single_blocked", "first_kind_external",
+                "first_kind_internal", "juffer", "lu", "muller_external",
+                "muller_internal", "slic", and "slic_prop". Use
+                display_available_formulations() to print the full set of supported
+                formulations at runtime. Defaults to "direct".
+            radius_keyword (str, optional): Keyword used to select atom radii from the input data.
                 Defaults to "solute".
-            solute_radius_type (str, optional): Target type for the solute atom radii classification.
+            solute_radius_type (str, optional): Target classification for the solute radii.
                 Defaults to "PB".
+            fill_cavities (bool, optional): If True, include cavity-filling behavior during mesh setup.
+                Defaults to True.
+            cavity_cutoff (int, optional): Cutoff value used in cavity-filling logic.
+                Defaults to 60.
 
         Raises:
             ValueError: If the specified formulation does not match any available
@@ -461,6 +475,8 @@ class Solute:
                                                  solvation energy component. Defaults to True.
             nonpolar_energy (bool, optional): If True, computes the nonpolar (cavity + dispersion)
                                               solvation energy component. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned energy values. Defaults to "kcal_mol".
 
         Side Effects:
             - Triggers `self.calculate_electrostatic_solvation_energy()` if `electrostatic_energy` is True.
@@ -495,6 +511,10 @@ class Solute:
 
         If the polarizable AMOEBA force field is active, the calculation is automatically
         delegated to a specialized polarizable energy formulation handler.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed electrostatic solvation energy. Defaults to "kcal_mol".
 
         Side Effects:
             - Modifies `self.results["phir_charges"]` to store the reaction potential evaluated at each charge.
@@ -558,6 +578,8 @@ class Solute:
             sas_mesh_density (float, optional): Density parameter passed down to the
                                                 SAS mesh generator if the mesh has not
                                                 yet been constructed. Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed nonpolar solvation energy. Defaults to "kcal_mol".
 
         Side Effects:
             - Triggers `self.calculate_cavity_energy(sas_mesh_density, units=units)`.
@@ -599,6 +621,8 @@ class Solute:
             sas_mesh_density (float, optional): Density parameter passed to `create_sas_mesh`
                                                 if the SAS mesh hasn't been generated yet.
                                                 Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed cavity energy. Defaults to "kcal_mol".
 
         Side Effects:
             - If `self.sas_mesh` is missing, triggers `self.create_sas_mesh(sas_mesh_density)`.
@@ -631,6 +655,8 @@ class Solute:
             sas_mesh_density (float, optional): Density parameter passed to `create_sas_mesh`
                                                 if the SAS mesh hasn't been generated yet.
                                                 Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed dispersion energy. Defaults to "kcal_mol".
 
         Side Effects:
             - If `self.sas_mesh` is missing, triggers `self.create_sas_mesh(sas_mesh_density)`
@@ -846,6 +872,8 @@ class Solute:
             h (float, optional): Finite difference step size passed to `calculate_gradient_field`
                                  if the reaction field gradient hasn't been computed yet.
                                  Defaults to 0.001.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                calculated force values. Defaults to "kcal_molA".
 
         Side Effects:
             - Modifies `self.results["f_qf_charges"]` to store the 3D force vector for each charge.
@@ -900,6 +928,8 @@ class Solute:
                                          the normal derivative of the potential ($d_phi$).
                                          If False, performs a comprehensive surface element
                                          gradient calculation. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed boundary force values. Defaults to "kcal_molA".
 
         Side Effects:
             - Modifies `self.results["f_db"]` with the 3D dielectric boundary force vector.
@@ -1032,6 +1062,8 @@ class Solute:
             fdb_approx (bool, optional): If True, applies an normal-approximation to the dielectric
                                          boundary force component when using the energy
                                          functional formulation. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                calculated solvation force values. Defaults to "kcal_molA".
 
         Raises:
             ValueError: If `force_formulation` is not one of the two supported strings.
@@ -1292,6 +1324,27 @@ class Solute:
     def get_surface_potential_derivative(
         self, units="kcal_molA", print_units=True, internal_derivative=False
     ):
+        r"""Return the surface-potential derivative values from the latest solve.
+
+        Retrieves the stored derivative data for the surface potential and applies an
+        optional scaling factor based on the interior/exterior permittivity ratio when
+        `internal_derivative` is requested.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned values. Defaults to "kcal_molA".
+            print_units (bool, optional): If True, prints the unit label to standard output.
+                Defaults to True.
+            internal_derivative (bool, optional): If True, scales the returned derivative by
+                the ratio `self.ep_in / self.ep_ex`. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing the derivative coefficients and the corresponding
+                unit label.
+
+        Side Effects:
+            - Prints the unit label if `print_units` is True.
+        """
 
         if "phi" not in self.results:
             print(
@@ -1312,6 +1365,24 @@ class Solute:
         )
 
     def get_surface_potential(self, units="kcal_mol", print_units=True):
+        r"""Return the surface-potential values from the latest solve.
+
+        Retrieves the stored surface-potential coefficients from the previous boundary-element
+        solve and converts them to the requested units.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned values. Defaults to "kcal_mol".
+            print_units (bool, optional): If True, prints the unit label to standard output.
+                Defaults to True.
+
+        Returns:
+            tuple: A tuple containing the potential coefficients and the corresponding
+                unit label.
+
+        Side Effects:
+            - Prints the unit label if `print_units` is True.
+        """
         if "d_phi" not in self.results:
             print(
                 "Please compute surface potential first with simulation.calculate_surface_potential()"
@@ -1354,8 +1425,12 @@ def convert_units(units, magnitude="potential", temperature=298.15):
     or force) and the system temperature.
 
     Args:
-        units (str/object): The target unit identifier string (e.g., 'mV', 'kcal_mol',
-            'kT', 'V_m'). Is automatically cleaned and normalized to lowercase.
+        units (str/object): The target unit identifier string. Supported
+            aliases include: 'mv', 'mv_a', 'mv_m', 'v', 'volt', 'volts', 'v_m', 'v_a',
+            'kt_e', 'kt_a', 'kt', 'kj_mol_e', 'kj_mol', 'kj_mola', 'kj_mol_a',
+            'kcal_mol_e', 'kcal_mol', 'kcal_mola', 'kcal_mol_a',
+            'e_eps0_angs', 'e_eps0_ang', 'atomic', and 'pn'. The 'pn' alias is only
+            accepted when `magnitude='force'`.
         magnitude (str, optional): The physical property type being converted.
             Must be one of: 'potential', 'd_potential', 'energy', 'force'.
             Defaults to "potential".

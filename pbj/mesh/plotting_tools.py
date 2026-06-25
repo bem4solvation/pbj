@@ -23,6 +23,53 @@ def plot_multiple_surfaces(
     solutes_plot=list(),
     internal_derivative_plot=False,
 ):
+    r"""Plot one or more solute surface fields as interactive 3D surfaces.
+
+    The function gathers potential or derivative values from the selected solutes,
+    maps them to a continuous colormap, and renders the corresponding triangular
+    surface meshes with Plotly. It can optionally save a static image and overlay
+    an isosurface based on externally supplied grid data.
+
+    Args:
+        simulation (object): Simulation object containing a `solutes` collection.
+        values (str, optional): Surface quantity to visualize. Supported values are
+            "phi" for the surface potential and "d_phi" for its derivative.
+            Defaults to "phi".
+        units (str, optional): Unit identifier passed to the solute accessors for
+            value conversion. Defaults to "kt".
+        max_colorbar_scale (float, optional): Scaling factor used to set the absolute
+            colorbar range when `min_max_vals` is not provided. Defaults to 1.
+        name (str, optional): Output filename used when `savefig=True`. Defaults to
+            "plot_multiple_surface.png".
+        savefig (bool, optional): If True, writes the figure to `name` using Plotly's
+            image export support. Defaults to True.
+        location (str, optional): Surface mesh location to visualize. Use "ses" for the
+            standard surface mesh or "stern" for the Stern-layer mesh when available.
+            Defaults to "ses".
+        show_axis (bool, optional): If True, shows the scene axes in the rendered figure.
+            Defaults to True.
+        camera_view (tuple, optional): Optional camera eye coordinates for the Plotly scene.
+            Defaults to None.
+        isosurface_potential_vals (tuple, optional): Optional tuple of the form
+            `(coordinates, potential, isovalue)` used to add an isosurface overlay.
+            Defaults to `(None, None, None)`.
+        min_max_vals (tuple, optional): Optional `(min_value, max_value)` pair used to
+            override the automatic colorbar scale. Defaults to None.
+        figsize (tuple, optional): Width and height of the rendered figure in pixels.
+            Defaults to `(900, 800)`.
+        solutes_plot (list, optional): List of solute indices or solute names to include in
+            the plot. Defaults to an empty list.
+        internal_derivative_plot (bool, optional): If True, requests the internal
+            derivative form when `values="d_phi"`. Defaults to False.
+
+    Returns:
+        None
+
+    Side Effects:
+        - Renders an interactive Plotly figure in the browser.
+        - Optionally writes a static image to disk when `savefig` is True.
+        - Updates the figure layout and colorbar based on the selected surface values.
+    """
 
     if not min_max_vals:
         vals_max = []

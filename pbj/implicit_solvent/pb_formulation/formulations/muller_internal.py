@@ -1,3 +1,25 @@
+r"""Müller internal formulation for the Poisson-Boltzmann equation.
+
+This module implements the Müller internal formulation for solving the Poisson-Boltzmann
+(PB) equation using boundary element methods (BEM). This formulation combines interior
+Laplace and exterior modified Helmholtz operators in a way that emphasizes interior
+region treatment.
+
+The Müller internal method is particularly suited for systems where accurate interior
+field representation is critical.
+
+Functions:
+    verify_parameters: Validates formulation parameters (no parameters required).
+    lhs: Assembles the left-hand side system matrix using boundary element operators.
+    rhs: Constructs the right-hand side vector from charge distributions.
+    mass_matrix_preconditioner: Builds a mass-matrix based GMRES preconditioner.
+    calculate_potential: Solves the system and computes the potential.
+
+Module Attributes:
+    invert_potential (bool): Flag indicating whether potential inversion should be
+        applied. Set to False for this formulation.
+"""
+
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
@@ -8,10 +30,34 @@ invert_potential = False
 
 
 def verify_parameters(self):
+    r"""Verifies that the Poisson-Boltzmann formulation parameters are valid.
+
+    This formulation has no special parameters to verify beyond basic configuration.
+
+    Args:
+        self (Solute): The instance of the Solute class.
+
+    Returns:
+        bool: Always returns True as no parameters need validation.
+    """
     return True
 
 
 def lhs(self):
+    r"""Assembles the left-hand side system matrix for the Müller internal formulation.
+
+    Constructs the discrete boundary element system matrix by combining interior
+    Laplace and exterior modified Helmholtz operators with identity scaling.
+    This formulation emphasizes interior region contributions.
+
+    Args:
+        self (Solute): The Solute instance containing geometry, spaces, and parameters.
+
+    Notes:
+        - Stores the main system matrix in self.matrices['A']
+        - Uses direct combination of operators without parameter scaling
+        - Suitable for problems requiring accurate interior field representation
+    """
     dirichl_space = self.dirichl_space
     neumann_space = self.neumann_space
     ep_in = self.ep_in
@@ -60,6 +106,20 @@ def lhs(self):
 
 
 def rhs(self):
+    r"""Constructs the right-hand side vector from the charge distribution.
+
+    Computes boundary element grid functions representing the potential and its normal
+    derivative due to the solute charges using direct Green's function evaluation.
+
+    Args:
+        self (Solute): The Solute instance containing charges, geometry, and parameters.
+
+    Notes:
+        - Stores RHS components in self.rhs:
+          - 'rhs_1': Potential due to charge distribution
+          - 'rhs_2': Normal derivative of potential
+        - Uses direct Green's function computation (no FMM acceleration)
+    """
     dirichl_space = self.dirichl_space
     q = self.q
     x_q = self.x_q
@@ -88,6 +148,19 @@ def rhs(self):
 
 
 def mass_matrix_preconditioner(solute):
+    r"""Builds a mass-matrix based preconditioner for GMRES acceleration.
+
+    Constructs a preconditioner using the mass matrix from the boundary element
+    discretization. This provides a simple approach for improving GMRES convergence.
+
+    Args:
+        solute (Solute): The Solute instance containing operators and parameters.
+
+    Notes:
+        - Converts the system to discrete form using 'strong' form formulation
+        - Converts RHS to discrete form with rhs_to_discrete_form()
+        - Does not apply explicit inverse mass matrix (uses identity approximation)
+    """
     from pbj.implicit_solvent.utils import matrix_to_discrete_form, rhs_to_discrete_form
 
     # Option A:
@@ -121,4 +194,19 @@ def mass_matrix_preconditioner(solute):
 
 
 def calculate_potential(self, rerun_all, rerun_rhs):
+    r"""Solves the linear system and computes the electrostatic potential.
+
+    Orchestrates the solution workflow: assembles or reuses the linear system,
+    solves using iterative methods (GMRES), and extracts the potential and field
+    values on the boundary and throughout the domain.
+
+    Args:
+        self (Solute): The Solute instance containing matrices, RHS, and solver parameters.
+        rerun_all (bool): If True, recompute the full linear system from scratch.
+        rerun_rhs (bool): If True, recompute only the right-hand side vector.
+
+    Notes:
+        - Stores computed results in self.results dictionary
+        - Updates potential values (phi) on the surface and in the domain
+    """
     calculate_potential_one_surface(self, rerun_all, rerun_rhs)

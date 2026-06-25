@@ -1,3 +1,10 @@
+r"""Alpha-beta single-blocked formulation for the Poisson-Boltzmann problem.
+
+This module assembles the single-blocked alpha-beta system directly from the
+interior and exterior boundary operators, providing a compact alternative to the
+full multitrace formulation.
+"""
+
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api

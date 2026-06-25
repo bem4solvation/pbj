@@ -2,6 +2,12 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 
+"""Direct formulation specialized for AMOEBA polarizable electrostatics.
+
+This module reuses the direct PB system but builds the right-hand-side terms for
+AMOEBA multipoles and induced-dipole contributions.
+"""
+
 # import os
 # from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from bempp_cl.api.operators.boundary import modified_helmholtz

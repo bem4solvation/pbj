@@ -156,15 +156,17 @@ class Simulation:
                 solute.kappa = self.kappa
 
     def add_solute(self, solute, name=None):
-        """Registers a solute molecule into the simulation context and synchronizes parameters.
+        """Register a solute molecule in the simulation context and synchronize parameters.
 
         Validates that the provided object conforms to the expected `Solute` specification,
-        then propagates simulation-wide global variables (e.g., external permittivity, ionic
-        strength parameter, preconditioning types) down to the solute object.
+        then propagates simulation-wide global variables (for example, external permittivity,
+        ionic strength parameter, and preconditioning settings) down to the solute object.
 
         Args:
-            solute (Solute): An instance of the `pbj.implicit_solvent.solute.Solute` class to be modeled.
-            name (str):
+            solute (Solute): An instance of the `pbj.implicit_solvent.solute.Solute` class
+                to be modeled.
+            name (str, optional): Display name to associate with the solute in the simulation.
+                If not provided, the solute's own `solute_name` is used. Defaults to None.
 
         Raises:
             ValueError: If the input object is not an instance of the `Solute` class or lacks
@@ -455,6 +457,8 @@ class Simulation:
                 Defaults to False.
             rerun_rhs (bool, optional): Triggers RHS re-assembly before potential calculation.
                 Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed solvation energies. Defaults to "kcal_mol".
 
         Returns:
             None
@@ -504,6 +508,8 @@ class Simulation:
                 'maxwell_tensor' or 'energy_functional'. Defaults to "maxwell_tensor".
             fdb_approx (bool, optional): If True, applies an normal-approximation to the dielectric
                 boundary force component when using the energy functional formulation.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed solvation forces. Defaults to "kcal_molA".
 
         Returns:
             None
@@ -923,6 +929,48 @@ class Simulation:
         solutes_names=None,
         internal_derivative_plot=False,
     ):
+        """Plot surface values for one or more registered solutes.
+
+        The method prepares the requested surface quantity from each solute, optionally adds
+        an isosurface overlay computed from solvent-region potentials, and delegates the actual
+        rendering to the plotting helper.
+
+        Args:
+            values (str, optional): Surface quantity to display. Supported values are "phi"
+                for the surface potential and "d_phi" for its derivative. Defaults to "phi".
+            units (str, optional): Unit identifier passed to the solute accessors for
+                value conversion. Defaults to "kt".
+            max_colorbar_scale (float, optional): Scaling factor used to set the absolute
+                colorbar range when `min_max_vals` is not given. Defaults to 1.
+            name (str, optional): Output filename used when `savefig=True`. Defaults to
+                "plot_surface.png".
+            savefig (bool, optional): If True, writes the generated figure to disk.
+                Defaults to True.
+            location (str, optional): Surface mesh location to display. Use "ses" for the
+                standard mesh or "stern" for the Stern-layer mesh when available.
+                Defaults to "ses".
+            show_axis (bool, optional): If True, shows the coordinate axes in the rendered scene.
+                Defaults to True.
+            camera_view (tuple, optional): Optional camera eye coordinates for the Plotly scene.
+                Defaults to None.
+            isosurface_potential (float, optional): If provided, computes and overlays an
+                isosurface at this potential value. Defaults to None.
+            min_max_vals (tuple, optional): Optional `(min_value, max_value)` pair used to
+                override the automatic colorbar scale. Defaults to None.
+            figsize (tuple, optional): Width and height of the figure in pixels.
+                Defaults to `(900, 800)`.
+            solutes_names (list, optional): List of solute indices or names to include.
+                Defaults to None.
+            internal_derivative_plot (bool, optional): If True, requests the internal
+                derivative form when `values="d_phi"`. Defaults to False.
+
+        Returns:
+            None
+
+        Side Effects:
+            - Renders an interactive Plotly figure.
+            - Optionally writes an image file to disk.
+        """
 
         if len(self.solutes) == 0:
             print("Simulation has no solutes loaded")
@@ -992,8 +1040,29 @@ class Simulation:
 
 
 def convert_units(units, magnitude="potential", temperature=298.15):
-    """Computes the scalar conversion factor from standard atomic units (e / eps0 / Å)
-    to target units for electrostatic properties.
+    r"""Compute the scalar conversion factor from atomic electrostatic units to a target unit system.
+
+    The input unit string is normalized and matched against the supported aliases for
+    electrostatic potentials, derivatives, energies, and forces. The function then returns
+    the corresponding conversion factor and a human-readable label.
+
+    Args:
+        units (str/object): Target unit identifier. Supported aliases include `mv`, `mv_a`,
+            `mv_m`, `v`, `volt`, `volts`, `v_m`, `v_a`, `kt_e`, `kt_a`, `kt`,
+            `kj_mol_e`, `kj_mol`, `kj_mola`, `kj_mol_a`, `kcal_mol_e`, `kcal_mol`,
+            `kcal_mola`, `kcal_mol_a`, `e_eps0_angs`, `e_eps0_ang`, `atomic`, and `pn`.
+            The `pn` alias is only valid when `magnitude='force'`.
+        magnitude (str, optional): Physical quantity being converted. Must be one of
+            `potential`, `d_potential`, `energy`, or `force`. Defaults to `potential`.
+        temperature (float, optional): Absolute temperature in Kelvin used for thermal energy
+            conversions. Defaults to 298.15.
+
+    Returns:
+        tuple: A tuple containing the conversion factor and a descriptive unit label.
+
+    Raises:
+        ValueError: If `pn` is requested for a magnitude other than `force`, or if the
+            requested magnitude is not recognized.
     """
     units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
     units = units.replace("__", "_")

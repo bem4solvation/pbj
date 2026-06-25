@@ -1,6 +1,12 @@
 import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
+"""SLIC formulation for implicit-solvent electrostatics.
+
+This module implements the SLIC approach, including the coupled Stern-layer update
+and the iterative assembly of the nonlinear surface response.
+"""
+
 from bempp_cl.api.operators.boundary import sparse, laplace
 from bempp_cl.api.linalg.iterative_solvers import IterationCounter
 from .common import calculate_potential_stern

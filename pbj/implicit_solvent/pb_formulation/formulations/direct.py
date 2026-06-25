@@ -2,6 +2,12 @@ import numpy as np
 import bempp_cl as bempp
 import bempp_cl.api
 import os
+"""Direct single-surface Poisson-Boltzmann formulation.
+
+This module assembles the standard two-field boundary-integral system for a single
+solvent-solute interface using Laplace and modified Helmholtz operators.
+"""
+
 from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
