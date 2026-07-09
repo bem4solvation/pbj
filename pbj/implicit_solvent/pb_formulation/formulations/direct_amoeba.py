@@ -418,7 +418,7 @@ def initialise_rhs_induced_dipole(self):
     self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
 
-def calculate_solvation_energy_polarizable(solute):
+def calculate_solvation_energy_polarizable(solute, units="kcal/mol"):
 
     start_time = time.time()
 
@@ -464,19 +464,21 @@ def calculate_solvation_energy_polarizable(solute):
 
             for k in range(3):
                 Q_aux += Q[i, j, k] * ddphi_q[i, j, k] / 6.0
-
-    solvent_energy = 2 * np.pi * 332.064 * (q_aux + d_aux + Q_aux)
+    unit_conversion, unit_label = convert_units(units, magnitude="energy")
+    solvent_energy = 0.5 * unit_conversion * (q_aux + d_aux + Q_aux)
     coulomb_energy_dissolved = calculate_coulomb_energy_multipole(
-        solute, state="dissolved"
+        solute, state="dissolved", units=units
     )
 
     calculate_induced_dipole_vacuum(solute)
-    coulomb_energy_vacuum = calculate_coulomb_energy_multipole(solute, state="vacuum")
+    coulomb_energy_vacuum = calculate_coulomb_energy_multipole(
+        solute, state="vacuum", units=units
+    )
 
     solute.results["electrostatic_solvation_energy"] = (
         solvent_energy + coulomb_energy_dissolved - coulomb_energy_vacuum
     )
-    solute.results["electrostatic_solvation_energy_units"] = "kcal/mol"
+    solute.results["electrostatic_solvation_energy_units"] = unit_label
     solute.timings["time_calc_energy"] = time.time() - start_time
 
     if solute.print_times:
@@ -487,7 +489,7 @@ def calculate_solvation_energy_polarizable(solute):
         )
 
 
-def calculate_coulomb_energy_multipole(solute, state):
+def calculate_coulomb_energy_multipole(solute, state, units="kcal/mol"):
     """
     Calculates the Coulomb energy
 
@@ -531,13 +533,11 @@ def calculate_coulomb_energy_multipole(solute, state):
         + (np.sum(np.sum(Q[:] * ddphi[:], axis=1), axis=1)) / 6.0
     )
 
-    cal2J = 4.184
-    ep_vacc = 8.854187818e-12
-    qe = 1.60217646e-19
-    Na = 6.0221415e23
-    C0 = qe**2 * Na * 1e-3 * 1e10 / (cal2J * ep_vacc)
+    unit_conversion, _ = convert_units(units, magnitude="energy")
 
-    coulomb_energy = sum(point_energy) * 0.5 * C0 / (4 * np.pi * solute.ep_in)
+    coulomb_energy = (
+        sum(point_energy) * 0.5 * unit_conversion / (4 * np.pi * solute.ep_in)
+    )
 
     return coulomb_energy
 
@@ -1300,3 +1300,119 @@ def _calculate_coulomb_ddphi_multipole_Thole(
         ddphi[i, :, :] += aux[:, :]
 
     return ddphi
+
+
+def convert_units(units, magnitude="potential", temperature=298.15):
+    r"""Computes the scalar conversion factor from standard atomic units (e / eps0 / Å)
+    to target units for electrostatic properties.
+
+    Normalizes the input unit string and scales the base electrostatic values based
+    on the physical magnitude of interest (potential, derivative of potential, energy,
+    or force) and the system temperature.
+
+    Args:
+        units (str/object): The target unit identifier string. Supported
+            aliases include: 'mv', 'mv_a', 'mv_m', 'v', 'volt', 'volts', 'v_m', 'v_a',
+            'kt_e', 'kt_a', 'kt', 'kj_mol_e', 'kj_mol', 'kj_mola', 'kj_mol_a',
+            'kcal_mol_e', 'kcal_mol', 'kcal_mola', 'kcal_mol_a',
+            'e_eps0_angs', 'e_eps0_ang', 'atomic', and 'pn'. The 'pn' alias is only
+            accepted when `magnitude='force'`.
+        magnitude (str, optional): The physical property type being converted.
+            Must be one of: 'potential', 'd_potential', 'energy', 'force'.
+            Defaults to "potential".
+        temperature (float, optional): The absolute temperature in Kelvin, used
+            primarily for thermal energy ($kT$) scaling. Defaults to 298.15.
+
+    Returns:
+        tuple: A tuple containing:
+            - factor_base (float): The scalar multiplier to convert values from
+              atomic units to the target unit system.
+            - label_base (str): The properly formatted string representation of
+              the resulting unit label.
+
+    Raises:
+        ValueError: If 'pN' is requested for a magnitude other than 'force'.
+        ValueError: If an unrecognized `magnitude` string is provided.
+    """
+    units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
+    units = units.replace("__", "_")
+    magnitude = str(magnitude).strip().lower()
+
+    qe = 1.60217663e-19
+    eps0 = 8.8541878128e-12
+    ang_to_m = 1e-10
+    kb = 1.380649e-23
+    kT = kb * temperature
+    Na = 6.02214076e23
+
+    to_V = qe / (eps0 * ang_to_m)
+
+    if units in ["mv_m", "mv_a", "mv"]:
+        factor_base, label_base = to_V * 1000, "mV"
+    elif units in ["v", "volt", "volts", "v_m", "v_a"]:
+        factor_base, label_base = to_V, "V"
+    elif units in ["kt_e", "kt_a", "kt"]:
+        factor_base, label_base = to_V / (kT / qe), "kT/e"
+    elif units in ["kj_mol_e", "kj_mol", "kj_mola", "kj_mol_a"]:
+        factor_base, label_base = to_V * (qe * Na / 1000), "kJ/mol"
+    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola", "kcal_mol_a"]:
+        factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
+    elif units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
+        factor_base, label_base = 1.0, "e/(eps0*A)"
+    elif units in ["pn"]:
+        if magnitude != "force":
+            raise ValueError(
+                f"Unit 'pN' is only valid for magnitude='force', not '{magnitude}'."
+            )
+        factor_base, label_base = (qe**2 / (eps0 * ang_to_m**2)) / 1e-12, "pN"
+        return factor_base, label_base
+    else:
+        if magnitude in ["potential", "d_potential"]:
+            print(
+                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to mV."
+            )
+            factor_base, label_base = to_V * 1000, "mV"
+        else:
+            print(
+                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to kcal/mol."
+            )
+            factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
+
+    if magnitude == "potential":
+        if "mol" in label_base:
+            label_base += "/e"
+        return factor_base, label_base
+
+    elif magnitude in ["d_potential"]:
+        if units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
+            return 1.0, "e/(eps0*A**2)"
+        elif units in ["v_m"]:
+            return to_V / ang_to_m, "V/m"
+        elif units in ["mv_m"]:
+            return (to_V * 1000) / ang_to_m, "mV/m"
+        return factor_base, f"{label_base}/A"
+
+    elif magnitude == "energy":
+        if "mol" in label_base:
+            return factor_base, label_base
+        elif label_base == "kT/e":
+            return factor_base, "kT"
+        elif label_base == "e/(eps0*A)":
+            return 1.0, "e**2/(eps0*A)"
+        else:
+            return factor_base, f"{label_base}*e"
+
+    elif magnitude == "force":
+        if "mol" in label_base:
+            return factor_base, f"{label_base}/A"
+        elif label_base == "kT/e":
+            return factor_base, "kT/A"
+        elif label_base == "e/(eps0*A)":
+            return 1.0, "e**2/(eps0*A**2)"
+        else:
+            return factor_base, f"{label_base}*e/A"
+
+    else:
+        raise ValueError(
+            f"Magnitude '{magnitude}' not recognized. Choose from: potential, d_potential, energy, force."
+        )
