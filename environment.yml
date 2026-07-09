@@ -4,7 +4,7 @@ channels:
   - defaults
   - eumetsat
 dependencies:
-  - python=3.10
+  - python=3.14
   - fftw
   - jupyter
   - llvmlite
@@ -30,4 +30,4 @@ dependencies:
     - pytest
     - rtree
     - "git+https://github.com/exafmm/exafmm-t.git"
-    - "git+https://github.com/bem4solvation/pbj.git"
+    - "git+https://github.com/bem4solvation/pbj.git@update_libs"

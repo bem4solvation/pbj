@@ -339,10 +339,38 @@ def get_config_from_root(root):
     # configparser.NoOptionError (if it lacks "VCS="). See the docstring at
     # the top of versioneer.py for instructions on writing your setup.cfg .
     setup_cfg = os.path.join(root, "setup.cfg")
+    if not os.path.exists(setup_cfg):
+        try:
+            me_dir = os.path.dirname(os.path.realpath(os.path.abspath(__file__)))
+            setup_cfg = os.path.join(me_dir, "setup.cfg")
+        except NameError:
+            pass
+
     parser = configparser.ConfigParser()
-    with open(setup_cfg, "r") as f:
-        parser.read(f)
-    VCS = parser.get("versioneer", "VCS")  # mandatory
+    if not os.path.exists(setup_cfg):
+        parser.add_section("versioneer")
+        parser.set("versioneer", "VCS", "git")
+        parser.set("versioneer", "style", "pep440")
+        parser.set("versioneer", "versionfile_source", "pbj/_version.py")
+        parser.set("versioneer", "versionfile_build", "pbj/_version.py")
+        parser.set("versioneer", "tag_prefix", "''")
+    else:
+        with open(setup_cfg, "r") as f:
+            if hasattr(parser, "read_file"):
+                parser.read_file(f)
+            else:
+                parser.read(f)
+
+    try:
+        VCS = parser.get("versioneer", "VCS")  # mandatory
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        VCS = "git"
+        if not parser.has_section("versioneer"):
+            parser.add_section("versioneer")
+        parser.set("versioneer", "style", "pep440")
+        parser.set("versioneer", "versionfile_source", "pbj/_version.py")
+        parser.set("versioneer", "versionfile_build", "pbj/_version.py")
+        parser.set("versioneer", "tag_prefix", "''")
 
     def get(parser, name):
         if parser.has_option("versioneer", name):
