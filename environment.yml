@@ -29,5 +29,6 @@ dependencies:
     - trimesh
     - pytest
     - rtree
+    - kaleido
     - "git+https://github.com/exafmm/exafmm-t.git"
     - "git+https://github.com/bem4solvation/pbj.git@update_libs"
