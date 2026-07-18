@@ -549,7 +549,9 @@ class Solute:
         self.results["phir_charges"] = phi_q
 
         # total solvation energy applying constant to get units [kcal/mol]
-        unit_conversion, unit_label = convert_units(units, magnitude="energy")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
         total_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q).real
         self.results["electrostatic_solvation_energy"] = total_energy
         self.results["electrostatic_solvation_energy_units"] = unit_label
@@ -637,8 +639,12 @@ class Solute:
         b = self.intercept_cav_nonpolar
 
         cavity_energy = gamma * sasa + b
-        unit_conversion, unit_label = convert_units(units, magnitude="energy")
-        unit_conversion_base, _ = convert_units("kcal_mol", magnitude="energy")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        unit_conversion_base, _ = charge_tools.convert_units(
+            "kcal_mol", magnitude="energy"
+        )
         factor_units = unit_conversion / unit_conversion_base
         self.results["cavity_energy"] = factor_units * cavity_energy
         self.results["cavity_energy_units"] = unit_label
@@ -672,8 +678,12 @@ class Solute:
         b = self.intercept_disp_nonpolar
 
         dispersion_energy = gamma * sasa + b
-        unit_conversion, unit_label = convert_units(units, magnitude="energy")
-        unit_conversion_base, _ = convert_units("kcal_mol", magnitude="energy")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        unit_conversion_base, _ = charge_tools.convert_units(
+            "kcal_mol", magnitude="energy"
+        )
         factor_units = unit_conversion / unit_conversion_base
         self.results["dispersion_energy"] = factor_units * dispersion_energy
         self.results["dispersion_energy_units"] = unit_label
@@ -894,7 +904,9 @@ class Solute:
 
         dphidr = self.results["gradphir_charges"]
 
-        unit_conversion, unit_label = convert_units(units, magnitude="force")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="force"
+        )
 
         f_reac = unit_conversion * -np.transpose(np.transpose(dphidr) * self.q)
         f_reactotal = np.sum(f_reac, axis=0)
@@ -948,7 +960,9 @@ class Solute:
         phi = self.results["phi"].evaluate_on_element_centers()
         d_phi = self.results["d_phi"].evaluate_on_element_centers()
 
-        unit_conversion, unit_label = convert_units(units, magnitude="force")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="force"
+        )
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
         if fdb_approx:
@@ -1086,7 +1100,7 @@ class Solute:
                 self.calculate_charges_forces(units=units)
 
             self.calculate_boundary_forces(fdb_approx=fdb_approx, units=units)
-            _, unit_label = convert_units(units, magnitude="force")
+            _, unit_label = charge_tools.convert_units(units, magnitude="force")
             start_time = time.time()
 
             f_solv = np.zeros([3])
@@ -1131,7 +1145,9 @@ class Solute:
                 ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
             )
             total_force = np.zeros(3)
-            unit_conversion, unit_label = convert_units(units, magnitude="force")
+            unit_conversion, unit_label = charge_tools.convert_units(
+                units, magnitude="force"
+            )
 
             for i in range(N_elements):
                 eps = self.mesh.normals[i]
@@ -1354,7 +1370,9 @@ class Solute:
         if internal_derivative:
             factor_ep = self.ep_in / self.ep_ex
 
-        unit_conversion, unit_label = convert_units(units, magnitude="d_potential")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="d_potential"
+        )
         if print_units:
             print(f"Units {unit_label} for potential")
 
@@ -1387,7 +1405,9 @@ class Solute:
                 "Please compute surface potential first with simulation.calculate_surface_potential()"
             )
             return
-        unit_conversion, unit_label = convert_units(units, magnitude="potential")
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="potential"
+        )
         if print_units:
             print(f"Units {unit_label} for potential")
         return self.results["phi"].coefficients * unit_conversion, unit_label
@@ -1413,119 +1433,3 @@ def get_name_from_pdb(pdb_path):
     pdb_file.close()
 
     return solute_name
-
-
-def convert_units(units, magnitude="potential", temperature=298.15):
-    r"""Computes the scalar conversion factor from standard atomic units (e / eps0 / Å)
-    to target units for electrostatic properties.
-
-    Normalizes the input unit string and scales the base electrostatic values based
-    on the physical magnitude of interest (potential, derivative of potential, energy,
-    or force) and the system temperature.
-
-    Args:
-        units (str/object): The target unit identifier string. Supported
-            aliases include: 'mv', 'mv_a', 'mv_m', 'v', 'volt', 'volts', 'v_m', 'v_a',
-            'kt_e', 'kt_a', 'kt', 'kj_mol_e', 'kj_mol', 'kj_mola', 'kj_mol_a',
-            'kcal_mol_e', 'kcal_mol', 'kcal_mola', 'kcal_mol_a',
-            'e_eps0_angs', 'e_eps0_ang', 'atomic', and 'pn'. The 'pn' alias is only
-            accepted when `magnitude='force'`.
-        magnitude (str, optional): The physical property type being converted.
-            Must be one of: 'potential', 'd_potential', 'energy', 'force'.
-            Defaults to "potential".
-        temperature (float, optional): The absolute temperature in Kelvin, used
-            primarily for thermal energy ($kT$) scaling. Defaults to 298.15.
-
-    Returns:
-        tuple: A tuple containing:
-            - factor_base (float): The scalar multiplier to convert values from
-              atomic units to the target unit system.
-            - label_base (str): The properly formatted string representation of
-              the resulting unit label.
-
-    Raises:
-        ValueError: If 'pN' is requested for a magnitude other than 'force'.
-        ValueError: If an unrecognized `magnitude` string is provided.
-    """
-    units = str(units).strip().lower().replace("-", "_").replace(" ", "_")
-    units = units.replace("__", "_")
-    magnitude = str(magnitude).strip().lower()
-
-    qe = 1.60217663e-19
-    eps0 = 8.8541878128e-12
-    ang_to_m = 1e-10
-    kb = 1.380649e-23
-    kT = kb * temperature
-    Na = 6.02214076e23
-
-    to_V = qe / (eps0 * ang_to_m)
-
-    if units in ["mv_m", "mv_a", "mv"]:
-        factor_base, label_base = to_V * 1000, "mV"
-    elif units in ["v", "volt", "volts", "v_m", "v_a"]:
-        factor_base, label_base = to_V, "V"
-    elif units in ["kt_e", "kt_a", "kt"]:
-        factor_base, label_base = to_V / (kT / qe), "kT/e"
-    elif units in ["kj_mol_e", "kj_mol", "kj_mola", "kj_mol_a"]:
-        factor_base, label_base = to_V * (qe * Na / 1000), "kJ/mol"
-    elif units in ["kcal_mol_e", "kcal_mol", "kcal_mola", "kcal_mol_a"]:
-        factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
-    elif units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
-        factor_base, label_base = 1.0, "e/(eps0*A)"
-    elif units in ["pn"]:
-        if magnitude != "force":
-            raise ValueError(
-                f"Unit 'pN' is only valid for magnitude='force', not '{magnitude}'."
-            )
-        factor_base, label_base = (qe**2 / (eps0 * ang_to_m**2)) / 1e-12, "pN"
-        return factor_base, label_base
-    else:
-        if magnitude in ["potential", "d_potential"]:
-            print(
-                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to mV."
-            )
-            factor_base, label_base = to_V * 1000, "mV"
-        else:
-            print(
-                f"Warning: Unit '{units}' not recognized for {magnitude}. Defaulting to kcal/mol."
-            )
-            factor_base, label_base = to_V * (qe * Na / (4.184 * 1000)), "kcal/mol"
-
-    if magnitude == "potential":
-        if "mol" in label_base:
-            label_base += "/e"
-        return factor_base, label_base
-
-    elif magnitude in ["d_potential"]:
-        if units in ["e_eps0_angs", "e_eps0_ang", "atomic"]:
-            return 1.0, "e/(eps0*A**2)"
-        elif units in ["v_m"]:
-            return to_V / ang_to_m, "V/m"
-        elif units in ["mv_m"]:
-            return (to_V * 1000) / ang_to_m, "mV/m"
-        return factor_base, f"{label_base}/A"
-
-    elif magnitude == "energy":
-        if "mol" in label_base:
-            return factor_base, label_base
-        elif label_base == "kT/e":
-            return factor_base, "kT"
-        elif label_base == "e/(eps0*A)":
-            return 1.0, "e**2/(eps0*A)"
-        else:
-            return factor_base, f"{label_base}*e"
-
-    elif magnitude == "force":
-        if "mol" in label_base:
-            return factor_base, f"{label_base}/A"
-        elif label_base == "kT/e":
-            return factor_base, "kT/A"
-        elif label_base == "e/(eps0*A)":
-            return 1.0, "e**2/(eps0*A**2)"
-        else:
-            return factor_base, f"{label_base}*e/A"
-
-    else:
-        raise ValueError(
-            f"Magnitude '{magnitude}' not recognized. Choose from: potential, d_potential, energy, force."
-        )
