@@ -1,9 +1,16 @@
 import numpy as np
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
-from bempp.api.operators.boundary import laplace, modified_helmholtz
-from .common import calculate_potential_one_surface
 
+"""First-kind boundary integral formulation for interior PB problems.
+
+This module assembles the first-kind boundary system for the interior dielectric
+region and provides the auxiliary operators used by the solver workflow.
+"""
+
+from bempp_cl.api.operators.boundary import laplace, modified_helmholtz
+from .common import calculate_potential_one_surface
 
 invert_potential = False
 

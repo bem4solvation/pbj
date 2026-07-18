@@ -1,7 +1,14 @@
+"""Direct external permuted formulation for the Poisson-Boltzmann problem.
+
+The permuted variant rearranges the boundary unknowns to expose the exterior
+operator structure more directly in the assembled system.
+"""
+
 import numpy as np
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
 invert_potential = True

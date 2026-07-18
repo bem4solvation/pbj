@@ -2,27 +2,89 @@ import trimesh
 import numpy as np
 import subprocess
 import os
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import platform
 import shutil
 
 
+def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
+    r"""Detects, filters, and removes internal or isolated cavities within a mesh.
+
+    Splits a disconnected mesh into its separate connected components, treating the
+    largest component as the main body. The remaining components (cavities) are
+    evaluated and removed if they reside outside the main body or fall below a
+    specified volume threshold.
+
+    Args:
+        mesh (object): The input mesh object containing `.vertices.T` and
+            `.elements.T` attributes compatible with trimesh initialization.
+        fill_cavities (bool, optional): If True, proceeds with cavity detection
+            and filtering. If False, skips processing and returns the original mesh.
+            Defaults to True.
+        volume_cutoff (float, optional): The volume threshold below which smaller
+            internal cavities will be flagged for removal. Defaults to 11.4.
+
+    Returns:
+        bempp_cl.api.Grid or object: A new BEMPP Grid object generated from the
+            cleaned largest mesh component, or the original input mesh if no
+            cavities were processed.
+    """
+    mesh_raw = trimesh.Trimesh(vertices=mesh.vertices.T, faces=mesh.elements.T)
+    mesh_split = mesh_raw.split()
+    if len(mesh_split) == 1 or not fill_cavities:
+        print("No cavities detected in the mesh")
+        return mesh
+
+    largest_mesh = max(mesh_split, key=lambda m: m.volume)
+    idx_remove = []
+    for i in range(len(mesh_split)):  # remove mesh cavities off the largest one
+        if not any(
+            largest_mesh.contains(mesh_split[i].vertices[0:1, :])
+        ):  # evaluate one point to discard
+            idx_remove.append(i)
+            print(
+                "Cavity far off the largest mesh detected and removed with volume {:.2f}.".format(
+                    mesh_split[i].volume
+                )
+            )
+        if (
+            abs(mesh_split[i].volume) > volume_cutoff
+            and mesh_split[i].volume != largest_mesh.volume
+        ):
+            idx_remove.append(i)
+            print(
+                "Small inner cavity detected and removed with volume {:.2f}.".format(
+                    mesh_split[i].volume
+                )
+            )
+    mesh_split = [mesh_split[i] for i in range(len(mesh_split)) if i not in idx_remove]
+    print("{} cavities detected and removed.".format(len(idx_remove)))
+
+    return bempp_cl.api.Grid(largest_mesh.vertices.T, largest_mesh.faces.T)
+
+
 def fix_mesh(mesh):
+    r"""Loads a mesh from text files and iteratively attempts to repair it into a watertight surface.
+
+    This function reads face indices and vertex coordinates from separate text files,
+    initializes a `trimesh` object, and applies initial healing operations. If the mesh
+    is not watertight, it runs an iterative loop to identify broken faces and snap/merge
+    vertices that lie within a small distance tolerance.
+
+    Args:
+        mesh_face_path (str): File path to the text file containing the face indices.
+        mesh_vert_path (str): File path to the text file containing the vertex
+            coordinates (X, Y, Z).
+
+    Returns:
+        trimesh.Trimesh: The repaired and processed mesh object.
+
+    Notes:
+        Prints a warning to the console if the mesh cannot be made completely
+        watertight within the maximum iteration limit (20).
     """
-    Receives a trimesh mesh object and tries to fix it iteratively using the trimesh.repair.broken_faces() function.
-    Prints a message if the mesh couldn't be fixed.
-
-    Parameters
-    ---------
-    mesh : trimesh mesh object
-        Original mesh object.
-
-    Returns
-    ----------
-    mesh : trimesh mesh object
-        Mesh after trying to fix it.
-
-    """
+    mesh = trimesh.Trimesh(vertices=mesh.vertices.T, faces=mesh.elements.T)
     mesh.fill_holes()
     mesh.process()
     iter_limit = 20
@@ -39,32 +101,29 @@ def fix_mesh(mesh):
                         mesh.vertices[nf] = mesh.vertices[vert_nf[c]]
         iteration += 1
     if iteration > iter_limit - 1:
-        print(" not watertight")
+        print("Warning: Mesh is not watertight")
     mesh.fill_holes()
     mesh.process()
-    return mesh
+    return bempp_cl.api.Grid(mesh.vertices.T, mesh.faces.T)
 
 
 # Revisar función, elegir paquete correcto o buscar opción de ejecutable:
 def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag=""):
-    """
-    Using pdb2pqr from APBS (pdb2pqr30 on bash) creates a pqr file from a pdb file.
+    r"""Invokes the PDB2PQR tool via subprocess to parameterize a PDB structure into a PQR file.
 
-    Parameters
-    ----------
-    mesh_pdb_path : str
-        Absolute path of pdb file.
-    mesh_pqr_path : str
-        Absolute path of pqr file.
-    force_field : str
-        Indicates selected force field to create pqr file, e.g. {AMBER,CHARMM,PARSE,TYL06,PEOEPB,SWANSON}
-    str_flag : str, default '' (empty string)
-        Indicates additional flags to be used in bash with pdb2pqr30
+    Assigns atomic charges and radii based on the specified force field, generating
+    the topology configuration required for downstream continuum electrostatics.
 
+    Args:
+        mesh_pdb_path (str): Absolute file path to the source `.pdb` file.
+        mesh_pqr_path (str): Absolute target path for the output parameterized `.pqr` file.
+        force_field (str): The capitalization-agnostic force field identifier
+            (e.g., 'AMBER', 'CHARMM', 'PARSE', 'TYL06').
+        str_flag (str, optional): Additional command-line flags to pass directly to the
+            `pdb2pqr30` executable. Defaults to an empty string.
 
-    Returns
-    ----------
-    None
+    Returns:
+        None
     """
     force_field = force_field.upper()
     if str_flag:
@@ -79,20 +138,17 @@ def convert_pdb2pqr(mesh_pdb_path, mesh_pqr_path, force_field, str_flag=""):
 
 # Funciona bien:
 def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
-    """
-    Creates a xyzr format file from a pqr format file.
+    """Parses a PQR file and extracts coordinates and radii into a simplified XYZR format.
 
+    Filters for 'ATOM' records and writes out rows containing only the Cartesian
+    coordinates ($x, y, z$) and the atomic radius ($r$) for each atom.
 
-    Parameters
-    ----------
-    mesh_pqr_path : str
-        Absolute path of pqr file
-    mesh_xyzr_path : str
-        Absolute path of xyzr file
+    Args:
+        mesh_pqr_path (str): Absolute file path to the input `.pqr` file.
+        mesh_xyzr_path (str): Absolute target path for the output `.xyzr` file.
 
-    Returns
-    ----------
-    None
+    Returns:
+        None
     """
     pqr_file = open(mesh_pqr_path, "r")
     pqr_data = pqr_file.read().split("\n")
@@ -110,30 +166,20 @@ def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
 
 # Probar en Linux:
 def generate_msms_mesh(mesh_xyzr_path, output_dir, output_name, density, probe_radius):
-    """
-    Creates a .face file and a .vert file describing a mesh from a .xyzr file using msms. The files are saved in the output directory.
+    """Generates a Solvent-Excluded Surface (SES) mesh using the external MSMS executable.
 
-    Parameters
-    ----------
-    mesh_xyzr_path : str
-        Absolute path of xyzr file.
-    output_dir : str
-        Absolute path of the output directory.
-    output_name : str
-        Name of the .face and .vert files created, e.g {output_name = "5pti" creates a 5pti.face and a 5pti.vert files}
-    density : float
-        Triangle density on the surface (typical values are 1.0 for molecules with more than one thousand atoms and 3.0 for smaller molecules).
-    probe_radius : float
-        Probe radius used to construct the molecular surface.
+    Produces paired `.face` and `.vert` files without headers in the specified target directory.
 
-    Returns
-    ----------
-    None
+    Args:
+        mesh_xyzr_path (str): Absolute file path to the input `.xyzr` structural file.
+        output_dir (str): Absolute path to the directory where the output mesh files will be stored.
+        output_name (str): Base filename string for the generated `.face` and `.vert` files.
+        density (float): Triangle density on the molecular surface (typically $1.0$ for large structures,
+            $3.0$ for smaller systems).
+        probe_radius (float): Radius of the rolling solvent probe (typically $1.4\text{ Å}$ for water).
 
-    Examples
-    ----------
-    >>> generate_msms_mesh("5pti.xyzr", "", "5pti", 1.0, 1.4)
-
+    Returns:
+        None
     """
     from pbj import PBJ_PATH
 
@@ -169,28 +215,28 @@ def generate_nanoshaper_mesh(
     density,
     probe_radius,
     save_mesh_build_files,
+    cavity_cutoff=11.4,
+    fill_cavities=True,
 ):
-    """
-    Creates a .face file and a .vert file describing a mesh from a .xyzr file using NanoShaper. The files are saved in the output directory.
+    """Generates a molecular surface mesh using NanoShaper via a temporary workspace.
 
-    Parameters
-    ----------
-    mesh_xyzr_path : str
-        Absolute path of xyzr file.
-    output_dir : str
-        Absolute path of the output directory.
-    output_name : str
-        Name of the .face and .vert files created, e.g {output_name = "5pti" creates a 5pti.face and a 5pti.vert files}
-    density : float
-        Triangle density on the surface (typical values are 1.0 for molecules with more than one thousand atoms and 3.0 for smaller molecules).
-    probe_radius : float
-        Probe radius used to construct the molecular surface.
-    save_mesh_build_files : bool
-        If true, the raw .vert and .face files created from NanoShaper are not erased from the /nanotemp folder in the output directory.
-    Returns
-    ----------
-    None
+    Dynamically populates a `surfaceConfiguration.prm` parameter template, switches
+    working directories to execute the correct architecture-dependent binary, and
+    cleans up intermediate files depending on the persistence configuration.
 
+    Args:
+        mesh_xyzr_path (str): Absolute file path to the source `.xyzr` file.
+        output_dir (str): Absolute path to the destination directory for the final mesh.
+        output_name (str): Base filename prefix for the generated `.face` and `.vert` files.
+        density (float): Grid scale resolution value passed directly to NanoShaper.
+        probe_radius (float): Rolling probe sphere radius used to construct the analytical interface.
+        save_mesh_build_files (bool): If True, retains the raw NanoShaper working directory
+            (`/nanotemp`) instead of deleting it.
+        cavity_cutoff (float): Cutoff value for cavity detection.
+        fill_cavities (bool): If True, fills detected cavities.
+
+    Returns:
+        None
     """
     from pbj import PBJ_PATH
 
@@ -212,7 +258,14 @@ def generate_nanoshaper_mesh(
             line = "Grid_scale = {:04.1f} \n".format(density)
         elif "Probe_Radius" in line:
             line = "Probe_Radius = {:03.1f} \n".format(probe_radius)
-
+        elif "Conditional_Volume_Filling_Value" in line:
+            line = "Conditional_Volume_Filling_Value = {:03.1f} \n".format(
+                cavity_cutoff
+            )
+        elif "Cavity_Detection_Filling" in line:
+            line = "Cavity_Detection_Filling = {:s} \n".format(
+                str(fill_cavities).lower()
+            )
         config_file.write(line)
 
     config_file.close()
@@ -268,22 +321,18 @@ def generate_nanoshaper_mesh(
 
 
 def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
-    """
-    Creates an OFF format mesh file from a .face file and a .vert file.
+    """Converts a raw MSMS `.face` and `.vert` file pairing into a unified Geomview OFF mesh file.
 
-    Parameters
-    ----------
-    mesh_face_path : str
-        Absolute path of the .face file.
-    mesh_vert_file : str
-        Absolute path of the .vert file.
-    mesh_off_path : str
-        Absolute path of the .off file.
+    Applies a 1-based to 0-based index shift to the surface triangulation matrix during
+    the reformatting.
 
-    Returns
-    ----------
-    None
+    Args:
+        mesh_face_path (str): Absolute file path to the input MSMS `.face` file.
+        mesh_vert_path (str): Absolute file path to the input MSMS `.vert` file.
+        mesh_off_path (str): Absolute target file path for the output `.off` file.
 
+    Returns:
+        None
     """
     face = open(mesh_face_path, "r").read()
     vert = open(mesh_vert_path, "r").read()
@@ -303,21 +352,17 @@ def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
 
 
 def import_msms_mesh(mesh_face_path, mesh_vert_path):
-    """
-    Creates a bempp grid object from .face and .vert files.
+    """Loads MSMS surface outputs directly into a Bempp Grid.
 
-    Parameters
-    ----------
-    mesh_face_path : str
-        Absolute path of the .face file.
-    mesh_vert_file : str
-        Absolute path of the .vert file.
+    Parses vertices and faces into independent NumPy arrays, transforms them into the
+    required column-vector orientation, and instantiates the discrete Bempp mesh.
 
-    Returns
-    ----------
-    grid : Grid
-        Bempp Grid object.
+    Args:
+        mesh_face_path (str): Absolute path to the source `.face` file.
+        mesh_vert_path (str): Absolute path to the source `.vert` file.
 
+    Returns:
+        bempp_cl.api.Grid: The discrete boundary element surface grid object.
     """
     face = open(mesh_face_path, "r").read()
     vert = open(mesh_vert_path, "r").read()
@@ -330,38 +375,30 @@ def import_msms_mesh(mesh_face_path, mesh_vert_path):
 
 
 def import_off_mesh(mesh_off_path):
-    """
-    Creates a bempp grid object from a .OFF files.
+    """Loads a unified Geomview OFF file using Bempp's native I/O utilities.
 
-    Parameters
-    ----------
-    mesh_off_path : str
-        Absolute path of the .off file.
+    Args:
+        mesh_off_path (str): Absolute path to the source `.off` file.
 
-    Returns
-    ----------
-    grid : Grid
-        Bempp Grid object.
-
+    Returns:
+        bempp_cl.api.Grid: The instantiated discrete boundary element mesh.
     """
     grid = bempp.api.import_grid(mesh_off_path)
     return grid
 
 
 def density_to_nanoshaper_grid_scale_conversion(mesh_density):
-    """
-    Converts the grid density value into NanoShaper's grid scale value.
+    r"""Converts a standard face triangle density value into NanoShaper's internal spatial grid scale.
 
-    Parameters
-    ----------
-    mesh_density : float
-        Desired density of the grid.
+    Applies the empirically fitted power-law relationship:
+    $$s = \text{round}\left(0.797 \cdot d^{0.507}, 2\right)$$
+    where $d$ is the targeted surface triangle density and $s$ is the grid scale.
 
-    Returns
-    ----------
-    grid_scale : float
-        Grid scale value to be used in NanoShaper.
+    Args:
+        mesh_density (float): Targeted triangle surface density.
 
+    Returns:
+        float: The rounded grid scale parameter for the NanoShaper initialization file.
     """
     grid_scale = round(
         0.797 * (mesh_density**0.507), 2

@@ -1,7 +1,15 @@
+r"""Alpha-beta external-potential formulation for the Poisson-Boltzmann problem.
+
+This module builds the alpha-beta boundary system with explicit treatment of the
+external-potential contribution, which is useful when the exterior region requires
+special weighting or additional boundary conditioning.
+"""
+
 import numpy as np
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
 invert_potential = True

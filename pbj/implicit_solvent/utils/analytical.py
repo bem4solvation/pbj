@@ -5,16 +5,16 @@ from scipy.special import factorial
 
 
 def get_K(x, n):
-    """
-    It computes the polinomials K needed for Kirkwood-1934 solutions.
-    K_n(x) in Equation 4 in Kirkwood 1934.
-    Arguments
-    ----------
-    x: float, evaluation point of K.
-    n: int, number of terms desired in the expansion.
-    Returns
-    --------
-    K: float, polinomials K.
+    """Computes the polynomials K needed for Kirkwood-1934 solutions.
+
+    Calculates $K_n(x)$ as defined in Equation 4 of Kirkwood (1934).
+
+    Args:
+        x (float): Evaluation point of the polynomial.
+        n (int): Order of the expansion term.
+
+    Returns:
+        float: The evaluated polynomial value $K_n(x)$.
     """
 
     K = 0.0
@@ -33,21 +33,20 @@ def get_K(x, n):
 
 
 def an_P(q, xq, E_1, E_2, R, kappa, a, N):
-    """
-    It computes the solvation energy according to Kirkwood-1934.
-    Arguments
-    ----------
-    q    : array, charges.
-    xq   : array, positions of the charges.
-    E_1  : float, dielectric constant inside the sphere.
-    E_2  : float, dielectric constant outside the sphere.
-    R    : float, radius of the sphere.
-    kappa: float, reciprocal of Debye length.
-    a    : float, radius of the Stern Layer.
-    N    : int, number of terms desired in the polinomial expansion.
-    Returns
-    --------
-    E_P  : float, solvation energy.
+    """Computes the solvation energy according to Kirkwood-1934.
+
+    Args:
+        q (numpy.ndarray): Array of point charges.
+        xq (numpy.ndarray): Array of shapes $(K, 3)$ containing the Cartesian positions of the charges.
+        E_1 (float): Dielectric constant inside the sphere.
+        E_2 (float): Dielectric constant outside the sphere.
+        R (float): Radius of the cavity sphere.
+        kappa (float): Reciprocal of the Debye length (screening parameter).
+        a (float): Radius of the Stern Layer boundary.
+        N (int): Number of terms desired in the polynomial expansion.
+
+    Returns:
+        float: The calculated solvation energy.
     """
 
     qe = 1.60217646e-19

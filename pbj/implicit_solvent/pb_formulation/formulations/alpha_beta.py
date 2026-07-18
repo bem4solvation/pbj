@@ -1,7 +1,15 @@
+r"""Alpha-beta multitrace formulation for the Poisson-Boltzmann problem.
+
+This module assembles the blocked boundary-integral system used by the alpha-beta
+family of methods and provides the preconditioners and potential solve workflow
+for the single-surface PB problem.
+"""
+
 import numpy as np
 import os
-import bempp.api
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+import bempp_cl as bempp
+import bempp_cl.api
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
 invert_potential = False

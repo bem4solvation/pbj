@@ -1,9 +1,16 @@
-import numpy as np
-import bempp.api
-import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
-from .common import calculate_potential_one_surface
+r"""Alpha-beta single-blocked formulation for the Poisson-Boltzmann problem.
 
+This module assembles the single-blocked alpha-beta system directly from the
+interior and exterior boundary operators, providing a compact alternative to the
+full multitrace formulation.
+"""
+
+import numpy as np
+import bempp_cl as bempp
+import bempp_cl.api
+import os
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
+from .common import calculate_potential_one_surface
 
 invert_potential = False
 

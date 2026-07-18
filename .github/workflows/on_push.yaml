@@ -16,24 +16,56 @@ jobs:
         run: |
             if [ ${GITHUB_REF#refs/*/} == "master" ]
             then
-              echo ::set-output name=tag::latest
+              echo "tag=latest" >> $GITHUB_OUTPUT
             else
               the_tag=${GITHUB_REF#refs/*/}
-              echo ::set-output name=tag::${the_tag/\//_}
+              echo "tag=${the_tag/\//_}" >> $GITHUB_OUTPUT
             fi
+
   style-checks:
     name: Run style checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: |
+      - name: Install Python style tools
+        run: |
             sudo apt-get install -y python3-setuptools
-            pip3 install black>=20.8
+            pip3 install "black>=20.8"
             pip3 install pydocstyle flake8
-        name: Install Python style tools
-      - run: |
+      - name: Run flake8 checks
+        run: |
             python3 -m flake8 pbj
-        name: Run flake8 checks
-      - run: |
+      - name: Run black checks in pbj
+        run: |
             python3 -m black --line-length 88 --check pbj
-        name: Run black checks in pbj
+
+  unit-tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Conda Environment
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: pbj         
+          environment-file: environment.yml   
+          auto-activate-base: false
+
+      - name: Run system test (Single sphere)
+        shell: bash -el {0}
+        run: |
+          python -m pytest -qq pbj/tests/test_single.py -s
+
+      - name: Run system test (Multiple spheres)
+        if: always() 
+        shell: bash -el {0}
+        run: |
+          python -m pytest -qq pbj/tests/test_multiple.py -s
+
+      - name: Run system test (Formulations)
+        if: always() 
+        shell: bash -el {0}
+        run: |
+          python -m pytest -qq pbj/tests/test_formulations.py -s

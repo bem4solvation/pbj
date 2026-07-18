@@ -1,7 +1,15 @@
 import numpy as np
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
-from bempp.api.operators.boundary import sparse, laplace, modified_helmholtz
+
+"""Direct permuted formulation for the Poisson-Boltzmann problem.
+
+This module implements the direct formulation with a permuted unknown ordering,
+which is useful for certain preconditioned and blocked operator setups.
+"""
+
+from bempp_cl.api.operators.boundary import sparse, laplace, modified_helmholtz
 from .common import calculate_potential_one_surface
 
 invert_potential = False

@@ -1,172 +1,180 @@
-# import bempp.api
+r"""Shared helpers for the Poisson-Boltzmann formulation modules.
+
+This module collects the common solve-and-postprocess routines used by the
+single-surface and Stern-layer formulations, including potential reconstruction
+and the shared workflow for running the boundary-element solve.
+"""
+
 import numpy as np
 import time
 import pbj.implicit_solvent.utils as utils
-        
+
+# import bempp_cl as bempp
+# import bempp_cl.api
+
+
 def calculate_potential_one_surface(simulation, rerun_all=False, rerun_rhs=False):
 
-        if rerun_all and rerun_rhs: # if both are True, just rerun_all
-            rerun_rhs=False
-            
-        #if self.solutes[0].force_field == "amoeba":
-        #    self.calculate_potentials_polarizable(rerun_all=rerun_all, rerun_rhs=rerun_rhs)
+    if rerun_all and rerun_rhs:  # if both are True, just rerun_all
+        rerun_rhs = False
 
-        elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
-            start_time = time.time()
+    # if self.solutes[0].force_field == "amoeba":
+    #    self.calculate_potentials_polarizable(rerun_all=rerun_all, rerun_rhs=rerun_rhs)
 
-            if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
-                simulation.create_and_assemble_rhs()
+    elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
+        start_time = time.time()
+
+        if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
+            simulation.create_and_assemble_rhs()
+        else:
+            simulation.create_and_assemble_linear_system()
+
+        simulation.timings["time_assembly"] = time.time() - start_time
+
+        initial_guess = np.zeros_like(simulation.rhs["rhs_discrete"])
+
+        # Use GMRES to solve the system of equations
+        if "preconditioning_matrix_gmres" in simulation.matrices:
+            gmres_start_time = time.time()
+            x, info, it_count = utils.solver(
+                simulation.matrices["A_discrete"],
+                simulation.rhs["rhs_discrete"],
+                simulation.gmres_tolerance,
+                simulation.gmres_restart,
+                simulation.gmres_max_iterations,
+                initial_guess=initial_guess,
+                precond=simulation.matrices["preconditioning_matrix_gmres"],
+            )
+
+        else:
+            gmres_start_time = time.time()
+            x, info, it_count = utils.solver(
+                simulation.matrices["A_discrete"],
+                simulation.rhs["rhs_discrete"],
+                simulation.gmres_tolerance,
+                simulation.gmres_restart,
+                simulation.gmres_max_iterations,
+                initial_guess=initial_guess,
+            )
+
+        simulation.timings["time_gmres"] = time.time() - gmres_start_time
+
+        from bempp_cl.api.assembly.blocked_operator import (
+            grid_function_list_from_coefficients,
+        )
+
+        simulation.run_info["solver_iteration_count"] = it_count
+
+        solute_start = 0
+        for index, solute in enumerate(simulation.solutes):
+
+            N_dirichl = solute.dirichl_space.global_dof_count
+            N_neumann = solute.neumann_space.global_dof_count
+            N_total = N_dirichl + N_neumann
+
+            x_slice = x.ravel()[solute_start : solute_start + N_total]
+
+            solute_start += N_total
+
+            solution = grid_function_list_from_coefficients(
+                x_slice, simulation.solutes[index].matrices["A"].domain_spaces
+            )
+
+            solute.results["phi"] = solution[0]
+
+            if simulation.formulation_object.invert_potential:
+                solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1]
             else:
-                simulation.create_and_assemble_linear_system()
-            
-            simulation.timings["time_assembly"] = time.time() - start_time 
-           
-            initial_guess = np.zeros_like(simulation.rhs["rhs_discrete"])
+                solute.results["d_phi"] = solution[1]
 
-            # Use GMRES to solve the system of equations
-            if "preconditioning_matrix_gmres" in simulation.matrices:
-                gmres_start_time = time.time()
-                x, info, it_count = utils.solver(
-                    simulation.matrices["A_discrete"],
-                    simulation.rhs["rhs_discrete"],
-                    simulation.gmres_tolerance,
-                    simulation.gmres_restart,
-                    simulation.gmres_max_iterations,
-                    initial_guess = initial_guess,
-                    precond = simulation.matrices["preconditioning_matrix_gmres"]
-                )
-                
-            else:
-                gmres_start_time = time.time()
-                x, info, it_count = utils.solver(
-                    simulation.matrices["A_discrete"],
-                    simulation.rhs["rhs_discrete"],
-                    simulation.gmres_tolerance,
-                    simulation.gmres_restart,
-                    simulation.gmres_max_iterations,
-                    initial_guess = initial_guess,
-                )
+        simulation.timings["time_compute_potential"] = time.time() - start_time
 
-            simulation.timings["time_gmres"] = time.time() - gmres_start_time
 
-            from bempp.api.assembly.blocked_operator import (
-                grid_function_list_from_coefficients,
-            )          
-
-            simulation.run_info["solver_iteration_count"] = it_count
-            
-            solute_start = 0
-            for index, solute in enumerate(simulation.solutes):
-
-                N_dirichl = solute.dirichl_space.global_dof_count
-                N_neumann = solute.neumann_space.global_dof_count
-                N_total = N_dirichl + N_neumann
-                
-                x_slice = x.ravel()[solute_start:solute_start + N_total]
-                
-                solute_start += N_total
-                
-                solution = grid_function_list_from_coefficients(
-                    x_slice, simulation.solutes[index].matrices["A"].domain_spaces
-                )
-
-                solute.results["phi"]  = solution[0]
-                
-                if simulation.formulation_object.invert_potential:
-                    solute.results["d_phi"] = (solute.ep_ex / solute.ep_in) * solution[1] 
-                else:  
-                    solute.results["d_phi"] = solution[1] 
-  
-            simulation.timings["time_compute_potential"] = time.time() - start_time
-
-    
 def calculate_potential_stern(simulation, rerun_all=False, rerun_rhs=False):
 
-        if rerun_all and rerun_rhs: # if both are True, just rerun_all
-            rerun_rhs=False
-         
-        elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
-            start_time = time.time()
+    if rerun_all and rerun_rhs:  # if both are True, just rerun_all
+        rerun_rhs = False
 
-            if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
-                simulation.create_and_assemble_rhs()
+    elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
+        start_time = time.time()
+
+        if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
+            simulation.create_and_assemble_rhs()
+        else:
+            simulation.create_and_assemble_linear_system()
+
+        simulation.timings["time_assembly"] = time.time() - start_time
+
+        initial_guess = np.zeros_like(simulation.rhs["rhs_discrete"])
+        # Use GMRES to solve the system of equations
+        if "preconditioning_matrix_gmres" in simulation.matrices:
+            gmres_start_time = time.time()
+            x, info, it_count = utils.solver(
+                simulation.matrices["A_discrete"],
+                simulation.rhs["rhs_discrete"],
+                simulation.gmres_tolerance,
+                simulation.gmres_restart,
+                simulation.gmres_max_iterations,
+                initial_guess=initial_guess,
+                precond=simulation.matrices["preconditioning_matrix_gmres"],
+            )
+
+        else:
+            gmres_start_time = time.time()
+            x, info, it_count = utils.solver(
+                simulation.matrices["A_discrete"],
+                simulation.rhs["rhs_discrete"],
+                simulation.gmres_tolerance,
+                simulation.gmres_restart,
+                simulation.gmres_max_iterations,
+                initial_guess=initial_guess,
+            )
+
+        simulation.timings["time_gmres"] = time.time() - gmres_start_time
+
+        from bempp_cl.api.assembly.blocked_operator import (
+            grid_function_list_from_coefficients,
+        )
+
+        simulation.run_info["solver_iteration_count"] = it_count
+
+        solute_start = 0
+        for index, solute in enumerate(simulation.solutes):
+
+            N_dirichl = solute.dirichl_space.global_dof_count
+            N_neumann = solute.neumann_space.global_dof_count
+            N_dirichl_stern = solute.stern_object.dirichl_space.global_dof_count
+            N_neumann_stern = solute.stern_object.neumann_space.global_dof_count
+
+            N_total = N_dirichl + N_neumann + N_dirichl_stern + N_neumann_stern
+
+            x_slice = x.ravel()[solute_start : solute_start + N_total]
+
+            solute_start += N_total
+
+            solution = grid_function_list_from_coefficients(
+                x_slice, simulation.solutes[index].matrices["A"].domain_spaces
+            )
+
+            solute.results["phi"] = solution[0]
+
+            if simulation.formulation_object.invert_potential:
+                solute.results["d_phi"] = (solute.ep_stern / solute.ep_in) * solution[1]
             else:
-                simulation.create_and_assemble_linear_system()
-            
-            simulation.timings["time_assembly"] = time.time() - start_time 
-           
-            initial_guess = np.zeros_like(simulation.rhs["rhs_discrete"])
-            # Use GMRES to solve the system of equations
-            if "preconditioning_matrix_gmres" in simulation.matrices:
-                gmres_start_time = time.time()
-                x, info, it_count = utils.solver(
-                    simulation.matrices["A_discrete"],
-                    simulation.rhs["rhs_discrete"],
-                    simulation.gmres_tolerance,
-                    simulation.gmres_restart,
-                    simulation.gmres_max_iterations,
-                    initial_guess = initial_guess,
-                    precond = simulation.matrices["preconditioning_matrix_gmres"]
-                )
-                
+                solute.results["d_phi"] = solution[1]
+
+            solute.results["phi_stern"] = solution[2]
+
+            if simulation.formulation_object.invert_potential:
+                solute.results["d_phi_stern"] = (
+                    solute.ep_ex / solute.ep_stern
+                ) * solution[3]
             else:
-                gmres_start_time = time.time()
-                x, info, it_count = utils.solver(
-                    simulation.matrices["A_discrete"],
-                    simulation.rhs["rhs_discrete"],
-                    simulation.gmres_tolerance,
-                    simulation.gmres_restart,
-                    simulation.gmres_max_iterations,
-                    initial_guess = initial_guess,
-                )
+                solute.results["d_phi_stern"] = solution[3]
 
-            simulation.timings["time_gmres"] = time.time() - gmres_start_time
+        simulation.timings["time_compute_potential"] = time.time() - start_time
 
-            from bempp.api.assembly.blocked_operator import (
-                grid_function_list_from_coefficients,
-            )          
 
-            simulation.run_info["solver_iteration_count"] = it_count
-            
-            solute_start = 0
-            for index, solute in enumerate(simulation.solutes):
-
-                N_dirichl = solute.dirichl_space.global_dof_count
-                N_neumann = solute.neumann_space.global_dof_count
-                N_dirichl_stern = solute.stern_object.dirichl_space.global_dof_count
-                N_neumann_stern = solute.stern_object.neumann_space.global_dof_count
-                
-                N_total = N_dirichl + N_neumann + N_dirichl_stern + N_neumann_stern
-                
-                x_slice = x.ravel()[solute_start:solute_start + N_total]
-                
-                solute_start += N_total
-                
-                solution = grid_function_list_from_coefficients(
-                    x_slice, simulation.solutes[index].matrices["A"].domain_spaces
-                )
-                
-
-                solute.results["phi"]  = solution[0]
-                
-                if simulation.formulation_object.invert_potential:
-                    solute.results["d_phi"] = (solute.ep_stern / solute.ep_in) * solution[1] 
-                else:  
-                    solute.results["d_phi"] = solution[1] 
-                
-                solute.results["phi_stern"]  = solution[2]
-
-                if simulation.formulation_object.invert_potential:
-                    solute.results["d_phi_stern"] = (solute.ep_ex / solute.ep_stern) * solution[3] 
-                else:  
-                    solute.results["d_phi_stern"] = solution[3]
-
-  
-            simulation.timings["time_compute_potential"] = time.time() - start_time
-
-    
-
-    
 """
 def calculate_potential_slic(self):
 
@@ -230,6 +238,7 @@ def calculate_potential_slic(self):
     if self.print_times:
         show_potential_calculation_times(self)
 """
+
 
 def show_potential_calculation_times(self):
     if "phi" in self.results:

@@ -1,5 +1,6 @@
 import re
-import bempp.api
+import bempp_cl as bempp
+import bempp_cl.api
 import os
 import numpy as np
 import time
@@ -29,16 +30,67 @@ class Solute:
         force_field="amber",
         formulation="direct",
         radius_keyword="solute",
-        solute_radius_type="PB"
+        solute_radius_type="PB",
+        fill_cavities=True,
+        cavity_cutoff=60,
     ):
+        """Initialize a solute object, configure solver parameters, and load mesh/charge data.
+
+        The constructor imports the requested structure file, generates or loads a surface mesh,
+        and initializes the electrostatic formulation, radii, and cavity settings used later
+        by the Poisson-Boltzmann workflow.
+
+        Args:
+            solute_file_path (str): Path to the molecular structure file (.pdb, .pqr, or .xyz).
+            external_mesh_file (str, optional): Path to a pre-computed mesh file.
+                If no extension is given, MSMS (.face/.vert) is assumed. Defaults to None.
+            save_mesh_build_files (bool, optional): If True, retains intermediate files
+                created during the mesh generation process. Defaults to False.
+            mesh_build_files_dir (str, optional): Directory where the intermediate mesh
+                files will be stored. Defaults to "mesh_files/".
+            mesh_density (float, optional): Density of the vertices for the generated molecular mesh.
+                Defaults to 2.0.
+            nanoshaper_grid_scale (float, optional): Specific grid scale for NanoShaper.
+                If None, it's calculated from mesh_density. Defaults to None.
+            solvent_radius (float, optional): Radius of the solvent probe molecule in Angstroms.
+                Defaults to 1.4.
+            mesh_generator (str, optional): Software to use for mesh generation
+                (e.g., "nanoshaper" or "msms"). Defaults to "nanoshaper".
+            print_times (bool, optional): If True, prints detailed execution timings
+                for benchmarking. Defaults to False.
+            force_field (str, optional): Force field model to apply (e.g., "amber", "amoeba").
+                Defaults to "amber".
+            formulation (str, optional): Electrostatic formulation type used by the PB solver.
+                Common choices include "direct", "direct_external", "direct_permuted",
+                "direct_external_permuted", "direct_stern", "direct_amoeba",
+                "alpha_beta", "alpha_beta_external_potential",
+                "alpha_beta_single_blocked", "first_kind_external",
+                "first_kind_internal", "juffer", "lu", "muller_external",
+                "muller_internal", "slic", and "slic_prop". Use
+                display_available_formulations() to print the full set of supported
+                formulations at runtime. Defaults to "direct".
+            radius_keyword (str, optional): Keyword used to select atom radii from the input data.
+                Defaults to "solute".
+            solute_radius_type (str, optional): Target classification for the solute radii.
+                Defaults to "PB".
+            fill_cavities (bool, optional): If True, include cavity-filling behavior during mesh setup.
+                Defaults to True.
+            cavity_cutoff (int, optional): Cutoff value used in cavity-filling logic.
+                Defaults to 60.
+
+        Raises:
+            ValueError: If the specified formulation does not match any available
+                module in pb_formulations.
+        """
 
         if not os.path.isfile(solute_file_path):
             print("file does not exist -> Cannot start")
             return
 
-            
         if force_field == "amoeba" and formulation != "direct":
-            print("AMOEBA force field is only available with the direct formulation -> Changing to direct")
+            print(
+                "AMOEBA force field is only available with the direct formulation -> Changing to direct"
+            )
         if force_field == "amoeba":
             formulation = "direct_amoeba"
 
@@ -75,6 +127,8 @@ class Solute:
                 )
         self.mesh_probe_radius = solvent_radius
         self.mesh_generator = mesh_generator
+        self.fill_cavities = fill_cavities
+        self.cavity_cutoff = cavity_cutoff
 
         self.print_times = print_times
 
@@ -112,27 +166,34 @@ class Solute:
 
             if force_field == "amoeba":
                 (
-                    self.x_q, 
-                    self.q, 
+                    self.x_q,
+                    self.q,
                     self.d,
-                    self.Q, 
-                    self.alpha, 
+                    self.Q,
+                    self.alpha,
                     self.r_q,
-                    self.mass, 
-                    self.polar_group, 
-                    self.thole, 
-                    self.connections_12, 
-                    self.connections_13, 
-                    self.pointer_connections_12, 
-                    self.pointer_connections_13, 
-                    self.p12scale, 
-                    self.p13scale, 
+                    self.mass,
+                    self.polar_group,
+                    self.thole,
+                    self.connections_12,
+                    self.connections_13,
+                    self.pointer_connections_12,
+                    self.pointer_connections_13,
+                    self.p12scale,
+                    self.p13scale,
                 ) = charge_tools.load_tinker_multipoles_to_solute(self)
 
                 self.d_induced = np.zeros_like(self.d)
                 self.d_induced_prev = np.zeros_like(self.d)
-            else: 
-                self.q, self.x_q, self.r_q, self.atom_name, self.res_name, self.res_num = charge_tools.load_charges_to_solute(
+            else:
+                (
+                    self.q,
+                    self.x_q,
+                    self.r_q,
+                    self.atom_name,
+                    self.res_name,
+                    self.res_num,
+                ) = charge_tools.load_charges_to_solute(
                     self
                 )  # Import charges from given file
 
@@ -141,26 +202,25 @@ class Solute:
             if force_field == "amoeba":
                 (
                     self.mesh,
-                    self.x_q, 
-                    self.q, 
-                    self.d, 
-                    self.Q, 
-                    self.alpha, 
+                    self.x_q,
+                    self.q,
+                    self.d,
+                    self.Q,
+                    self.alpha,
                     self.r_q,
-                    self.mass, 
-                    self.polar_group, 
-                    self.thole, 
-                    self.connections_12, 
-                    self.connections_13, 
-                    self.pointer_connections_12, 
-                    self.pointer_connections_13, 
-                    self.p12scale, 
-                    self.p13scale, 
+                    self.mass,
+                    self.polar_group,
+                    self.thole,
+                    self.connections_12,
+                    self.connections_13,
+                    self.pointer_connections_12,
+                    self.pointer_connections_13,
+                    self.p12scale,
+                    self.p13scale,
                 ) = charge_tools.generate_msms_mesh_import_tinker_multipoles(self)
 
                 self.d_induced = np.zeros_like(self.d)
                 self.d_induced_prev = np.zeros_like(self.d)
-
 
             else:
                 (
@@ -168,9 +228,9 @@ class Solute:
                     self.q,
                     self.x_q,
                     self.r_q,
-                    self.atom_name, 
-                    self.res_name, 
-                    self.res_num
+                    self.atom_name,
+                    self.res_name,
+                    self.res_num,
                 ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0
@@ -185,20 +245,25 @@ class Solute:
         self.intercept_disp_nonpolar = 3.5
 
         self.solvent_number_density = 1.45
-        
+
         self.slic_alpha = 0.5
         self.slic_beta = -60
         self.slic_gamma = -0.5
-        
-        self.slic_sigma = None
-        self.slic_e_hat_diel  = None #self.ep_in / self.ep_stern
-        self.slic_e_hat_stern = None #self.ep_stern / self.ep_ex
-        
-        self.stern_mesh_density_ratio = 0.5 # stern_density/diel_density ratio. No need for fine meshes in Stern.
-        self.stern_probe_radius = 0.05 # probe radius for the outer mesh of Stern layer 
 
-        self.sas_mesh_density = self.mesh_density
-        
+        self.slic_sigma = None
+        self.slic_e_hat_diel = None  # self.ep_in / self.ep_stern
+        self.slic_e_hat_stern = None  # self.ep_stern / self.ep_ex
+
+        self.stern_mesh_density_ratio = (
+            0.5  # stern_density/diel_density ratio. No need for fine meshes in Stern.
+        )
+        self.stern_probe_radius = 0.05  # probe radius for the outer mesh of Stern layer
+
+        if nanoshaper_grid_scale is None:
+            self.sas_mesh_density = self.mesh_density
+        else:
+            self.sas_mesh_density = self.nanoshaper_grid_scale
+
         self.pb_formulation_alpha = 1.0  # np.nan
         self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
 
@@ -237,7 +302,9 @@ class Solute:
     def pb_formulation(self, value):
         self._pb_formulation = value
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
-        if "preconditioning_matrix_gmres" not in self.matrices: # might already exist if just regenerating RHS
+        if (
+            "preconditioning_matrix_gmres" not in self.matrices
+        ):  # might already exist if just regenerating RHS
             self.matrices["preconditioning_matrix_gmres"] = None
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
@@ -249,10 +316,9 @@ class Solute:
     @stern_mesh_density.setter
     def stern_mesh_density(self, value):
         self._stern_mesh_density = value
-        self.stern_mesh_density_ratio = value/self.mesh_density
+        self.stern_mesh_density_ratio = value / self.sas_mesh_density
         pb_formulations.direct_stern.create_stern_mesh(self)
-        
-        
+
     def display_available_formulations(self):
         from inspect import getmembers, ismodule
 
@@ -286,7 +352,10 @@ class Solute:
             self.formulation_object.lhs(self)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
 
-    def assemble_matrices(self): # not being used, as this is done in apply_preconditioning
+    def assemble_matrices(
+        self,
+    ):
+        # not being used, as this is done in apply_preconditioning
         start_assembly = time.time()
         self.matrices["A"].weak_form()
         self.timings["time_matrix_assembly"] = time.time() - start_assembly
@@ -299,6 +368,25 @@ class Solute:
         self.timings["time_rhs_initialisation"] = time.time() - start_rhs
 
     def apply_preconditioning(self):
+        r"""Apply preconditioning to the boundary element matrix operator and system right-hand side.
+
+        Transforms the continuous linear system layout to optimize iterative solver (e.g., GMRES)
+        convergence behavior. If preconditioning is active, this method dynamically delegates
+        the operator transformations to the active `formulation_object`. Otherwise, it directly
+        discretizes the system using standard weak-form boundary element mappings:
+
+        $$ \mathbf{A}_{\text{discrete}} = \text{utils.matrix\_to\_discrete\_form}(\mathbf{A}_{\text{final}}, \text{"weak"}) $$
+        $$ \mathbf{b}_{\text{discrete}} = \text{utils.rhs\_to\_discrete\_form}(\mathbf{b}_{\text{final}}, \text{"weak"}, \mathbf{A}) $$
+
+        Raises:
+            ValueError: If the requested preconditioning type string does not map to a valid
+                        attribute on the active `formulation_object`.
+
+        Side Effects:
+            - Dynamically executes `<type>_preconditioner(self)` on `self.formulation_object`.
+            - Modifies the `self.matrices` and `self.rhs` dictionaries when no preconditioning is applied.
+            - Updates execution profiling timestamps inside `self.timings["time_preconditioning"]`.
+        """
         preconditioning_start_time = time.time()
         if self.pb_formulation_preconditioning:
             precon_str = self.pb_formulation_preconditioning_type + "_preconditioner"
@@ -324,11 +412,36 @@ class Solute:
             )
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
-        
+
     def apply_preconditioning_rhs(self):
+        r"""Apply preconditioning to the right-hand side (RHS) vector or prepare the discrete standard RHS.
+
+        Transforms the continuous boundary element right-hand side vectors to match the
+        selected linear system preconditioning layout. If preconditioning is enabled, this
+        method dynamically invokes the formulation-specific RHS preprocessing callback.
+        Otherwise, it falls back to a standard weak-form discretization matching the block
+        structure of the system matrix:
+
+        $$ \mathbf{b}_{\text{discrete}} = \text{utils.rhs\_to\_discrete\_form}(\mathbf{b}_{\text{final}}, \text{"weak"}, \mathbf{A}) $$
+
+        Raises:
+            ValueError: If the requested preconditioning type string does not map to a valid
+                        attribute on the active `formulation_object`.
+
+        Side Effects:
+            - Dynamically executes `<type>_preconditioner_rhs(self)` on `self.formulation_object`.
+            - Modifies `self.rhs["rhs_final"]` and `self.rhs["rhs_discrete"]` when no
+              preconditioning is applied.
+            - Updates execution profiling timestamps inside `self.timings["time_preconditioning"]`.
+        """
         preconditioning_start_time = time.time()
-        if self.pb_formulation_preconditioning and self.matrices["preconditioning_matrix_gmres"] is None:
-            precon_str = self.pb_formulation_preconditioning_type + "_preconditioner_rhs"
+        if (
+            self.pb_formulation_preconditioning
+            and self.matrices["preconditioning_matrix_gmres"] is None
+        ):
+            precon_str = (
+                self.pb_formulation_preconditioning_type + "_preconditioner_rhs"
+            )
             preconditioning_object = getattr(self.formulation_object, precon_str, None)
             if preconditioning_object is not None:
                 preconditioning_object(self)
@@ -346,32 +459,80 @@ class Solute:
             )
 
         self.timings["time_preconditioning"] = time.time() - preconditioning_start_time
-        
-    def calculate_solvation_energy(self, electrostatic_energy=True, nonpolar_energy=False):
+
+    def calculate_solvation_energy(
+        self, electrostatic_energy=True, nonpolar_energy=False, units="kcal_mol"
+    ):
+        r"""Calculate the total solvation free energy of the solute.
+
+        Compute and combine the polar (electrostatic) and nonpolar components of the implicit solvation
+        free energy based on the active flags:
+
+        $$ \Delta G_{\text{solv}} = \Delta G_{\text{electrostatic}} + \Delta G_{\text{nonpolar}} $$
+
+        Args:
+            electrostatic_energy (bool, optional): If True, computes the electrostatic/polar
+                                                 solvation energy component. Defaults to True.
+            nonpolar_energy (bool, optional): If True, computes the nonpolar (cavity + dispersion)
+                                              solvation energy component. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned energy values. Defaults to "kcal_mol".
+
+        Side Effects:
+            - Triggers `self.calculate_electrostatic_solvation_energy()` if `electrostatic_energy` is True.
+            - Triggers `self.calculate_nonpolar_solvation_energy()` if `nonpolar_energy` is True.
+            - Modifies `self.results["solvation_energy"]` to store the cumulative sum when both components are requested.
+        """
 
         calculate_all = electrostatic_energy and nonpolar_energy
         if calculate_all:
-            self.calculate_electrostatic_solvation_energy()
-            self.calculate_nonpolar_solvation_energy()
-            self.results["solvation_energy"] = self.results["electrostatic_solvation_energy"] \
-                                             + self.results["nonpolar_solvation_energy"]
+            self.calculate_electrostatic_solvation_energy(units=units)
+            self.calculate_nonpolar_solvation_energy(units=units)
+            self.results["solvation_energy"] = (
+                self.results["electrostatic_solvation_energy"]
+                + self.results["nonpolar_solvation_energy"]
+            )
 
         elif electrostatic_energy:
-            self.calculate_electrostatic_solvation_energy()
-    
-        elif nonpolar_energy: 
-            self.calculate_nonpolar_solvation_energy()
+            self.calculate_electrostatic_solvation_energy(units=units)
 
+        elif nonpolar_energy:
+            self.calculate_nonpolar_solvation_energy(units=units)
 
+    def calculate_electrostatic_solvation_energy(self, units="kcal_mol"):
+        r"""Calculate the electrostatic component of the solvation free energy.
 
-    def calculate_electrostatic_solvation_energy(self):
+        Computes the electrostatic reaction potential ($\phi_{\text{reac}}$) at each explicit
+        solute point charge location by projecting the boundary element solution (Dirichlet
+        and Neumann data) back into the solute cavity using Laplace potential operators. It then
+        evaluates the total polar solvation energy via the charge-potential product:
+
+        $$ E_{\text{electrostatic}} = \frac{1}{2} \sum_{i} q_i \phi_{\text{reac}}(\mathbf{r}_i) $$
+
+        If the polarizable AMOEBA force field is active, the calculation is automatically
+        delegated to a specialized polarizable energy formulation handler.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed electrostatic solvation energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - Modifies `self.results["phir_charges"]` to store the reaction potential evaluated at each charge.
+            - Modifies `self.results["electrostatic_solvation_energy"]` to store the total polar energy in kcal/mol.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
 
         if "phi" not in self.results:
-            print("Please compute surface potential first with simulation.calculate_potentials()")
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
             return
-        
+
         if self.force_field == "amoeba":
-            self.formulation_object.calculate_solvation_energy_polarizable(self)
+            self.formulation_object.calculate_solvation_energy_polarizable(
+                self, units=units
+            )
             return
 
         start_time = time.time()
@@ -379,7 +540,7 @@ class Solute:
         solution_dirichl = self.results["phi"]
         solution_neumann = self.results["d_phi"]
 
-        from bempp.api.operators.potential.laplace import single_layer, double_layer
+        from bempp_cl.api.operators.potential.laplace import single_layer, double_layer
 
         slp_q = single_layer(self.neumann_space, self.x_q.transpose())
         dlp_q = double_layer(self.dirichl_space, self.x_q.transpose())
@@ -388,8 +549,12 @@ class Solute:
         self.results["phir_charges"] = phi_q
 
         # total solvation energy applying constant to get units [kcal/mol]
-        total_energy = 2 * np.pi * 332.064 * np.sum(self.q * phi_q).real
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        total_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q).real
         self.results["electrostatic_solvation_energy"] = total_energy
+        self.results["electrostatic_solvation_energy_units"] = unit_label
         self.timings["time_calc_elec_energy"] = time.time() - start_time
 
         if self.print_times:
@@ -398,64 +563,156 @@ class Solute:
                 self.timings["time_calc_elec_energy"],
                 " seconds to compute the electrostatic solvation energy",
             )
- 
-    def calculate_nonpolar_solvation_energy(self, sas_mesh_density=None):
+
+    def calculate_nonpolar_solvation_energy(
+        self, sas_mesh_density=None, units="kcal_mol"
+    ):
+        r"""Calculate the total nonpolar solvation free energy contribution.
+
+        Combines the energy required to form the molecular cavity in the solvent
+        with the attractive van der Waals dispersion interactions between the solute
+        and surrounding solvent molecules:
+
+        $$ E_{\text{nonpolar}} = E_{\text{cavity}} + E_{\text{dispersion}} $$
+
+        Args:
+            sas_mesh_density (float, optional): Density parameter passed down to the
+                                                SAS mesh generator if the mesh has not
+                                                yet been constructed. Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed nonpolar solvation energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - Triggers `self.calculate_cavity_energy(sas_mesh_density, units=units)`.
+            - Triggers `self.calculate_dispersion_energy(sas_mesh_density, units=units)`.
+            - Modifies `self.results["nonpolar_solvation_energy"]` to store the combined sum.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
 
         start_time = time.time()
-        
-        self.calculate_cavity_energy(sas_mesh_density)
-        self.calculate_dispersion_energy(sas_mesh_density)
+
+        self.calculate_cavity_energy(sas_mesh_density, units=units)
+        self.calculate_dispersion_energy(sas_mesh_density, units=units)
 
         self.timings["time_calc_nonpol_energy"] = time.time() - start_time
 
-        self.results["nonpolar_solvation_energy"] = \
-                self.results["cavity_energy"] + self.results["dispersion_energy"]
-    
+        self.results["nonpolar_solvation_energy"] = (
+            self.results["cavity_energy"] + self.results["dispersion_energy"]
+        )
+
         if self.print_times:
             print(
                 "It took ",
                 self.timings["time_calc_nonpol_energy"],
                 " seconds to compute the nonpolar solvation energy",
             )
- 
-    def calculate_cavity_energy(self, sas_mesh_density=None):
 
-        if not hasattr(self, "sas_mesh"): 
+    def calculate_cavity_energy(self, sas_mesh_density=None, units="kcal_mol"):
+        r"""Calculate the nonpolar cavity formation energy based on the Solvent Accessible Surface Area (SASA).
+
+        Computes the reversible work required to create a solute-sized cavity in the
+        solvent. This nonpolar component is modeled via a linear relationship with the SASA:
+
+        $$ E_{\text{cav}} = \gamma \cdot \text{SASA} + b $$
+
+        The SASA is determined by summing the surface area elements (`volumes`) of the SAS mesh.
+
+        Args:
+            sas_mesh_density (float, optional): Density parameter passed to `create_sas_mesh`
+                                                if the SAS mesh hasn't been generated yet.
+                                                Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed cavity energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - If `self.sas_mesh` is missing, triggers `self.create_sas_mesh(sas_mesh_density)`.
+            - Modifies `self.results["cavity_energy"]` to store the final energy calculation.
+        """
+
+        if not hasattr(self, "sas_mesh"):
             self.create_sas_mesh(sas_mesh_density)
 
         sasa = np.sum(self.sas_mesh.volumes)
 
-        gamma = self.gamma_cav_nonpolar 
+        gamma = self.gamma_cav_nonpolar
         b = self.intercept_cav_nonpolar
 
-        cavity_energy = gamma*sasa + b
-        self.results["cavity_energy"] = cavity_energy
+        cavity_energy = gamma * sasa + b
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        unit_conversion_base, _ = charge_tools.convert_units(
+            "kcal_mol", magnitude="energy"
+        )
+        factor_units = unit_conversion / unit_conversion_base
+        self.results["cavity_energy"] = factor_units * cavity_energy
+        self.results["cavity_energy_units"] = unit_label
 
+    def calculate_dispersion_energy(self, sas_mesh_density=None, units="kcal_mol"):
+        r"""Calculate the nonpolar dispersion energy based on the Solvent Accessible Surface Area (SASA).
 
-    def calculate_dispersion_energy(self, sas_mesh_density=None):
+        Computes the hydrophobic/nonpolar dispersion contribution to the solvation free
+        energy using a linear relationship with the SASA ($E_{\text{disp}} = \gamma \cdot \text{SASA} + b$).
+        The SASA is determined by summing the individual element areas (`volumes`) of the SAS mesh.
 
-        if not hasattr(self, "sas_mesh"): 
+        Args:
+            sas_mesh_density (float, optional): Density parameter passed to `create_sas_mesh`
+                                                if the SAS mesh hasn't been generated yet.
+                                                Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed dispersion energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - If `self.sas_mesh` is missing, triggers `self.create_sas_mesh(sas_mesh_density)`
+              to generate it.
+            - Modifies `self.results["dispersion_energy"]` to store the final energy calculation.
+        """
+
+        if not hasattr(self, "sas_mesh"):
             self.create_sas_mesh(sas_mesh_density)
 
         sasa = np.sum(self.sas_mesh.volumes)
 
-        gamma = self.gamma_disp_nonpolar 
+        gamma = self.gamma_disp_nonpolar
         b = self.intercept_disp_nonpolar
 
-        dispersion_energy = gamma*sasa + b
-        self.results["dispersion_energy"] = dispersion_energy
+        dispersion_energy = gamma * sasa + b
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        unit_conversion_base, _ = charge_tools.convert_units(
+            "kcal_mol", magnitude="energy"
+        )
+        factor_units = unit_conversion / unit_conversion_base
+        self.results["dispersion_energy"] = factor_units * dispersion_energy
+        self.results["dispersion_energy_units"] = unit_label
 
     def calculate_gradient_field(self, h=0.001):
+        r"""Compute the gradient vector (first-order spatial derivatives) of the reaction potential.
 
-        """
-        Compute the first derivate of potential due to solvent
-        in the position of the points
-        """
+        Evaluates the electric field gradient induced by the solvent at each solute charge
+        position ($\nabla \phi_{\text{reac}}$). The method utilizes a second-order central
+        finite difference approximation ($\pm h$) along the X, Y, and Z axes using Bempp's
+        Laplace single-layer and double-layer boundary potential operators.
 
+        Args:
+            h (float, optional): The displacement step size used for the central
+                                 finite difference approximation. Defaults to 0.001.
+
+        Returns:
+            None
+
+        Side Effects:
+            - Modifies `self.results["gradphir_charges"]` to store an $N \times 3$ array
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
         if "phi" not in self.results:
-            print("Please compute surface potential first with simulation.calculate_potentials()")
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
             return
-
 
         start_time = time.time()
 
@@ -515,18 +772,29 @@ class Solute:
         return None
 
     def calculate_gradgradient_field(self, h=0.001):
+        r"""Compute the Hessian matrix (second spatial derivatives) of the reaction potential.
 
-        """
-        Compute the second derivate of potential due to solvent
-        in the position of the points
-        xq: Array size (Nx3) whit positions to calculate the derivate.
-        h: Float number, distance for the central difference.
-        Return:
-        ddphi: Second derivate of the potential in the positions of points.
+        Evaluates the second-order partial derivatives of the electrostatic potential
+        induced by the solvent at each solute charge position ($\nabla^2 \phi_{\text{reac}}$).
+        The method uses a second-order central finite difference scheme by querying
+        Bempp's Laplace single-layer and double-layer potential operators at spatially
+        shifted coordinates.
+
+        Args:
+            h (float, optional): The displacement step size used for the central
+                                 finite difference approximation. Defaults to 0.001.
+
+        Side Effects:
+            - Modifies `self.results["gradgradphir_charges"]` to store an $N \times 3 \times 3$
+              array representing the full Hessian matrix for each of the $N$ point charges.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
         """
 
         if "phi" not in self.results:
-            print("Please compute surface potential first with simulation.calculate_potentials()")
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
             return
 
         start_time = time.time()
@@ -537,27 +805,57 @@ class Solute:
         solution_neumann = self.results["d_phi"]
         solution_dirichl = self.results["phi"]
 
-        ddphi = np.zeros((len(x_q),3,3))
-        dist = np.array(([h,0,0],[0,h,0],[0,0,h]))
+        ddphi = np.zeros((len(x_q), 3, 3))
+        dist = np.array(([h, 0, 0], [0, h, 0], [0, 0, h]))
         for i in range(3):
             for j in np.where(np.array([0, 1, 2]) >= i)[0]:
-                if i==j:
+                if i == j:
                     dp = np.concatenate((x_q[:] + dist[i], x_q[:], x_q[:] - dist[i]))
-                    slpo = bempp.api.operators.potential.laplace.single_layer(neumann_space, dp.transpose())
-                    dlpo = bempp.api.operators.potential.laplace.double_layer(dirichl_space, dp.transpose())
-                    phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(solution_dirichl)
-                    ddphi[:,i,j] = (phi[0,:len(x_q)] - 2*phi[0,len(x_q):2*len(x_q)] + phi[0, 2*len(x_q):])/(h**2)
+                    slpo = bempp.api.operators.potential.laplace.single_layer(
+                        neumann_space, dp.transpose()
+                    )
+                    dlpo = bempp.api.operators.potential.laplace.double_layer(
+                        dirichl_space, dp.transpose()
+                    )
+                    phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(
+                        solution_dirichl
+                    )
+                    ddphi[:, i, j] = (
+                        phi[0, : len(x_q)]
+                        - 2 * phi[0, len(x_q) : 2 * len(x_q)]
+                        + phi[0, 2 * len(x_q) :]
+                    ) / (h**2)
 
                 else:
-                    dp = np.concatenate((x_q[:] + dist[i] + dist[j], x_q[:] - dist[i] - dist[j], x_q[:] + \
-                                         dist[i] - dist[j], x_q[:] - dist[i] + dist[j]))
-                    slpo = bempp.api.operators.potential.laplace.single_layer(neumann_space, dp.transpose())
-                    dlpo = bempp.api.operators.potential.laplace.double_layer(dirichl_space, dp.transpose())
-                    phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(solution_dirichl)
-                    ddphi[:,i,j] = (phi[0,:len(x_q)] + phi[0,len(x_q):2*len(x_q)] - \
-                                    phi[0, 2*len(x_q):3*len(x_q)] - phi[0, 3*len(x_q):])/(4*h**2)
-                    ddphi[:,j,i] = (phi[0,:len(x_q)] + phi[0,len(x_q):2*len(x_q)] - \
-                                    phi[0, 2*len(x_q):3*len(x_q)] - phi[0, 3*len(x_q):])/(4*h**2)
+                    dp = np.concatenate(
+                        (
+                            x_q[:] + dist[i] + dist[j],
+                            x_q[:] - dist[i] - dist[j],
+                            x_q[:] + dist[i] - dist[j],
+                            x_q[:] - dist[i] + dist[j],
+                        )
+                    )
+                    slpo = bempp.api.operators.potential.laplace.single_layer(
+                        neumann_space, dp.transpose()
+                    )
+                    dlpo = bempp.api.operators.potential.laplace.double_layer(
+                        dirichl_space, dp.transpose()
+                    )
+                    phi = slpo.evaluate(solution_neumann) - dlpo.evaluate(
+                        solution_dirichl
+                    )
+                    ddphi[:, i, j] = (
+                        phi[0, : len(x_q)]
+                        + phi[0, len(x_q) : 2 * len(x_q)]
+                        - phi[0, 2 * len(x_q) : 3 * len(x_q)]
+                        - phi[0, 3 * len(x_q) :]
+                    ) / (4 * h**2)
+                    ddphi[:, j, i] = (
+                        phi[0, : len(x_q)]
+                        + phi[0, len(x_q) : 2 * len(x_q)]
+                        - phi[0, 2 * len(x_q) : 3 * len(x_q)]
+                        - phi[0, 3 * len(x_q) :]
+                    ) / (4 * h**2)
 
             self.results["gradgradphir_charges"] = ddphi
             self.timings["time_calc_gradgrad_field"] = time.time() - start_time
@@ -569,11 +867,33 @@ class Solute:
                     " seconds to compute the gradient of the gradient field on solute charges",
                 )
 
+    def calculate_charges_forces(self, h=0.001, units="kcal_molA"):
+        r"""Calculate the electrostatic fixed-charge reaction forces acting directly on the solute charges.
 
-    def calculate_charges_forces(self, h=0.001):
+        Computes the force exerted on each individual point charge within the solute due to
+        the gradient of the reaction potential ($\nabla \phi_{\text{reac}}$). It then sums
+        these components to obtain the total fixed-charge force ($f_{qf}$), scaling the final
+        output to kcal/mol/Å.
 
+        $$f_{qf} = \sum_{i} -q_i \\nabla \phi_{\text{reac}}(\mathbf{r}_i)$$
+
+        Args:
+            h (float, optional): Finite difference step size passed to `calculate_gradient_field`
+                                 if the reaction field gradient hasn't been computed yet.
+                                 Defaults to 0.001.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                calculated force values. Defaults to "kcal_molA".
+
+        Side Effects:
+            - Modifies `self.results["f_qf_charges"]` to store the 3D force vector for each charge.
+            - Modifies `self.results["f_qf"]` to store the cumulative 3D force vector.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
         if "phi" not in self.results:
-            print("Please compute surface potential first with simulation.calculate_potentials()")
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
             return
 
         if "gradphir_charges" not in self.results:
@@ -584,13 +904,17 @@ class Solute:
 
         dphidr = self.results["gradphir_charges"]
 
-        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="force"
+        )
 
-        f_reac = convert_to_kcalmolA * -np.transpose(np.transpose(dphidr) * self.q)
+        f_reac = unit_conversion * -np.transpose(np.transpose(dphidr) * self.q)
         f_reactotal = np.sum(f_reac, axis=0)
 
         self.results["f_qf_charges"] = f_reac
         self.results["f_qf"] = f_reactotal
+        self.results["f_qf_charges_units"] = unit_label
+        self.results["f_qf_units"] = unit_label
         self.timings["time_calc_solute_force"] = time.time() - start_time
 
         if self.print_times:
@@ -600,12 +924,35 @@ class Solute:
                 " seconds to compute the force on solute charges",
             )
 
-        return None
+    def calculate_boundary_forces(self, fdb_approx=False, units="kcal_molA"):
+        """Calculate dielectric and ionic boundary forces (energy functional approach)
+        acting on the solute interface.
+        (change units conversion to kcal/mol/Å)
 
-    def calculate_boundary_forces(self, fdb_approx=False):
+        Computes the dielectric boundary force ($f_{db}$) and the ionic boundary force
+        ($f_{ib}$) components of the total solvation force. The dielectric force can
+        either be evaluated using a exact approach or a normal approximation (fdb_approx).
+
+        Args:
+            fdb_approx (bool, optional): If True, computes the dielectric boundary force
+                                         using a simplified approximation based solely on
+                                         the normal derivative of the potential ($d_phi$).
+                                         If False, performs a comprehensive surface element
+                                         gradient calculation. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed boundary force values. Defaults to "kcal_molA".
+
+        Side Effects:
+            - Modifies `self.results["f_db"]` with the 3D dielectric boundary force vector.
+            - Modifies `self.results["f_ib"]` with the 3D ionic boundary force vector.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
 
         if "phi" not in self.results:
-            print("Please compute surface potential first with simulation.calculate_potentials()")
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
             return
 
         start_time = time.time()
@@ -613,14 +960,16 @@ class Solute:
         phi = self.results["phi"].evaluate_on_element_centers()
         d_phi = self.results["d_phi"].evaluate_on_element_centers()
 
-        convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="force"
+        )
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
 
-        if fdb_approx :
+        if fdb_approx:
             # Dielectric boundary force
             f_db = (
                 -0.5
-                * convert_to_kcalmolA
+                * unit_conversion
                 * (self.ep_ex - self.ep_in)
                 * (self.ep_in / self.ep_ex)
                 * np.sum(np.transpose(np.transpose(dS) * d_phi[0] ** 2), axis=0)
@@ -629,55 +978,62 @@ class Solute:
         else:
             N_elements = self.mesh.number_of_elements
             phi_vertex = self.results["phi"].coefficients
-            ep_hat =  self.ep_in/self.ep_ex
-            dphi_centers = ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
+            ep_hat = self.ep_in / self.ep_ex
+            dphi_centers = (
+                ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
+            )
             f_db = np.zeros(3)
-            convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
             for i in range(N_elements):
-                eps = self.mesh.normals[i]
-                    
+                # eps = self.mesh.normals[i]
+
                 # get vertex indices adyacent to a triangular element
-                v1_index = self.mesh.elements[0,i]
-                v2_index = self.mesh.elements[1,i]
-                v3_index = self.mesh.elements[2,i]
-                
+                v1_index = self.mesh.elements[0, i]
+                v2_index = self.mesh.elements[1, i]
+                v3_index = self.mesh.elements[2, i]
+
                 # get vertex coordinates from vertex indices
-                v1 = self.mesh.vertices[:,v1_index]
-                v2 = self.mesh.vertices[:,v2_index]
-                v3 = self.mesh.vertices[:,v3_index]
-                
+                v1 = self.mesh.vertices[:, v1_index]
+                v2 = self.mesh.vertices[:, v2_index]
+                v3 = self.mesh.vertices[:, v3_index]
+
                 v21 = v2 - v1
                 v31 = v3 - v1
-                
+
                 v21_norm = np.linalg.norm(v21)
                 v31_norm = np.linalg.norm(v31)
-                
+
                 phi_1 = phi_vertex[v1_index]
                 phi_2 = phi_vertex[v2_index]
                 phi_3 = phi_vertex[v3_index]
-                
-                alpha = np.arccos(np.dot(v21,v31)/(v21_norm*v31_norm))
-                
-                a = (phi_2 - phi_1)/v21_norm
-                b = (phi_3 - phi_1)/(v31_norm*np.sin(alpha)) - (phi_2-phi_1)/(v21_norm*np.tan(alpha))
-                
-                eta = v21/v21_norm
-                tau = np.cross(eps,eta)
-                
+
+                alpha = np.arccos(np.dot(v21, v31) / (v21_norm * v31_norm))
+
+                a = (phi_2 - phi_1) / v21_norm
+                b = (phi_3 - phi_1) / (v31_norm * np.sin(alpha)) - (phi_2 - phi_1) / (
+                    v21_norm * np.tan(alpha)
+                )
+
+                # eta = v21 / v21_norm
+                # tau = np.cross(eps, eta)
+
                 E_eps = -dphi_centers[i]
                 E_eta = -a
                 E_tau = -b
-                
 
-                F = ((1/ep_hat)*E_eps*E_eps + E_eta*E_eta + E_tau*E_tau)
-                F *= -0.5*(self.ep_ex - self.ep_in)*self.mesh.normals[i] * self.mesh.volumes[i]
-                
-                f_db += convert_to_kcalmolA * F    
+                F = (1 / ep_hat) * E_eps * E_eps + E_eta * E_eta + E_tau * E_tau
+                F *= (
+                    -0.5
+                    * (self.ep_ex - self.ep_in)
+                    * self.mesh.normals[i]
+                    * self.mesh.volumes[i]
+                )
+
+                f_db += unit_conversion * F
 
         # Ionic boundary force
         f_ib = (
             -0.5
-            * convert_to_kcalmolA
+            * unit_conversion
             * (self.ep_ex)
             * (self.kappa**2)
             * np.sum(np.transpose(np.transpose(dS) * phi[0] ** 2), axis=0)
@@ -685,6 +1041,8 @@ class Solute:
 
         self.results["f_db"] = f_db
         self.results["f_ib"] = f_ib
+        self.results["f_db_units"] = unit_label
+        self.results["f_ib_units"] = unit_label
         self.timings["time_calc_boundary_force"] = time.time() - start_time
 
         if self.print_times:
@@ -694,28 +1052,65 @@ class Solute:
                 " seconds to compute the boundary forces",
             )
 
-    def calculate_solvation_forces(self, h=0.001, force_formulation='maxwell_tensor', fdb_approx=False):
+    def calculate_solvation_forces(
+        self,
+        h=0.001,
+        force_formulation="maxwell_tensor",
+        fdb_approx=False,
+        units="kcal_molA",
+    ):
+        """Calculate total electrostatic solvation forces acting on the solute.
+        Based on https://doi.org/10.1021/acs.jctc.3c00021
 
+        Computes the forces using either a boundary-integral energy functional approach
+        or an integration of the Maxwell stress tensor over the molecular surface mesh.
+        Calculations are scaled to unit conversions of kcal/mol/Å.
+
+        Args:
+            h (float, optional): Finite difference step size used to calculate numerical
+                                 gradients if required. Defaults to 0.001.
+            force_formulation (str, optional): Theoretical framework for force calculation.
+                                               Options are "maxwell_tensor" or
+                                               "energy_functional". Defaults to "maxwell_tensor".
+            fdb_approx (bool, optional): If True, applies an normal-approximation to the dielectric
+                                         boundary force component when using the energy
+                                         functional formulation. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                calculated solvation force values. Defaults to "kcal_molA".
+
+        Raises:
+            ValueError: If `force_formulation` is not one of the two supported strings.
+
+        Side Effects:
+            - Updates the `self.results` dictionary with calculated values
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
         if "phi" not in self.results:
-            print("Please compute surface potential first with simulation.calculate_potentials()")
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
             return
 
-        if force_formulation == 'energy_functional':
+        if force_formulation == "energy_functional":
             if "f_qf" not in self.results:
                 self.calculate_gradient_field(h=h)
-                self.calculate_charges_forces()
+                self.calculate_charges_forces(units=units)
+            if self.results["f_qf_units"] != units:
+                self.calculate_charges_forces(units=units)
 
-            self.calculate_boundary_forces(fdb_approx=fdb_approx)
-
+            self.calculate_boundary_forces(fdb_approx=fdb_approx, units=units)
+            _, unit_label = charge_tools.convert_units(units, magnitude="force")
             start_time = time.time()
 
             f_solv = np.zeros([3])
             f_qf = self.results["f_qf"]
             f_db = self.results["f_db"]
             f_ib = self.results["f_ib"]
-            f_solv = f_qf + f_db + f_ib
 
+            f_solv = f_qf + f_db + f_ib
             self.results["f_solv"] = f_solv
+            self.results["f_solv_units"] = unit_label
             self.timings["time_calc_solvation_force"] = (
                 time.time()
                 - start_time
@@ -729,111 +1124,148 @@ class Solute:
                     self.timings["time_calc_solvation_force"],
                     " seconds to compute the solvation forces with ",
                     force_formulation,
-                    " formulation"
+                    " formulation",
                 )
 
-        elif force_formulation == 'maxwell_tensor':
+        elif force_formulation == "maxwell_tensor":
 
             if "f_ib" not in self.results:
-                self.calculate_boundary_forces()
+                self.calculate_boundary_forces(units=units)
+
+            if self.results["f_ib_units"] != units:
+                self.calculate_boundary_forces(units=units)
 
             start_time = time.time()
-
 
             N_elements = self.mesh.number_of_elements
             P_normal = np.zeros([N_elements])
             phi_vertex = self.results["phi"].coefficients
-            ep_hat =  self.ep_in/self.ep_ex
-            dphi_centers = ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
+            ep_hat = self.ep_in / self.ep_ex
+            dphi_centers = (
+                ep_hat * self.results["d_phi"].evaluate_on_element_centers()[0]
+            )
             total_force = np.zeros(3)
-            convert_to_kcalmolA = 4 * np.pi * 332.0636817823836
+            unit_conversion, unit_label = charge_tools.convert_units(
+                units, magnitude="force"
+            )
 
             for i in range(N_elements):
                 eps = self.mesh.normals[i]
-                
+
                 # get vertex indices adyacent to a triangular element
-                v1_index = self.mesh.elements[0,i]
-                v2_index = self.mesh.elements[1,i]
-                v3_index = self.mesh.elements[2,i]
-                
+                v1_index = self.mesh.elements[0, i]
+                v2_index = self.mesh.elements[1, i]
+                v3_index = self.mesh.elements[2, i]
+
                 # get vertex coordinates from vertex indices
-                v1 = self.mesh.vertices[:,v1_index]
-                v2 = self.mesh.vertices[:,v2_index]
-                v3 = self.mesh.vertices[:,v3_index]
-                
+                v1 = self.mesh.vertices[:, v1_index]
+                v2 = self.mesh.vertices[:, v2_index]
+                v3 = self.mesh.vertices[:, v3_index]
+
                 v21 = v2 - v1
                 v31 = v3 - v1
-                
+
                 v21_norm = np.linalg.norm(v21)
                 v31_norm = np.linalg.norm(v31)
-                
+
                 phi_1 = phi_vertex[v1_index]
                 phi_2 = phi_vertex[v2_index]
                 phi_3 = phi_vertex[v3_index]
-                
-                alpha = np.arccos(np.dot(v21,v31)/(v21_norm*v31_norm))
-                
-                a = (phi_2 - phi_1)/v21_norm
-                b = (phi_3 - phi_1)/(v31_norm*np.sin(alpha)) - (phi_2-phi_1)/(v21_norm*np.tan(alpha))
-                
-                eta = v21/v21_norm
-                tau = np.cross(eps,eta)
-                
+
+                alpha = np.arccos(np.dot(v21, v31) / (v21_norm * v31_norm))
+
+                a = (phi_2 - phi_1) / v21_norm
+                b = (phi_3 - phi_1) / (v31_norm * np.sin(alpha)) - (phi_2 - phi_1) / (
+                    v21_norm * np.tan(alpha)
+                )
+
+                eta = v21 / v21_norm
+                tau = np.cross(eps, eta)
+
                 E_eps = -dphi_centers[i]
                 E_eta = -a
                 E_tau = -b
-                
-                E_norm = np.sqrt(E_eps*E_eps + E_eta*E_eta + E_tau*E_tau)
-                
-                F = (E_eps*E_eps - 0.5*E_norm*E_norm)*eps + E_eps*E_eta*eta + E_eps*E_tau*tau 
-                
+
+                E_norm = np.sqrt(E_eps * E_eps + E_eta * E_eta + E_tau * E_tau)
+
+                F = (
+                    (E_eps * E_eps - 0.5 * E_norm * E_norm) * eps
+                    + E_eps * E_eta * eta
+                    + E_eps * E_tau * tau
+                )
+
                 F *= self.ep_ex
-                total_force += F * self.mesh.volumes[i]   
-                P_normal[i] = np.sqrt(np.dot(F * self.mesh.volumes[i], F * self.mesh.volumes[i]))
-                
-            self.results["P_normal"] = convert_to_kcalmolA * P_normal
-            self.results["f_solv"] = convert_to_kcalmolA * total_force + self.results["f_ib"]
-            self.timings["time_calc_solvation_force"] = (
-                time.time()
-                - start_time
+                total_force += F * self.mesh.volumes[i]
+                P_normal[i] = np.sqrt(
+                    np.dot(F * self.mesh.volumes[i], F * self.mesh.volumes[i])
+                )
+
+            self.results["P_normal"] = unit_conversion * P_normal
+            self.results["P_normal_units"] = unit_label
+            self.results["f_solv"] = (
+                unit_conversion * total_force + self.results["f_ib"]
             )
+            self.results["f_solv_units"] = unit_label
+            self.timings["time_calc_solvation_force"] = time.time() - start_time
             if self.print_times:
                 print(
                     "It took ",
                     self.timings["time_calc_solvation_force"],
                     " seconds to compute the solvation forces with ",
                     force_formulation,
-                    " formulation"
+                    " formulation",
                 )
 
         else:
-            raise ValueError('Formulation have to be "maxwell_tensor" or "energy_functional"')
-            
-            
-    def calculate_coulomb_potential(self, eval_points):
-        """
-        Compute the Coulomb potential due to the charges in self on eval_points 
-        Inputs:
-        -------
-            eval_points: (Nx3 array) positions where to compute the potential
-            
-        Output:
-        --------
-            phi_coul (array) Coulomb potential at eval_points
-        """
-        
-        phi_coul = np.zeros(len(eval_points), dtype=float)
-        
-        for i in range(len(self.x_q)):
-            dist = np.linalg.norm(eval_points - self.x_q[i,:], axis=1)
-            phi_coul[:] += self.q[i]/(4*np.pi*dist[:])
-            
-        return phi_coul
-                               
-    
-    def create_sas_mesh(self, sas_mesh_density=None):
+            raise ValueError(
+                'Formulation have to be "maxwell_tensor" or "energy_functional"'
+            )
 
-        if sas_mesh_density!=None:
+    def calculate_coulomb_potential(self, eval_points):
+        r"""Calculate the vacuum Coulomb potential at a set of evaluation points.
+
+        Computes the primary electrostatic potential generated by all explicit point
+        charges within the solute molecule.
+
+        $$\phi_{\text{coul}}(\mathbf{r}) = \sum_{i} \frac{q_i}{4\pi \|\mathbf{r} - \mathbf{r}_i\|}$$
+
+        Args:
+            eval_points (array_like): An $N \times 3$ array or matrix of Cartesian coordinates
+                                      representing the target points where the potential
+                                      is evaluated.
+
+        Returns:
+            np.ndarray: A 1D array of length $N$ containing the cumulative electrostatic
+                        Coulomb potential at each evaluation point.
+        """
+        phi_coul = np.zeros(len(eval_points), dtype=float)
+
+        for i in range(len(self.x_q)):
+            dist = np.linalg.norm(eval_points - self.x_q[i, :], axis=1)
+            phi_coul[:] += self.q[i] / (4 * np.pi * dist[:])
+
+        return phi_coul
+
+    def create_sas_mesh(self, sas_mesh_density=None):
+        """Generate the Solvent Accessible Surface (SAS) mesh for the solute.
+
+        This method builds a SAS mesh by expanding the physical radii of the solute's
+        atoms by the `mesh_probe_radius`. It writes a temporary `.pqr` and `.xyzr` file,
+        runs the chosen external mesh generator (MSMS or NanoShaper) with a tiny secondary
+        probe radius (0.05), imports the resulting triangular mesh grid, and clean up
+        files if requested.
+
+        Args:
+            sas_mesh_density (float, optional): Density of the generated surface mesh.
+                                                If provided, overrides `self.sas_mesh_density`.
+
+
+        Side Effects:
+            - Updates `self.sas_mesh_density` if an explicit density argument is passed.
+            - Populates `self.sas_mesh` with the imported surface grid data.
+            - May create and modify a directory containing intermediate structural and mesh files.
+        """
+        if sas_mesh_density is not None:
             self.sas_mesh_density = sas_mesh_density
 
         sas_mesh_dir = os.path.abspath("mesh_files/")
@@ -868,42 +1300,132 @@ class Solute:
 
         sas_mesh_xyzr_file = os.path.join(sas_pqr_file[:-4] + ".xyzr")
         mesh_tools.convert_pqr2xyzr(sas_pqr_file, sas_mesh_xyzr_file)
-    
-        probe_radius = 0.05 # small probe for SAS
+
+        probe_radius = 0.05  # small probe for SAS
         if self.mesh_generator == "msms":
             mesh_tools.generate_msms_mesh(
                 sas_mesh_xyzr_file,
                 sas_mesh_dir,
-                self.solute_name+"_sas",
+                self.solute_name + "_sas",
                 self.sas_mesh_density,
                 probe_radius,
-            ) 
+            )
 
         if self.mesh_generator == "nanoshaper":
-            nanoshaper_grid_scale =  \
-                    mesh_tools.density_to_nanoshaper_grid_scale_conversion(self.sas_mesh_density)		
+            nanoshaper_grid_scale = (
+                mesh_tools.density_to_nanoshaper_grid_scale_conversion(
+                    self.sas_mesh_density
+                )
+            )
             mesh_tools.generate_nanoshaper_mesh(
-				sas_mesh_xyzr_file,
-				sas_mesh_dir,
-				self.solute_name+"_sas",
-				nanoshaper_grid_scale,
-			    probe_radius,
-				self.save_mesh_build_files,
-			) 
+                sas_mesh_xyzr_file,
+                sas_mesh_dir,
+                self.solute_name + "_sas",
+                nanoshaper_grid_scale,
+                probe_radius,
+                self.save_mesh_build_files,
+            )
 
         mesh_face_path = os.path.join(sas_mesh_dir, self.solute_name + "_sas.face")
         mesh_vert_path = os.path.join(sas_mesh_dir, self.solute_name + "_sas.vert")
 
-        grid = mesh_tools.import_msms_mesh(mesh_face_path, mesh_vert_path) 
+        grid = mesh_tools.import_msms_mesh(mesh_face_path, mesh_vert_path)
 
         if not self.save_mesh_build_files:
             shutil.rmtree(sas_mesh_dir)
 
         self.sas_mesh = grid
-     
-            
+
+    def get_surface_potential_derivative(
+        self, units="kcal_molA", print_units=True, internal_derivative=False
+    ):
+        r"""Return the surface-potential derivative values from the latest solve.
+
+        Retrieves the stored derivative data for the surface potential and applies an
+        optional scaling factor based on the interior/exterior permittivity ratio when
+        `internal_derivative` is requested.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned values. Defaults to "kcal_molA".
+            print_units (bool, optional): If True, prints the unit label to standard output.
+                Defaults to True.
+            internal_derivative (bool, optional): If True, scales the returned derivative by
+                the ratio `self.ep_in / self.ep_ex`. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing the derivative coefficients and the corresponding
+                unit label.
+
+        Side Effects:
+            - Prints the unit label if `print_units` is True.
+        """
+
+        if "phi" not in self.results:
+            print(
+                "Please compute surface potential first with simulation.calculate_potentials()"
+            )
+            return
+        factor_ep = 1
+        if internal_derivative:
+            factor_ep = self.ep_in / self.ep_ex
+
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="d_potential"
+        )
+        if print_units:
+            print(f"Units {unit_label} for potential")
+
+        return (
+            self.results["d_phi"].coefficients * unit_conversion * factor_ep,
+            unit_label,
+        )
+
+    def get_surface_potential(self, units="kcal_mol", print_units=True):
+        r"""Return the surface-potential values from the latest solve.
+
+        Retrieves the stored surface-potential coefficients from the previous boundary-element
+        solve and converts them to the requested units.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned values. Defaults to "kcal_mol".
+            print_units (bool, optional): If True, prints the unit label to standard output.
+                Defaults to True.
+
+        Returns:
+            tuple: A tuple containing the potential coefficients and the corresponding
+                unit label.
+
+        Side Effects:
+            - Prints the unit label if `print_units` is True.
+        """
+        if "d_phi" not in self.results:
+            print(
+                "Please compute surface potential first with simulation.calculate_surface_potential()"
+            )
+            return
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="potential"
+        )
+        if print_units:
+            print(f"Units {unit_label} for potential")
+        return self.results["phi"].coefficients * unit_conversion, unit_label
+
 
 def get_name_from_pdb(pdb_path):
+    """Extract the solute name from the first line of a PDB file.
+
+    Reads the header/initial line of a specified PDB file, splits the line
+    by blocks of two or more consecutive whitespace characters, and extracts
+    the fourth element (index 3) as the lowercase identifier for the solute.
+
+    Args:
+        pdb_path (str): The file system path to the target PDB file.
+
+    Returns:
+        str: The extracted name of the solute in lowercase.
+    """
     pdb_file = open(pdb_path)
     first_line = pdb_file.readline()
     first_line_split = re.split(r"\s{2,}", first_line)
