@@ -197,7 +197,7 @@ class Simulation:
                         solute.stern_mesh_density_ratio * solute.sas_mesh_density
                     )
                 if solute.force_field == "amoeba":
-                    if self.pb_formulation not in ('direct', 'direct_amoeba'):
+                    if self.pb_formulation not in ("direct", "direct_amoeba"):
                         print(
                             "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
                         )

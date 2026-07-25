@@ -1,14 +1,3 @@
-import re
-import bempp_cl as bempp
-import bempp_cl.api
-import os
-import numpy as np
-import time
-import shutil
-import pbj.mesh.mesh_tools as mesh_tools
-import pbj.mesh.charge_tools as charge_tools
-import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
-import pbj.implicit_solvent.utils as utils
 from pbj.implicit_solvent import Solute
 
 
@@ -61,4 +50,4 @@ class LPBE(Solute):
             electrostatic_energy=electrostatic_energy,
             nonpolar_energy=nonpolar_energy,
             units=units,
-    )
+        )
