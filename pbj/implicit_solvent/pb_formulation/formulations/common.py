@@ -174,6 +174,9 @@ def calculate_potential_stern(simulation, rerun_all=False, rerun_rhs=False):
 
         simulation.timings["time_compute_potential"] = time.time() - start_time
 
+def calculate_potential_nonlinear(simulation, rerun_all=False, rerun_rhs=False):
+
+    return None
 
 """
 def calculate_potential_slic(self):

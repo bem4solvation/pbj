@@ -34,22 +34,19 @@ class Simulation:
 
         if stern_layer and formulation != "slic":
             self._pb_formulation = "direct_stern"
-            if formulation != ("direct" or "direct_stern"):
+            if formulation not in ("direct", "direct_stern"):
                 print(
                     "Stern or ion-exclusion layer only supported with direct formulation. Using direct."
                 )
         else:
             self._pb_formulation = formulation
 
-        if formulation == ("direct_stern" or "slic"):
+        if formulation in ("direct_stern", "slic"):
             stern_layer = True
 
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
         if self.formulation_object is None:
             raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
-
-        # self.solvent_parameters = dict()
-        # self.solvent_parameters["ep"] = 80.0
 
         self.gmres_tolerance = 1e-5
         self.gmres_restart = 1000
@@ -200,7 +197,7 @@ class Simulation:
                         solute.stern_mesh_density_ratio * solute.sas_mesh_density
                     )
                 if solute.force_field == "amoeba":
-                    if self.pb_formulation != ("direct" or "direct_amoeba"):
+                    if self.pb_formulation not in ('direct', 'direct_amoeba'):
                         print(
                             "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
                         )
@@ -882,13 +879,13 @@ class Simulation:
                 phi_solvent = np.zeros(len(outside))
                 for index_source, solute_source in enumerate(self.solutes):
 
-                    V = pbj.implicit_solvent.simulation.bempp.api.operators.potential.modified_helmholtz.single_layer(
+                    V = bempp_cl.api.operators.potential.modified_helmholtz.single_layer(
                         solute_source.neumann_space,
                         pos_mesh_outside,
                         self.kappa,
                         assembler=self.operator_assembler,
                     )
-                    K = pbj.implicit_solvent.simulation.bempp.api.operators.potential.modified_helmholtz.double_layer(
+                    K = bempp_cl.api.operators.potential.modified_helmholtz.double_layer(
                         solute_source.dirichl_space,
                         pos_mesh_outside,
                         self.kappa,
