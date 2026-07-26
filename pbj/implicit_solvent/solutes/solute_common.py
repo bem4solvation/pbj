@@ -7,7 +7,7 @@ import time
 import shutil
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
+import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
 import pbj.implicit_solvent.utils as utils
 
 
@@ -28,9 +28,6 @@ class Solute:
         mesh_generator="nanoshaper",
         print_times=False,
         force_field="amber",
-        formulation="direct",
-        radius_keyword="solute",
-        solute_radius_type="PB",
         fill_cavities=True,
         cavity_cutoff=60,
     ):
@@ -87,24 +84,6 @@ class Solute:
             print("file does not exist -> Cannot start")
             return
 
-        if force_field == "amoeba" and formulation != "direct":
-            print(
-                "AMOEBA force field is only available with the direct formulation -> Changing to direct"
-            )
-        if force_field == "amoeba":
-            formulation = "direct_amoeba"
-
-        self._pb_formulation = formulation
-
-        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
-        if self.formulation_object is None:
-            raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
-
-        self.force_field = force_field
-
-        self.radius_keyword = radius_keyword
-        self.solute_radius_type = solute_radius_type
-
         self.save_mesh_build_files = save_mesh_build_files
         self.mesh_build_files_dir = os.path.abspath(mesh_build_files_dir)
 
@@ -150,88 +129,6 @@ class Solute:
 
         else:
             print("File is not pdb, pqr, or Tinker xyz -> Cannot start")
-
-        if external_mesh_file is not None:
-            filename, file_extension = os.path.splitext(external_mesh_file)
-            if file_extension == "":  # Assume use of vert and face
-                self.external_mesh_face_path = external_mesh_file + ".face"
-                self.external_mesh_vert_path = external_mesh_file + ".vert"
-                self.mesh = mesh_tools.import_msms_mesh(
-                    self.external_mesh_face_path, self.external_mesh_vert_path
-                )
-
-            else:  # Assume use of file that can be directly imported into bempp
-                self.external_mesh_file_path = external_mesh_file
-                self.mesh = bempp.api.import_grid(self.external_mesh_file_path)
-
-            if force_field == "amoeba":
-                (
-                    self.x_q,
-                    self.q,
-                    self.d,
-                    self.Q,
-                    self.alpha,
-                    self.r_q,
-                    self.mass,
-                    self.polar_group,
-                    self.thole,
-                    self.connections_12,
-                    self.connections_13,
-                    self.pointer_connections_12,
-                    self.pointer_connections_13,
-                    self.p12scale,
-                    self.p13scale,
-                ) = charge_tools.load_tinker_multipoles_to_solute(self)
-
-                self.d_induced = np.zeros_like(self.d)
-                self.d_induced_prev = np.zeros_like(self.d)
-            else:
-                (
-                    self.q,
-                    self.x_q,
-                    self.r_q,
-                    self.atom_name,
-                    self.res_name,
-                    self.res_num,
-                ) = charge_tools.load_charges_to_solute(
-                    self
-                )  # Import charges from given file
-
-        else:  # Generate mesh from given pdb or pqr, and import charges at the same time
-
-            if force_field == "amoeba":
-                (
-                    self.mesh,
-                    self.x_q,
-                    self.q,
-                    self.d,
-                    self.Q,
-                    self.alpha,
-                    self.r_q,
-                    self.mass,
-                    self.polar_group,
-                    self.thole,
-                    self.connections_12,
-                    self.connections_13,
-                    self.pointer_connections_12,
-                    self.pointer_connections_13,
-                    self.p12scale,
-                    self.p13scale,
-                ) = charge_tools.generate_msms_mesh_import_tinker_multipoles(self)
-
-                self.d_induced = np.zeros_like(self.d)
-                self.d_induced_prev = np.zeros_like(self.d)
-
-            else:
-                (
-                    self.mesh,
-                    self.q,
-                    self.x_q,
-                    self.r_q,
-                    self.atom_name,
-                    self.res_name,
-                    self.res_num,
-                ) = charge_tools.generate_msms_mesh_import_charges(self)
 
         self.ep_in = 4.0
         self.ep_ex = 80.0

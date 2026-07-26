@@ -2,7 +2,7 @@
 # import os
 # sys.path.insert(0, os.path.abspath("../.."))
 import pbj
-import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
+import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
 from pbj.implicit_solvent.utils.analytical import an_P
 from inspect import getmembers, ismodule, isfunction
 import numpy as np
@@ -38,14 +38,14 @@ def test_formulations():
         varying mesh densities using the MSMS generator.
 
         Returns:
-            list of pbj.Solute: A list containing three initialized Solute mesh objects
+            list of pbj.LPBE: A list containing three initialized Solute mesh objects
                                 corresponding to mesh densities of 0.85, 1.7, and 3.4.
         """
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "test.pqr")
         for mesh_dens in [0.85, 1.7, 3.4]:
-            sphere = pbj.Solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
+            sphere = pbj.LPBE(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
             sphere.x_q[0][0] = 0.1
             spheres.append(sphere)
         return spheres
@@ -57,14 +57,14 @@ def test_formulations():
         meshes with varying grid scales using the NanoShaper mesh generator.
 
         Returns:
-            list of pbj.Solute: A list containing three initialized Solute mesh objects
+            list of pbj.LPBE: A list containing three initialized Solute mesh objects
                                 corresponding to grid scales of 1.4, 1.82, and 2.366.
         """
         histidines = []
         print("Creating histidine meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "his", "his.pqr")
         for mesh_dens in [1.4, 1.82, 2.366]:
-            histidine = pbj.Solute(
+            histidine = pbj.LPBE(
                 pqrpath, nanoshaper_grid_scale=mesh_dens, mesh_generator="nanoshaper"
             )
             histidines.append(histidine)

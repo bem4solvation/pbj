@@ -2,7 +2,9 @@
 
 # Add imports here
 import os
-from pbj.implicit_solvent.solute import Solute
+from pbj.implicit_solvent.solutes.lpbe import LPBE
+from pbj.implicit_solvent.solutes.lpbe_amoeba import LPBE_AMOEBA
+from pbj.implicit_solvent.solutes.npbe import NPBE
 from pbj.implicit_solvent.simulation import Simulation
 
 PBJ_PATH = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))

@@ -30,7 +30,7 @@ def test_single():
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere_born.pqr")
         for mesh_dens in [2, 4, 8, 16]:
-            sphere = pbj.Solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
+            sphere = pbj.LPBE(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
             sphere.ep_in = 1.0
             sphere.x_q[0][0] = 0.00001
             spheres.append(sphere)

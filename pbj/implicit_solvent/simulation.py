@@ -5,7 +5,6 @@ import trimesh
 import pbj.mesh.plotting_tools as plotting_tools
 import pbj.mesh.charge_tools as charge_tools
 import numpy as np
-import pbj.implicit_solvent.solute
 import pbj.implicit_solvent.solutes as pb_solutes
 import pbj.implicit_solvent.pb_formulation as pb_formulations
 
@@ -199,7 +198,7 @@ class Simulation:
                 proper structural initialization.
         """
 
-        if isinstance(solute, pbj.implicit_solvent.solute.Solute) and hasattr(
+        if isinstance(solute, pb_solutes.solute_common.Solute) and hasattr(
             solute, "solute_name"
         ):
             if solute in self.solutes:
