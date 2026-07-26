@@ -205,10 +205,10 @@ class Simulation:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
                 )
-            elif solute.solute_type != self.solute_type:
-                raise ValueError(
-                    f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
-                )
+            # elif solute.solute_type != self.solute_type:
+            #     raise ValueError(
+            #         f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
+            #     )
             else:
                 solute.ep_ex = self.ep_ex
                 solute.kappa = self.kappa
@@ -227,12 +227,12 @@ class Simulation:
                     solute.stern_mesh_density = (
                         solute.stern_mesh_density_ratio * solute.sas_mesh_density
                     )
-                if solute.force_field == "amoeba":
-                    if self.pb_formulation not in ("direct", "direct_amoeba"):
-                        print(
-                            "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
-                        )
-                    self.pb_formulation = "direct_amoeba"
+                # if solute.force_field == "amoeba":
+                #     if self.pb_formulation not in ("direct", "direct_amoeba"):
+                #         print(
+                #             "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
+                #         )
+                #     self.pb_formulation = "direct_amoeba"
                 self.solutes.append(solute)
                 if isinstance(name, str):
                     self.solutes_names.append(name)

@@ -1,5 +1,5 @@
 from .solute_common import Solute
-import pbj.implicit_solvent.pb_formulation.lpbe_amoeba as pb_formulations
+import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
 import pbj.mesh.charge_tools as charge_tools
 import pbj.mesh.mesh_tools as mesh_tools
 import os
@@ -15,6 +15,7 @@ class LPBE(Solute):
         formulation="direct",
         **kwargs,
     ):
+
         super().__init__(solute_file_path=solute_file_path, **kwargs)
 
         self._pb_formulation = formulation
@@ -58,6 +59,13 @@ class LPBE(Solute):
                 self.res_name,
                 self.res_num,
             ) = charge_tools.generate_msms_mesh_import_charges(self)
+
+        # Setup Dirichlet and Neumann spaces to use, save these as object vars
+        dirichl_space = bempp.api.function_space(self.mesh, "P", 1)
+        # neumann_space = bempp.api.function_space(self.mesh, "P", 1)
+        neumann_space = dirichl_space
+        self.dirichl_space = dirichl_space
+        self.neumann_space = neumann_space
 
     def calculate_solvation_energy(
         self,
