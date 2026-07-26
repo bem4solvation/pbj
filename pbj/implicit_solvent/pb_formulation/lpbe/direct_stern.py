@@ -60,7 +60,7 @@ def create_stern_mesh(self):
     """
 
     if hasattr(self, "mesh_density"):
-        stern_solute_object = pbj.implicit_solvent.Solute(
+        stern_solute_object = pbj.implicit_solvent.solutes.LPBE(
             stern_pqr_file,
             external_mesh_file=None,
             save_mesh_build_files=self.save_mesh_build_files,
@@ -75,7 +75,7 @@ def create_stern_mesh(self):
         )
 
     else:
-        stern_solute_object = pbj.implicit_solvent.Solute(
+        stern_solute_object = pbj.implicit_solvent.solutes.LPBE(
             stern_pqr_file,
             external_mesh_file=None,
             save_mesh_build_files=self.save_mesh_build_files,

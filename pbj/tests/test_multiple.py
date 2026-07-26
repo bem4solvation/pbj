@@ -29,7 +29,7 @@ def test_multiple():
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere1.pqr")
         for mesh_dens in [2, 4, 8, 16]:
-            sphere = pbj.implicit_solvent.LPBE(
+            sphere = pbj.implicit_solvent.solutes.LPBE(
                 pqrpath, mesh_density=mesh_dens, mesh_generator="msms"
             )
             spheres.append(sphere)
@@ -51,7 +51,7 @@ def test_multiple():
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere2.pqr")
         for mesh_dens in [2, 4, 8, 16]:
-            sphere = pbj.implicit_solvent.LPBE(
+            sphere = pbj.implicit_solvent.solutes.LPBE(
                 pqrpath, mesh_density=mesh_dens, mesh_generator="msms"
             )
             spheres.append(sphere)
