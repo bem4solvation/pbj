@@ -6,9 +6,8 @@ import pbj.mesh.plotting_tools as plotting_tools
 import pbj.mesh.charge_tools as charge_tools
 import numpy as np
 import pbj.implicit_solvent.solute
-import pbj.implicit_solvent.pb_formulation.formulations as pb_formulations
-
-# import pbj.implicit_solvent.utils as utils
+import pbj.implicit_solvent.solutes as pb_solutes
+import pbj.implicit_solvent.pb_formulation as pb_formulations
 
 
 class Simulation:
@@ -20,12 +19,15 @@ class Simulation:
     near-surface (ENS) potentials.
     """
 
-    def __init__(self, formulation="direct", stern_layer=False, print_times=False):
+    def __init__(
+        self, formulation="direct", solute="lpbe", stern_layer=False, print_times=False
+    ):
         """Initializes a Simulation environment with a specific Poisson-Boltzmann formulation.
 
         Args:
             formulation (str, optional): The PB boundary integral formulation to use
                 (e.g., 'direct', 'direct_stern', 'slic', 'direct_amoeba'). Defaults to "direct".
+            solute (str, optional): The type of solute to model (e.g., 'lpbe', 'npbe'). Defaults to 'lpbe'.
             stern_layer (bool, optional): If True, incorporates a Stern (ion-exclusion) layer
                 into the formulation workspace. Defaults to False.
             print_times (bool, optional): If True, displays execution times during major solver
@@ -44,15 +46,30 @@ class Simulation:
         if formulation in ("direct_stern", "slic"):
             stern_layer = True
 
-        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
+        self.solute_type = solute
+        self.solute_object = getattr(pb_solutes, self.solute_type, None)
+        if self.solute_object is None:
+            raise ValueError("Unrecognised solute type %s" % self.solute_type)
+
+        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
+        if solute_formulation_module is None:
+            raise ValueError(
+                f"Unrecognised formulation module '{self.solute_type}' in pb_formulations"
+            )
+
+        self.formulation_object = getattr(
+            solute_formulation_module, self._pb_formulation, None
+        )
         if self.formulation_object is None:
-            raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
+            raise AttributeError(
+                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self.solute_type}"
+            )
 
         self.gmres_tolerance = 1e-5
         self.gmres_restart = 1000
         self.gmres_max_iterations = 1000
 
-        self.induced_dipole_iter_tol = 1e-2
+        self.induced_dipole_iter_tol = 1e-2  # AMOEBA?
 
         self.slic_max_iterations = 20
         self.slic_tolerance = 1e-4
@@ -90,10 +107,21 @@ class Simulation:
     @pb_formulation.setter
     def pb_formulation(self, value):
         self._pb_formulation = value
-        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
-        self.matrices["preconditioning_matrix_gmres"] = None
+
+        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
+        if solute_formulation_module is None:
+            raise ValueError(
+                f"Unrecognised formulation module '{self.solute_type}' in pb_formulations"
+            )
+
+        self.formulation_object = getattr(
+            solute_formulation_module, self._pb_formulation, None
+        )
         if self.formulation_object is None:
-            raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
+            raise AttributeError(
+                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self.solute_type}"
+            )
+        self.matrices["preconditioning_matrix_gmres"] = None
         # reset solute
         if len(self.solutes) > 0:
             for index, solute in enumerate(self.solutes):
@@ -177,6 +205,10 @@ class Simulation:
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
+                )
+            elif solute.solute_type != self.solute_type:
+                raise ValueError(
+                    f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
                 )
             else:
                 solute.ep_ex = self.ep_ex
