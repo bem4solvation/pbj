@@ -19,21 +19,21 @@ def verify_parameters(self):
 
 
 def lhs(self):
-    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.lhs(self)
+    pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.lhs(self)
 
 
 def rhs(self):
-    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.rhs(self)
+    pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.rhs(self)
 
 
 def block_diagonal_preconditioner(self):
-    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.block_diagonal_preconditioner(
+    pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.block_diagonal_preconditioner(
         self
     )
 
 
 def mass_matrix_preconditioner(self):
-    pbj.implicit_solvent.pb_formulation.formulations.direct_stern.mass_matrix_preconditioner(
+    pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.mass_matrix_preconditioner(
         self
     )
 
@@ -75,9 +75,7 @@ def calculate_potential(self, rerun_all, rerun_rhs):
     self.ep_stern = ep_stern
 
     if self.stern_object is None:
-        pbj.implicit_solvent.pb_formulation.formulations.direct_stern.create_stern_mesh(
-            self
-        )
+        pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.create_stern_mesh(self)
 
     max_iterations = self.slic_max_iterations
     tolerance = self.slic_tolerance
@@ -108,15 +106,13 @@ def calculate_potential(self, rerun_all, rerun_rhs):
             self.e_hat_stern = self.ep_stern / self.ep_ex
 
         else:
-            pbj.implicit_solvent.pb_formulation.formulations.slic.create_ehat_diel(
-                self, sigma
-            )
+            pbj.implicit_solvent.pb_formulation.lpbe.slic.create_ehat_diel(self, sigma)
             create_ehat_stern(self)
             phi_old = self.results["phi"].coefficients.copy()
 
         calculate_potential_slic(self)
 
-        sigma = pbj.implicit_solvent.pb_formulation.formulations.slic.solve_sigma(self)
+        sigma = pbj.implicit_solvent.pb_formulation.lpbe.slic.solve_sigma(self)
 
         if it != 0:
             phi_L2error = np.sqrt(

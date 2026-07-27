@@ -23,6 +23,7 @@ class Simulation:
         simulation_type="lpbe",
         force_field="amber",
         formulation="direct",
+        formulation_preconditioning=True,
         stern_layer=False,
         print_times=False,
     ):
@@ -54,6 +55,7 @@ class Simulation:
             self.solute_type = "lpbe_amoeba"
         else:
             self.solute_type = simulation_type
+        self.force_field = force_field
 
         self.solute_object = getattr(pb_solutes, self.solute_type, None)
         if self.solute_object is None:
@@ -89,20 +91,23 @@ class Simulation:
         self.timings = dict()
         self.run_info = dict()
 
-        self.ep_ex = 80.0
-        self.kappa = 0.125
+        self._ep_ex = 80.0
+        self._kappa = 0.125
 
-        self.pb_formulation_preconditioning = True
+        self._pb_formulation_preconditioning = formulation_preconditioning
 
-        if (
-            self._pb_formulation == "direct"
-            or self._pb_formulation == "direct_stern"
-            or self._pb_formulation == "slic"
-            or self._pb_formulation == "direct_amoeba"
-        ):
-            self.pb_formulation_preconditioning_type = "block_diagonal"
+        if self._pb_formulation_preconditioning:
+            if (
+                self._pb_formulation == "direct"
+                or self._pb_formulation == "direct_stern"
+                or self._pb_formulation == "slic"
+                or self._pb_formulation == "direct_amoeba"
+            ):
+                self._pb_formulation_preconditioning_type = "block_diagonal"
+            else:
+                self._pb_formulation_preconditioning_type = "mass_matrix"
         else:
-            self.pb_formulation_preconditioning_type = "mass_matrix"
+            self._pb_formulation_preconditioning_type = None
 
         self.operator_assembler = "dense"
 
@@ -132,8 +137,8 @@ class Simulation:
         self.matrices["preconditioning_matrix_gmres"] = None
         # reset solute
         if len(self.solutes) > 0:
-            for index, solute in enumerate(self.solutes):
-                solute.pb_formulation = self.pb_formulation
+            for solute in self.solutes:
+                solute.pb_formulation = value
 
     @property
     def pb_formulation_preconditioning(self):
@@ -144,10 +149,8 @@ class Simulation:
         self._pb_formulation_preconditioning = value
         # reset solute
         if len(self.solutes) > 0:
-            for index, solute in enumerate(self.solutes):
-                solute.pb_formulation_preconditioning = (
-                    self.pb_formulation_preconditioning
-                )
+            for solute in self.solutes:
+                solute.pb_formulation_preconditioning = value
 
     @property
     def pb_formulation_preconditioning_type(self):
@@ -158,10 +161,8 @@ class Simulation:
         self._pb_formulation_preconditioning_type = value
         # reset solute
         if len(self.solutes) > 0:
-            for index, solute in enumerate(self.solutes):
-                solute.pb_formulation_preconditioning_type = (
-                    self.pb_formulation_preconditioning_type
-                )
+            for solute in self.solutes:
+                solute.pb_formulation_preconditioning_type = value
 
     @property
     def ep_ex(self):
@@ -170,12 +171,11 @@ class Simulation:
     @ep_ex.setter
     def ep_ex(self, value):
         self._ep_ex = value
-        # reset solute
         if len(self.solutes) > 0:
-            for index, solute in enumerate(self.solutes):
-                solute.ep_ex = self.ep_ex
-                solute.e_hat_stern = solute.ep_stern / solute.ep_ex
-                solute.pb_formulation_beta = solute.ep_ex / solute.ep_in  # np.nan
+            for solute in self.solutes:
+                solute.ep_ex = value
+                solute.e_hat_stern = solute.ep_stern / value
+                solute.pb_formulation_beta = value / solute.ep_in  # np.nan
 
     @property
     def kappa(self):
@@ -186,8 +186,34 @@ class Simulation:
         self._kappa = value
         # reset solute
         if len(self.solutes) > 0:
-            for index, solute in enumerate(self.solutes):
-                solute.kappa = self.kappa
+            for solute in self.solutes:
+                solute.kappa = value
+
+    def display_available_formulations(self):
+        from inspect import getmembers, ismodule
+
+        print("Current formulation: " + self.pb_formulation)
+        print("List of available formulations:")
+        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
+        available = getmembers(solute_formulation_module, ismodule)
+        for element in available:
+            if element[0] == "common":
+                available.remove(element)
+        for name, object_address in available:
+            print(name)
+
+    def display_available_preconditioners(self):
+        from inspect import getmembers, isfunction
+
+        print(
+            "List of preconditioners available for the current formulation ("
+            + self.pb_formulation
+            + "):"
+        )
+        for name, object_address in getmembers(self.formulation_object, isfunction):
+            if name.endswith("preconditioner"):
+                name_removed = name[:-15]
+                print(name_removed)
 
     def add_solute(self, solute, name=None):
         """Register a solute molecule in the simulation context and synchronize parameters.
@@ -207,15 +233,17 @@ class Simulation:
                 proper structural initialization.
         """
 
-        if solute.solute_type == self.solute_type and hasattr(solute, "solute_name"):
+        if isinstance(solute, pb_solutes.solute_common.Solute) and hasattr(
+            solute, "solute_name"
+        ):
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
                 )
-            # elif solute.solute_type != self.solute_type:
-            #     raise ValueError(
-            #         f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
-            #     )
+            elif solute.solute_type != self.solute_type:
+                raise ValueError(
+                    f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
+                )
             else:
                 solute.ep_ex = self.ep_ex
                 solute.kappa = self.kappa
@@ -234,12 +262,12 @@ class Simulation:
                     solute.stern_mesh_density = (
                         solute.stern_mesh_density_ratio * solute.sas_mesh_density
                     )
-                # if solute.force_field == "amoeba":
-                #     if self.pb_formulation not in ("direct", "direct_amoeba"):
-                #         print(
-                #             "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
-                #         )
-                #     self.pb_formulation = "direct_amoeba"
+                if self.force_field == "amoeba":
+                    if self.pb_formulation not in ("direct", "direct_amoeba"):
+                        print(
+                            "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
+                        )
+                    self.pb_formulation = "direct_amoeba"
                 self.solutes.append(solute)
                 if isinstance(name, str):
                     self.solutes_names.append(name)

@@ -1,5 +1,4 @@
 from .solute_common import Solute
-import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
 import pbj.mesh.charge_tools as charge_tools
 import pbj.mesh.mesh_tools as mesh_tools
 import os
@@ -12,30 +11,30 @@ class LPBE(Solute):
     def __init__(
         self,
         solute_file_path,
+        solute_type="lpbe",
         formulation="direct",
-        **kwargs,
+        external_mesh_file=None,
+        **kwargs
     ):
 
-        super().__init__(solute_file_path=solute_file_path, **kwargs)
+        super().__init__(
+            solute_file_path=solute_file_path,
+            solute_type=solute_type,
+            formulation=formulation,
+            **kwargs
+        )
 
-        self.solute_type = "lpbe"
-        self._pb_formulation = formulation
-
-        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
-        if self.formulation_object is None:
-            raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
-
-        if kwargs.get("external_mesh_file") is not None:
-            filename, file_extension = os.path.splitext(kwargs["external_mesh_file"])
+        if external_mesh_file is not None:
+            filename, file_extension = os.path.splitext(external_mesh_file)
             if file_extension == "":  # Assume use of vert and face
-                self.external_mesh_face_path = kwargs["external_mesh_file"] + ".face"
-                self.external_mesh_vert_path = kwargs["external_mesh_file"] + ".vert"
+                self.external_mesh_face_path = external_mesh_file + ".face"
+                self.external_mesh_vert_path = external_mesh_file + ".vert"
                 self.mesh = mesh_tools.import_msms_mesh(
                     self.external_mesh_face_path, self.external_mesh_vert_path
                 )
 
             else:  # Assume use of file that can be directly imported into bempp
-                self.external_mesh_file_path = kwargs["external_mesh_file"]
+                self.external_mesh_file_path = external_mesh_file
                 self.mesh = bempp.api.import_grid(self.external_mesh_file_path)
 
             (

@@ -7,7 +7,7 @@ import time
 import shutil
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
+import pbj.implicit_solvent.pb_formulation as pb_formulations
 import pbj.implicit_solvent.utils as utils
 
 
@@ -19,7 +19,6 @@ class Solute:
     def __init__(
         self,
         solute_file_path,
-        external_mesh_file=None,
         save_mesh_build_files=False,
         mesh_build_files_dir="mesh_files/",
         mesh_density=2.0,
@@ -27,6 +26,8 @@ class Solute:
         solvent_radius=1.4,
         mesh_generator="nanoshaper",
         print_times=False,
+        solute_type="lpbe",
+        formulation="direct",
         force_field="amber",
         fill_cavities=True,
         cavity_cutoff=60,
@@ -86,6 +87,25 @@ class Solute:
 
         self.save_mesh_build_files = save_mesh_build_files
         self.mesh_build_files_dir = os.path.abspath(mesh_build_files_dir)
+
+        if force_field == "amoeba":
+            raise ValueError(
+                "Use LPBE_AMOEBA solute class to create solute with %s" % force_field
+            )
+        else:
+            self.force_field = force_field
+
+        self._pb_formulation = formulation
+        self.solute_type = solute_type
+
+        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
+        self.formulation_object = getattr(
+            solute_formulation_module, self._pb_formulation, None
+        )
+        if self.formulation_object is None:
+            raise AttributeError(
+                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self.solute_type}"
+            )
 
         if nanoshaper_grid_scale is not None:
             if mesh_generator == "nanoshaper":
@@ -191,7 +211,11 @@ class Solute:
     @pb_formulation.setter
     def pb_formulation(self, value):
         self._pb_formulation = value
-        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
+
+        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
+        self.formulation_object = getattr(
+            solute_formulation_module, self._pb_formulation, None
+        )
         if (
             "preconditioning_matrix_gmres" not in self.matrices
         ):  # might already exist if just regenerating RHS
@@ -209,31 +233,6 @@ class Solute:
         self.stern_mesh_density_ratio = value / self.sas_mesh_density
         pb_formulations.direct_stern.create_stern_mesh(self)
 
-    def display_available_formulations(self):
-        from inspect import getmembers, ismodule
-
-        print("Current formulation: " + self.pb_formulation)
-        print("List of available formulations:")
-        available = getmembers(pb_formulations, ismodule)
-        for element in available:
-            if element[0] == "common":
-                available.remove(element)
-        for name, object_address in available:
-            print(name)
-
-    def display_available_preconditioners(self):
-        from inspect import getmembers, isfunction
-
-        print(
-            "List of preconditioners available for the current formulation ("
-            + self.pb_formulation
-            + "):"
-        )
-        for name, object_address in getmembers(self.formulation_object, isfunction):
-            if name.endswith("preconditioner"):
-                name_removed = name[:-15]
-                print(name_removed)
-
     def initialise_matrices(self):
         start_time = time.time()  # Start the timing for the matrix construction
         # Construct matrices based on the desired formulation
@@ -241,14 +240,6 @@ class Solute:
         if self.formulation_object.verify_parameters(self):
             self.formulation_object.lhs(self)
         self.timings["time_matrix_initialisation"] = time.time() - start_time
-
-    def assemble_matrices(
-        self,
-    ):
-        # not being used, as this is done in apply_preconditioning
-        start_assembly = time.time()
-        self.matrices["A"].weak_form()
-        self.timings["time_matrix_assembly"] = time.time() - start_assembly
 
     def initialise_rhs(self):
         start_rhs = time.time()
