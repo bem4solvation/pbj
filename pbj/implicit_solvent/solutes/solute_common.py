@@ -184,13 +184,6 @@ class Solute:
         self.results = dict()
         self.timings = dict()
 
-        # # Setup Dirichlet and Neumann spaces to use, save these as object vars
-        # dirichl_space = bempp.api.function_space(self.mesh, "P", 1)
-        # # neumann_space = bempp.api.function_space(self.mesh, "P", 1)
-        # neumann_space = dirichl_space
-        # self.dirichl_space = dirichl_space
-        # self.neumann_space = neumann_space
-
     @property
     def pb_formulation(self):
         return self._pb_formulation

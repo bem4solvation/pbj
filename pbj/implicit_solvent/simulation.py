@@ -19,14 +19,19 @@ class Simulation:
     """
 
     def __init__(
-        self, formulation="direct", solute="lpbe", stern_layer=False, print_times=False
+        self,
+        simulation_type="lpbe",
+        force_field="amber",
+        formulation="direct",
+        stern_layer=False,
+        print_times=False,
     ):
         """Initializes a Simulation environment with a specific Poisson-Boltzmann formulation.
 
         Args:
             formulation (str, optional): The PB boundary integral formulation to use
                 (e.g., 'direct', 'direct_stern', 'slic', 'direct_amoeba'). Defaults to "direct".
-            solute (str, optional): The type of solute to model (e.g., 'lpbe', 'npbe'). Defaults to 'lpbe'.
+            simulation_type (str, optional): The type of simulation to run (e.g., 'lpbe', 'npbe'). Defaults to 'lpbe'.
             stern_layer (bool, optional): If True, incorporates a Stern (ion-exclusion) layer
                 into the formulation workspace. Defaults to False.
             print_times (bool, optional): If True, displays execution times during major solver
@@ -45,7 +50,11 @@ class Simulation:
         if formulation in ("direct_stern", "slic"):
             stern_layer = True
 
-        self.solute_type = solute
+        if force_field == "amoeba" and simulation_type == "lpbe":
+            self.solute_type = "lpbe_amoeba"
+        else:
+            self.solute_type = simulation_type
+
         self.solute_object = getattr(pb_solutes, self.solute_type, None)
         if self.solute_object is None:
             raise ValueError("Unrecognised solute type %s" % self.solute_type)
@@ -198,9 +207,7 @@ class Simulation:
                 proper structural initialization.
         """
 
-        if isinstance(solute, pb_solutes.solute_common.Solute) and hasattr(
-            solute, "solute_name"
-        ):
+        if solute.solute_type == self.solute_type and hasattr(solute, "solute_name"):
             if solute in self.solutes:
                 print(
                     "Solute object is already added to this simulation. Ignoring this add command."
@@ -240,7 +247,7 @@ class Simulation:
                     self.solutes_names.append(solute.solute_name)
         else:
             raise ValueError(
-                "Given object is not of the 'Solute' class or pdb/pqr file not correctly loaded."
+                "Given object is not of the 'Solute' class of the simulation or pdb/pqr file not correctly loaded."
             )
 
     def create_and_assemble_linear_system(self):

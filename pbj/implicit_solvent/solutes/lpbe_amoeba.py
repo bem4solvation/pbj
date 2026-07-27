@@ -19,7 +19,7 @@ class LPBE_AMOEBA(Solute):
         **kwargs,
     ):
         super().__init__(solute_file_path=solute_file_path, **kwargs)
-
+        self.solute_type = "lpbe_amoeba"
         self._pb_formulation = formulation
 
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
@@ -87,10 +87,25 @@ class LPBE_AMOEBA(Solute):
             self.d_induced = np.zeros_like(self.d)
             self.d_induced_prev = np.zeros_like(self.d)
 
+        # Setup Dirichlet and Neumann spaces to use, save these as object vars
+        dirichl_space = bempp.api.function_space(self.mesh, "P", 1)
+        neumann_space = dirichl_space
+        self.dirichl_space = dirichl_space
+        self.neumann_space = neumann_space
+
     def calculate_solvation_energy(
         self,
         electrostatic_energy=True,
         nonpolar_energy=False,
         units="kcal_mol",
+    ):
+        print("Calculo no disponible para polarizable!")
+
+    def calculate_solvation_forces(
+        self,
+        h=0.001,
+        force_formulation="maxwell_tensor",
+        fdb_approx=False,
+        units="kcal_molA",
     ):
         print("Calculo no disponible para polarizable!")

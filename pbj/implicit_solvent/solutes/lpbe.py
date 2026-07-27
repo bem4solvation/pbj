@@ -18,6 +18,7 @@ class LPBE(Solute):
 
         super().__init__(solute_file_path=solute_file_path, **kwargs)
 
+        self.solute_type = "lpbe"
         self._pb_formulation = formulation
 
         self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
@@ -62,20 +63,6 @@ class LPBE(Solute):
 
         # Setup Dirichlet and Neumann spaces to use, save these as object vars
         dirichl_space = bempp.api.function_space(self.mesh, "P", 1)
-        # neumann_space = bempp.api.function_space(self.mesh, "P", 1)
         neumann_space = dirichl_space
         self.dirichl_space = dirichl_space
         self.neumann_space = neumann_space
-
-    def calculate_solvation_energy(
-        self,
-        electrostatic_energy=True,
-        nonpolar_energy=False,
-        units="kcal_mol",
-    ):
-        print("Calculando para LPBE!")
-        super().calculate_solvation_energy(
-            electrostatic_energy=electrostatic_energy,
-            nonpolar_energy=nonpolar_energy,
-            units=units,
-        )
