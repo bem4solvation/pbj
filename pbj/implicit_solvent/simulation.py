@@ -79,7 +79,8 @@ class Simulation:
         self.gmres_restart = 1000
         self.gmres_max_iterations = 1000
 
-        self.induced_dipole_iter_tol = 1e-2  # AMOEBA?
+        self.induced_dipole_iter_tol = 1e-2
+        self.SOR = 0.7
 
         self.slic_max_iterations = 20
         self.slic_tolerance = 1e-4
@@ -110,8 +111,6 @@ class Simulation:
             self._pb_formulation_preconditioning_type = None
 
         self.operator_assembler = "dense"
-
-        self.SOR = 0.7
 
     @property
     def pb_formulation(self):
@@ -245,6 +244,11 @@ class Simulation:
                     f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
                 )
             else:
+                if solute.pb_formulation != self.pb_formulation:
+                    print(
+                        f"Solute formulation '{solute.pb_formulation}' does not match simulation formulation '{self.pb_formulation}'. \
+                        Using the global formulation '{self.pb_formulation}' for this solute."
+                    )
                 solute.ep_ex = self.ep_ex
                 solute.kappa = self.kappa
                 solute.SOR = self.SOR
@@ -267,7 +271,6 @@ class Simulation:
                         print(
                             "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
                         )
-                    self.pb_formulation = "direct_amoeba"
                 self.solutes.append(solute)
                 if isinstance(name, str):
                     self.solutes_names.append(name)

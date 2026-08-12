@@ -1,0 +1,17 @@
+Mesh density: 2, Binding energy energy: 3.9345 Solvation forces (Maxwell tensor): 1.8604 Solvation forces (Energy functional): 1.9193 
+Mesh density: 4, Binding energy energy: 3.9522 Solvation forces (Maxwell tensor): 1.9074 Solvation forces (Energy functional): 1.9385 
+Mesh density: 8, Binding energy energy: 3.9612 Solvation forces (Maxwell tensor): 1.9247 Solvation forces (Energy functional): 1.9434 
+Mesh density: 16, Binding energy energy: 3.9667 Solvation forces (Maxwell tensor): 1.9352 Solvation forces (Energy functional): 1.9438 
+
+
+Reference values (Paper JCTC 2023):
+Force value (by virtual work) (kcal/molA): 1.9425 
+Binding energy value (kcal/mol): 3.9689 
+ 
+p- observed convergence value for binding energy (2,4,8): 0.9780
+p- observed convergence value for force (Maxwell stresses) (2,4,8): 1.4397
+p- observed convergence value for force (Energy functional) (2,4,8): 1.9699
+
+Relative error for binding energy: 5.6433e-04
+Relative error for force (Maxwell stresses): 3.7565e-03
+Relative error for force (Energy functional): 6.8873e-04

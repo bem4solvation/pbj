@@ -1,1 +1,1 @@
-from . import direct_amoeba
+from . import direct

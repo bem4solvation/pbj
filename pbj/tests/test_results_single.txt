@@ -1,0 +1,29 @@
+Mesh density: 2, Solvation energy: -182.5652 Solvation forces (Maxwell tensor): 0.0021 Solvation forces (Energy functional): 0.0217
+Mesh density: 4, Solvation energy: -171.5382 Solvation forces (Maxwell tensor): 0.0001 Solvation forces (Energy functional): 0.0000
+Mesh density: 8, Solvation energy: -168.0478 Solvation forces (Maxwell tensor): 0.0001 Solvation forces (Energy functional): 0.0049
+Mesh density: 16, Solvation energy: -165.9081 Solvation forces (Maxwell tensor): 0.0004 Solvation forces (Energy functional): 0.0354
+Analytical solvation energy (kcal/mol): -164.1870
+Analytical solvation forces (kcal/molA): 0.0
+p-analytical convergence value for energy (4,8,16): ['1.3220', '0.9291', '1.1656']
+
+
+Potential values (V) at different points:
+r(Ang) : [0.2 0.8 1.2 1.5 2. ] 
+Mesh density: 2, Reac potential Solute: [-15.8216, -15.4365, 0.0000, 0.0000, 0.0000] Coulomb potential Solute: [72.0018, 17.9998, 0.0000, 0.0000, 0.0000] Total potential Solvent: [0.0000, 0.0000, 0.1297, 0.0999, 0.0706]
+Mesh density: 4, Reac potential Solute: [-14.8745, -14.7720, 0.0000, 0.0000, 0.0000] Coulomb potential Solute: [72.0018, 17.9998, 0.0000, 0.0000, 0.0000] Total potential Solvent: [0.0000, 0.0000, 0.1297, 0.1000, 0.0705]
+Mesh density: 8, Reac potential Solute: [-14.5740, -14.5437, 0.0000, 0.0000, 0.0000] Coulomb potential Solute: [72.0018, 17.9998, 0.0000, 0.0000, 0.0000] Total potential Solvent: [0.0000, 0.0000, 0.1299, 0.1002, 0.0706]
+Mesh density: 16, Reac potential Solute: [-14.3891, -14.3817, 0.0000, 0.0000, 0.0000] Coulomb potential Solute: [72.0018, 17.9998, 0.0000, 0.0000, 0.0000] Total potential Solvent: [0.0000, 0.0000, 0.1300, 0.1002, 0.0706]
+
+
+Analytical potential values (V) at different points
+r: 0.20 Å, phi_reac: -14.2396 V, phi_vacuum: 71.9982 V, phi_total: 57.7586 V 
+r: 0.80 Å, phi_reac: -14.2396 V, phi_vacuum: 17.9996 V, phi_total: 3.7599 V 
+r: 1.20 Å, phi_reac: -11.8697 V, phi_vacuum: 11.9997 V, phi_total: 0.1300 V 
+r: 1.50 Å, phi_reac: -9.4996 V, phi_vacuum: 9.5998 V, phi_total: 0.1002 V 
+r: 2.00 Å, phi_reac: -7.1292 V, phi_vacuum: 7.1998 V, phi_total: 0.0706 V 
+p-analytical convergence value for potential at 1.2 A (4,8,16): ['0.1894', '0.9711', '0.8697']
+
+Extrapolated solvation energy at r=1: -163.7684 kcal/mol
+
+Relative error for solvation energy (extrapolated r=1): 2.5497e-03
+Relative error for potential at 1.2 A: 6.6397e-04
