@@ -30,9 +30,11 @@ def test_single():
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere_born.pqr")
         for mesh_dens in [2, 4, 8, 16]:
-            sphere = pbj.LPBE(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
-            sphere.ep_in = 1.0
-            sphere.x_q[0][0] = 0.00001
+            sphere = pbj.implicit_solvent.Simulation()
+            sphere.add_solute(
+                pqrpath, mesh_density=mesh_dens, mesh_generator="msms", ep_in=1.0
+            )
+            sphere.solutes[0].x_q[0][0] = 0.00001
             spheres.append(sphere)
         return spheres
 
@@ -92,30 +94,28 @@ def test_single():
 
     spheres = spheres()
     solvation_value = an_P(
-        spheres[0].q,  # charge
-        spheres[0].x_q,  # position of the charge
-        spheres[0].ep_in,  # dielectric constant inside the sphere
-        spheres[0].ep_ex,  # dielectric constant outside the sphere
+        spheres[0].solutes[0].q,  # charge
+        spheres[0].solutes[0].x_q,  # position of the charge
+        spheres[0].solutes[0].ep_in,  # dielectric constant inside the sphere
+        spheres[0].solutes[0].ep_ex,  # dielectric constant outside the sphere
         1,  # radius of the sphere
-        spheres[0].kappa,  # reciprocal of Debye length
+        spheres[0].solutes[0].kappa,  # reciprocal of Debye length
         1,  # radius of the Stern Layer
         3,  # number of terms desired in the polinomial expansion
     )
 
     energy_vals = []
     file = open("test_results_single.txt", "w")
-    for sphere in spheres:
-        simulation = pbj.implicit_solvent.Simulation()
-        simulation.add_solute(sphere)
+    for simulation in spheres:
         simulation.calculate_solvation_forces(force_formulation="maxwell_tensor")
-        f_solv_maxwell_tensor = sphere.results["f_solv"]
+        f_solv_maxwell_tensor = simulation.solutes[0].results["f_solv"]
         simulation.calculate_solvation_forces(force_formulation="energy_functional")
-        f_solv_energy_func = sphere.results["f_solv"]
+        f_solv_energy_func = simulation.solutes[0].results["f_solv"]
         simulation.calculate_solvation_energy()
-        energy_val = sphere.results["electrostatic_solvation_energy"]
+        energy_val = simulation.solutes[0].results["electrostatic_solvation_energy"]
         energy_vals.append(energy_val)
         file.write(
-            f"Mesh density: {sphere.mesh_density}, Solvation energy: {energy_val:.4f} "
+            f"Mesh density: {simulation.solutes[0].mesh_density}, Solvation energy: {energy_val:.4f} "
             f"Solvation forces (Maxwell tensor): {np.linalg.norm(f_solv_maxwell_tensor):.4f} "
             f"Solvation forces (Energy functional): {np.linalg.norm(f_solv_energy_func):.4f}\n"
         )
@@ -141,9 +141,7 @@ def test_single():
     file.write(f"r(Ang) : {r_test} \n")
 
     vals_solv_p = []
-    for sphere in spheres:
-        simulation = pbj.implicit_solvent.Simulation()
-        simulation.add_solute(sphere)
+    for simulation in spheres:
         vals_solute, _ = simulation.calculate_reaction_potential_solute(
             np.array([[r, 0, 0] for r in r_test])
         )
@@ -158,7 +156,7 @@ def test_single():
         solute_coul_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solute_coul])
         solv_str = ", ".join([f"{x / 1000:.4f}" for x in vals_solv])
         file.write(
-            f"Mesh density: {sphere.mesh_density}, "
+            f"Mesh density: {simulation.solutes[0].mesh_density}, "
             f"Reac potential Solute: [{solute_str}] "
             f"Coulomb potential Solute: [{solute_coul_str}] "
             f"Total potential Solvent: [{solv_str}]\n"
@@ -167,8 +165,8 @@ def test_single():
 
     analytical_potential = []
     for r in r_test:
-        phi_r = to_V * analytic_Born_Ion_reac(r, spheres[0])
-        phi_v = to_V * analytic_Born_Ion_vacuum(r, spheres[0])
+        phi_r = to_V * analytic_Born_Ion_reac(r, spheres[0].solutes[0])
+        phi_v = to_V * analytic_Born_Ion_vacuum(r, spheres[0].solutes[0])
         phi_total = phi_v + phi_r
         analytical_potential.append(phi_total)
         file.write(

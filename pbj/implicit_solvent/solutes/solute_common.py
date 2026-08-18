@@ -7,7 +7,6 @@ import time
 import shutil
 import pbj.mesh.mesh_tools as mesh_tools
 import pbj.mesh.charge_tools as charge_tools
-import pbj.implicit_solvent.pb_formulation as pb_formulations
 import pbj.implicit_solvent.utils as utils
 
 
@@ -26,8 +25,6 @@ class Solute:
         solvent_radius=1.4,
         mesh_generator="nanoshaper",
         print_times=False,
-        solute_type="lpbe",
-        formulation="direct",
         fill_cavities=True,
         cavity_cutoff=60,
     ):
@@ -87,18 +84,6 @@ class Solute:
         self.save_mesh_build_files = save_mesh_build_files
         self.mesh_build_files_dir = os.path.abspath(mesh_build_files_dir)
 
-        self._pb_formulation = formulation
-        self.solute_type = solute_type
-
-        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
-        self.formulation_object = getattr(
-            solute_formulation_module, self._pb_formulation, None
-        )
-        if self.formulation_object is None:
-            raise AttributeError(
-                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self.solute_type}"
-            )
-
         if nanoshaper_grid_scale is not None:
             if mesh_generator == "nanoshaper":
                 print("Using specified grid_scale.")
@@ -142,78 +127,15 @@ class Solute:
         else:
             print("File is not pdb, pqr, or Tinker xyz -> Cannot start")
 
-        self.ep_in = 4.0
-        self.ep_ex = 80.0
-        self.ep_stern = 80.0
-        self.kappa = 0.125
-
-        self.gamma_cav_nonpolar = 0.06
-        self.intercept_cav_nonpolar = -3
-
-        self.gamma_disp_nonpolar = -0.055
-        self.intercept_disp_nonpolar = 3.5
-
-        self.solvent_number_density = 1.45
-
-        self.slic_alpha = 0.5
-        self.slic_beta = -60
-        self.slic_gamma = -0.5
-
-        self.slic_sigma = None
-        self.slic_e_hat_diel = None  # self.ep_in / self.ep_stern
-        self.slic_e_hat_stern = None  # self.ep_stern / self.ep_ex
-
-        self.stern_mesh_density_ratio = (
-            0.5  # stern_density/diel_density ratio. No need for fine meshes in Stern.
-        )
-        self.stern_probe_radius = 0.05  # probe radius for the outer mesh of Stern layer
-
         if nanoshaper_grid_scale is None:
             self.sas_mesh_density = self.mesh_density
         else:
             self.sas_mesh_density = self.nanoshaper_grid_scale
 
-        self.pb_formulation_alpha = 1.0  # np.nan
-        self.pb_formulation_beta = self.ep_ex / self.ep_in  # np.nan
-
-        self.pb_formulation_stern_width = 2.0
-        self.stern_object = None
-
-        self.pb_formulation_preconditioning = True
-        self.pb_formulation_preconditioning_type = "mass_matrix"
-
-        self.discrete_form_type = "weak"
-
-        self.gmres_tolerance = 1e-5
-        self.gmres_restart = 1000
-        self.gmres_max_iterations = 1000
-
-        self.operator_assembler = "dense"
-        self.rhs_constructor = "numpy"
-
         self.matrices = dict()
         self.rhs = dict()
         self.results = dict()
         self.timings = dict()
-
-    @property
-    def pb_formulation(self):
-        return self._pb_formulation
-
-    @pb_formulation.setter
-    def pb_formulation(self, value):
-        self._pb_formulation = value
-
-        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
-        self.formulation_object = getattr(
-            solute_formulation_module, self._pb_formulation, None
-        )
-        if (
-            "preconditioning_matrix_gmres" not in self.matrices
-        ):  # might already exist if just regenerating RHS
-            self.matrices["preconditioning_matrix_gmres"] = None
-        if self.formulation_object is None:
-            raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
 
     def initialise_matrices(self):
         start_time = time.time()  # Start the timing for the matrix construction
@@ -298,10 +220,7 @@ class Solute:
             - Updates execution profiling timestamps inside `self.timings["time_preconditioning"]`.
         """
         preconditioning_start_time = time.time()
-        if (
-            self.pb_formulation_preconditioning
-            and self.matrices["preconditioning_matrix_gmres"] is None
-        ):
+        if self.pb_formulation_preconditioning:
             precon_str = (
                 self.pb_formulation_preconditioning_type + "_preconditioner_rhs"
             )

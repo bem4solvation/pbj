@@ -70,8 +70,6 @@ def create_stern_mesh(self):
             solvent_radius=self.stern_probe_radius,
             mesh_generator=self.mesh_generator,
             print_times=self.print_times,
-            force_field=self.force_field,
-            formulation="direct",
         )
 
     else:
@@ -84,8 +82,6 @@ def create_stern_mesh(self):
             solvent_radius=self.stern_probe_radius,
             mesh_generator=self.mesh_generator,
             print_times=self.print_times,
-            force_field=self.force_field,
-            formulation="direct",
         )
 
     if not self.save_mesh_build_files:
@@ -531,7 +527,9 @@ def lhs_inter_solute_interactions(self, solute_target, solute_source):
         A_inter[1, 1] = e_hat_stern * slp
 
     else:
-        from bempp.api.assembly.boundary_operator import ZeroBoundaryOperator as zero_op
+        from bempp_cl.api.assembly.boundary_operator import (
+            ZeroBoundaryOperator as zero_op,
+        )
 
         A_inter = bempp.api.BlockedOperator(4, 4)
 

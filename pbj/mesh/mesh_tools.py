@@ -36,30 +36,39 @@ def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
         print("No cavities detected in the mesh")
         return mesh
 
-    largest_mesh = max(mesh_split, key=lambda m: m.volume)
-    idx_remove = []
-    for i in range(len(mesh_split)):  # remove mesh cavities off the largest one
-        if not any(
-            largest_mesh.contains(mesh_split[i].vertices[0:1, :])
-        ):  # evaluate one point to discard
-            idx_remove.append(i)
+    volumes = [abs(m.volume) for m in mesh_split]
+    print(["Mesh volumes detected: {:.2f}".format(v) for v in volumes])
+    largest_idx = int(np.argmax(volumes))
+    largest_mesh = mesh_split[largest_idx]
+
+    idx_remove = set()
+    for i, comp in enumerate(mesh_split):
+        if i == largest_idx:
+            continue
+        centroid = comp.centroid.reshape(1, 3)
+        try:
+            inside = largest_mesh.contains(centroid)[0]
+        except Exception:
+            inside = False
+
+        if not inside:
+            idx_remove.add(i)
             print(
-                "Cavity far off the largest mesh detected and removed with volume {:.2f}.".format(
-                    mesh_split[i].volume
+                "Cavity index {:.d} far off the largest mesh detected and removed with volume {:.2f}.".format(
+                    i, comp.volume
                 )
             )
-        if (
-            abs(mesh_split[i].volume) > volume_cutoff
-            and mesh_split[i].volume != largest_mesh.volume
-        ):
-            idx_remove.append(i)
+
+        if abs(comp.volume) < volume_cutoff:
+            idx_remove.add(i)
             print(
-                "Small inner cavity detected and removed with volume {:.2f}.".format(
-                    mesh_split[i].volume
+                "Small inner cavity index {:.d} detected and removed with volume {:.2f}.".format(
+                    i, comp.volume
                 )
             )
-    mesh_split = [mesh_split[i] for i in range(len(mesh_split)) if i not in idx_remove]
-    print("{} cavities detected and removed.".format(len(idx_remove)))
+
+    removed_count = len(idx_remove)
+    print("{} cavities detected and removed.".format(removed_count))
 
     return bempp_cl.api.Grid(largest_mesh.vertices.T, largest_mesh.faces.T)
 

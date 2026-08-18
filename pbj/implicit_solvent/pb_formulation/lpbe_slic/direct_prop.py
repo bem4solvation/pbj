@@ -8,7 +8,7 @@ This module extends SLIC by updating additional Stern-layer properties during th
 iterative solution process.
 """
 
-from .slic import (
+from .direct import (
     calculate_potential_slic,
 )  # maybe move to .common?????? CHECK
 import pbj

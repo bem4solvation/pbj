@@ -10,7 +10,7 @@ and the iterative assembly of the nonlinear surface response.
 
 from bempp_cl.api.operators.boundary import sparse, laplace
 from bempp_cl.api.linalg.iterative_solvers import IterationCounter
-from .common import calculate_potential_stern
+from ..lpbe.common import calculate_potential_stern
 import pbj
 import time
 import pbj.implicit_solvent.utils as utils

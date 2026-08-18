@@ -2,7 +2,8 @@
 # import os
 # sys.path.insert(0, os.path.abspath("../.."))
 import pbj
-import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
+import pbj.implicit_solvent.pb_formulation.lpbe as lpbe_formulations
+import pbj.implicit_solvent.pb_formulation.lpbe_slic as lpbe_slic_formulations
 from pbj.implicit_solvent.utils.analytical import an_P
 from inspect import getmembers, ismodule, isfunction
 import numpy as np
@@ -38,15 +39,16 @@ def test_formulations():
         varying mesh densities using the MSMS generator.
 
         Returns:
-            list of pbj.LPBE: A list containing three initialized Solute mesh objects
-                                corresponding to mesh densities of 0.85, 1.7, and 3.4.
+            list of pbj.implicit_solvent.Simulation: A list containing three initialized Solute mesh objects
+                                                corresponding to mesh densities of 0.85, 1.7, and 3.4.
         """
         spheres = []
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "test.pqr")
         for mesh_dens in [0.85, 1.7, 3.4]:
-            sphere = pbj.LPBE(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
-            sphere.x_q[0][0] = 0.1
+            sphere = pbj.implicit_solvent.Simulation()
+            sphere.add_solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
+            sphere.solutes[0].x_q[0][0] = 0.1
             spheres.append(sphere)
         return spheres
 
@@ -57,23 +59,24 @@ def test_formulations():
         meshes with varying grid scales using the NanoShaper mesh generator.
 
         Returns:
-            list of pbj.LPBE: A list containing three initialized Solute mesh objects
-                                corresponding to grid scales of 1.4, 1.82, and 2.366.
+            list of pbj.implicit_solvent.Simulation: A list containing three initialized Solute mesh objects
+                                                corresponding to grid scales of 1.4, 1.82, and 2.366.
         """
         histidines = []
         print("Creating histidine meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "his", "his.pqr")
         for mesh_dens in [1.4, 1.82, 2.366]:
-            histidine = pbj.LPBE(
+            histidine = pbj.implicit_solvent.Simulation(slic=True)
+            histidine.add_solute(
                 pqrpath, nanoshaper_grid_scale=mesh_dens, mesh_generator="nanoshaper"
             )
             histidines.append(histidine)
         return histidines
 
-    def values():
+    def values(module_pb):
         """Dynamically map available Poisson-Boltzmann formulations and their preconditioners.
 
-        Inspects the `pb_formulations` module to identify valid formulation submodules
+        Inspects the `lpbe_formulations` module to identify valid formulation submodules
         (excluding the 'common' module). For each formulation, it scans for available
         preconditioner functions and initializes a nested dictionary structure.
 
@@ -84,12 +87,12 @@ def test_formulations():
                   initialized to empty `np.array([])` objects.
         """
         values = {}
-        available = getmembers(pb_formulations, ismodule)
+        available = getmembers(module_pb, ismodule)
         for element in available:
             if element[0] == "common":
                 available.remove(element)
         for formulation_name, object_address in available:
-            formulation = getattr(pb_formulations, formulation_name, None)
+            formulation = getattr(module_pb, formulation_name, None)
             values[formulation_name] = {}
             values[formulation_name]["no_precond"] = np.array([])
             for precond_name, object_address in getmembers(formulation, isfunction):
@@ -100,25 +103,26 @@ def test_formulations():
 
     spheres = spheres()
     histidines = histidines()
-    values = values()
+    values_lpbe = values(lpbe_formulations)
+    values_lpbe_slic = values(lpbe_slic_formulations)
     file = open("test_results.txt", "w")
     solvation_value = an_P(
-        spheres[0].q,
-        spheres[0].x_q,
-        spheres[0].ep_in,
-        spheres[0].ep_ex,
+        spheres[0].solutes[0].q,
+        spheres[0].solutes[0].x_q,
+        spheres[0].solutes[0].ep_in,
+        spheres[0].solutes[0].ep_ex,
         5,
-        spheres[0].kappa,
+        spheres[0].solutes[0].kappa,
         5,
         3,
     )
     solvation_value_stern = an_P(
-        spheres[0].q,
-        spheres[0].x_q,
-        spheres[0].ep_in,
-        spheres[0].ep_ex,
+        spheres[0].solutes[0].q,
+        spheres[0].solutes[0].x_q,
+        spheres[0].solutes[0].ep_in,
+        spheres[0].solutes[0].ep_ex,
         5,
-        spheres[0].kappa,
+        spheres[0].solutes[0].kappa,
         7,
         3,
     )
@@ -139,67 +143,63 @@ def test_formulations():
     )
 
     for sphere in spheres:
-        formulations = list(values.keys())
-        formulations.remove("slic")
-        formulations.remove("slic_prop")
+        formulations = list(values_lpbe.keys())
         for formulation in formulations:
             print(
-                "Computing for {} with {}".format(formulation, sphere.sas_mesh_density)
+                "Computing for {} with {}".format(
+                    formulation, sphere.solutes[0].sas_mesh_density
+                )
             )
-            for preconditioner in values[formulation].keys():
-                simulation = pbj.implicit_solvent.Simulation()
+            for preconditioner in values_lpbe[formulation].keys():
+                simulation = sphere
                 simulation.pb_formulation = formulation
-                simulation.add_solute(sphere)
                 if preconditioner == "no_precond":
-                    simulation.solutes[0].pb_formulation_preconditioning = False
+                    simulation.pb_formulation_preconditioning = False
                     simulation.calculate_solvation_energy()
-                    values[formulation]["no_precond"] = np.append(
-                        values[formulation]["no_precond"],
+                    values_lpbe[formulation]["no_precond"] = np.append(
+                        values_lpbe[formulation]["no_precond"],
                         (
                             simulation.solutes[0].results[
                                 "electrostatic_solvation_energy"
                             ],
-                            sphere.sas_mesh_density,
+                            sphere.solutes[0].sas_mesh_density,
                         ),
                     )
                 else:
-                    simulation.solutes[0].pb_formulation_preconditioning = True
-                    simulation.solutes[0].pb_formulation_preconditioning_type = (
-                        preconditioner
-                    )
+                    simulation.pb_formulation_preconditioning = True
+                    simulation.pb_formulation_preconditioning_type = preconditioner
                     simulation.calculate_solvation_energy()
-                    values[formulation][preconditioner] = np.append(
-                        values[formulation][preconditioner],
+                    values_lpbe[formulation][preconditioner] = np.append(
+                        values_lpbe[formulation][preconditioner],
                         (
                             simulation.solutes[0].results[
                                 "electrostatic_solvation_energy"
                             ],
-                            sphere.sas_mesh_density,
+                            sphere.solutes[0].sas_mesh_density,
                         ),
                     )
 
     for his in histidines:
-        formulations = ["slic", "slic_prop"]
+        formulations = ["direct", "direct_prop"]
         for formulation in formulations:
             print(
                 "Computing for histidine, {} with {}".format(
-                    formulation, his.nanoshaper_grid_scale
+                    formulation, his.solutes[0].nanoshaper_grid_scale
                 )
             )
-            for preconditioner in values[formulation].keys():
-                simulation = pbj.implicit_solvent.Simulation()
+            for preconditioner in values_lpbe_slic[formulation].keys():
+                simulation = his
                 simulation.pb_formulation = formulation
-                simulation.add_solute(his)
                 if preconditioner == "no_precond":
                     simulation.solutes[0].pb_formulation_preconditioning = False
                     simulation.calculate_solvation_energy()
-                    values[formulation]["no_precond"] = np.append(
-                        values[formulation]["no_precond"],
+                    values_lpbe_slic[formulation]["no_precond"] = np.append(
+                        values_lpbe_slic[formulation]["no_precond"],
                         (
                             simulation.solutes[0].results[
                                 "electrostatic_solvation_energy"
                             ],
-                            his.nanoshaper_grid_scale,
+                            his.solutes[0].nanoshaper_grid_scale,
                         ),
                     )
                 else:
@@ -208,13 +208,13 @@ def test_formulations():
                         preconditioner
                     )
                     simulation.calculate_solvation_energy()
-                    values[formulation][preconditioner] = np.append(
-                        values[formulation][preconditioner],
+                    values_lpbe_slic[formulation][preconditioner] = np.append(
+                        values_lpbe_slic[formulation][preconditioner],
                         (
                             simulation.solutes[0].results[
                                 "electrostatic_solvation_energy"
                             ],
-                            his.nanoshaper_grid_scale,
+                            his.solutes[0].nanoshaper_grid_scale,
                         ),
                     )
 
@@ -226,20 +226,15 @@ def test_formulations():
         "Extrapolated values and p parameter for each formulation and preconditioner combination:\n"
     )
 
-    for formulation in values.keys():
-        for preconditioner in values[formulation].keys():
-            val_array = values[formulation][preconditioner]
-            if formulation in ["slic", "slic_prop"]:
-                p, val = richardson_extrapolation(
-                    val_array[4], val_array[2], val_array[0], 1.3
-                )
-            else:
-                p, val = richardson_extrapolation(
-                    val_array[4], val_array[2], val_array[0], 2
-                )
+    for formulation in values_lpbe.keys():
+        for preconditioner in values_lpbe[formulation].keys():
+            val_array = values_lpbe[formulation][preconditioner]
+            p, val = richardson_extrapolation(
+                val_array[4], val_array[2], val_array[0], 2
+            )
             solvation_energy_values = np.append(solvation_energy_values, val)
             file.write(
-                "{} with {}: {}, {}\n".format(formulation, preconditioner, val, p)
+                "LPBE: {} with {}: {}, {}\n".format(formulation, preconditioner, val, p)
             )
             p_array = np.append(p_array, p)
             solvation_energy_values_formulation_and_precond = np.append(
@@ -250,14 +245,29 @@ def test_formulations():
                 solvation_energy_expected_values = np.append(
                     solvation_energy_expected_values, solvation_value_stern
                 )
-            elif formulation in ["slic", "slic_prop"]:
-                solvation_energy_expected_values = np.append(
-                    solvation_energy_expected_values, solvation_value_his
-                )
             else:
                 solvation_energy_expected_values = np.append(
                     solvation_energy_expected_values, solvation_value
                 )
+
+    for formulation in values_lpbe_slic.keys():
+        for preconditioner in values_lpbe_slic[formulation].keys():
+            val_array = values_lpbe_slic[formulation][preconditioner]
+            p, val = richardson_extrapolation(
+                val_array[4], val_array[2], val_array[0], 1.3
+            )
+            solvation_energy_values = np.append(solvation_energy_values, val)
+            file.write(
+                "SLIC: {} with {}: {}, {}\n".format(formulation, preconditioner, val, p)
+            )
+            p_array = np.append(p_array, p)
+            solvation_energy_values_formulation_and_precond = np.append(
+                solvation_energy_values_formulation_and_precond,
+                formulation + "_" + preconditioner,
+            )
+            solvation_energy_expected_values = np.append(
+                solvation_energy_expected_values, solvation_value_his
+            )
 
     indexes = list(
         zip(

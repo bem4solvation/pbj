@@ -7,3 +7,4 @@ from .solute_common import Solute
 from .lpbe import LPBE
 from .lpbe_amoeba import LPBE_AMOEBA
 from .npbe import NPBE
+from .lpbe_slic import LPBE_SLIC

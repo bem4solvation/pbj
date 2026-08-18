@@ -1,5 +1,4 @@
 from .solute_common import Solute
-import pbj.implicit_solvent.pb_formulation.lpbe_amoeba as pb_formulations
 import pbj.mesh.charge_tools as charge_tools
 import pbj.mesh.mesh_tools as mesh_tools
 import os
@@ -17,30 +16,14 @@ class LPBE_AMOEBA(Solute):
         self,
         solute_file_path,
         external_mesh_file=None,
-        solute_type="lpbe_amoeba",
-        force_field="amoeba",
         radius_keyword="solute",
         solute_radius_type="PB",
-        formulation="direct",
         **kwargs,
     ):
         super().__init__(
             solute_file_path=solute_file_path,
-            solute_type=solute_type,
-            formulation=formulation,
             **kwargs,
         )
-
-        if force_field != "amoeba":
-            raise ValueError(
-                "Use LPBE solute class to create solute with %s" % force_field
-            )
-        else:
-            self.force_field = force_field
-
-        self.formulation_object = getattr(pb_formulations, self.pb_formulation, None)
-        if self.formulation_object is None:
-            raise ValueError("Unrecognised formulation type %s" % self.pb_formulation)
 
         self.radius_keyword = radius_keyword
         self.solute_radius_type = solute_radius_type
@@ -112,14 +95,65 @@ class LPBE_AMOEBA(Solute):
     def calculate_solvation_energy(
         self, electrostatic_energy=True, nonpolar_energy=False, units="kcal_mol"
     ):
+        r"""Calculate the total solvation free energy of the solute.
 
-        if not electrostatic_energy:
-            print("Non-electrostatic solvation energy calculation not implemented yet")
-            return
+        Compute and combine the polar (electrostatic) and nonpolar components of the implicit solvation
+        free energy based on the active flags:
 
-        if nonpolar_energy:
-            print("Nonpolar solvation energy calculation not implemented yet")
-            return
+        $$ \Delta G_{\text{solv}} = \Delta G_{\text{electrostatic}} + \Delta G_{\text{nonpolar}} $$
+
+        Args:
+            electrostatic_energy (bool, optional): If True, computes the electrostatic/polar
+                                                 solvation energy component. Defaults to True.
+            nonpolar_energy (bool, optional): If True, computes the nonpolar (cavity + dispersion)
+                                              solvation energy component. Defaults to False.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                returned energy values. Defaults to "kcal_mol".
+
+        Side Effects:
+            - Triggers `self.calculate_electrostatic_solvation_energy()` if `electrostatic_energy` is True.
+            - Triggers `self.calculate_nonpolar_solvation_energy()` if `nonpolar_energy` is True.
+            - Modifies `self.results["solvation_energy"]` to store the cumulative sum when both components are requested.
+        """
+
+        calculate_all = electrostatic_energy and nonpolar_energy
+        if calculate_all:
+            self.calculate_electrostatic_solvation_energy(units=units)
+            self.calculate_nonpolar_solvation_energy(units=units)
+            self.results["solvation_energy"] = (
+                self.results["electrostatic_solvation_energy"]
+                + self.results["nonpolar_solvation_energy"]
+            )
+
+        elif electrostatic_energy:
+            self.calculate_electrostatic_solvation_energy(units=units)
+
+        elif nonpolar_energy:
+            self.calculate_nonpolar_solvation_energy(units=units)
+
+    def calculate_electrostatic_solvation_energy(self, units="kcal_mol"):
+        r"""Calculate the electrostatic component of the solvation free energy.
+
+        Computes the electrostatic reaction potential ($\phi_{\text{reac}}$) at each explicit
+        solute point charge location by projecting the boundary element solution (Dirichlet
+        and Neumann data) back into the solute cavity using Laplace potential operators. It then
+        evaluates the total polar solvation energy via the charge-potential product:
+
+        $$ E_{\text{electrostatic}} = \frac{1}{2} \sum_{i} q_i \phi_{\text{reac}}(\mathbf{r}_i) $$
+
+        If the polarizable AMOEBA force field is active, the calculation is automatically
+        delegated to a specialized polarizable energy formulation handler.
+
+        Args:
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed electrostatic solvation energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - Modifies `self.results["phir_charges"]` to store the reaction potential evaluated at each charge.
+            - Modifies `self.results["electrostatic_solvation_energy"]` to store the total polar energy in kcal/mol.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
 
         start_time = time.time()
 
@@ -190,8 +224,132 @@ class LPBE_AMOEBA(Solute):
             print(
                 "It took ",
                 self.timings["time_calc_energy"],
-                " seconds to compute the solvation energy",
+                " seconds to compute the electrostatic solvation energy",
             )
+
+    def calculate_nonpolar_solvation_energy(
+        self, sas_mesh_density=None, units="kcal_mol"
+    ):
+        r"""Calculate the total nonpolar solvation free energy contribution.
+
+        Combines the energy required to form the molecular cavity in the solvent
+        with the attractive van der Waals dispersion interactions between the solute
+        and surrounding solvent molecules:
+
+        $$ E_{\text{nonpolar}} = E_{\text{cavity}} + E_{\text{dispersion}} $$
+
+        Args:
+            sas_mesh_density (float, optional): Density parameter passed down to the
+                                                SAS mesh generator if the mesh has not
+                                                yet been constructed. Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed nonpolar solvation energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - Triggers `self.calculate_cavity_energy(sas_mesh_density, units=units)`.
+            - Triggers `self.calculate_dispersion_energy(sas_mesh_density, units=units)`.
+            - Modifies `self.results["nonpolar_solvation_energy"]` to store the combined sum.
+            - Updates execution profiling timestamps inside `self.timings`.
+            - Prints processing time information to standard output if `self.print_times` is True.
+        """
+
+        start_time = time.time()
+
+        self.calculate_cavity_energy(sas_mesh_density, units=units)
+        self.calculate_dispersion_energy(sas_mesh_density, units=units)
+
+        self.timings["time_calc_nonpol_energy"] = time.time() - start_time
+
+        self.results["nonpolar_solvation_energy"] = (
+            self.results["cavity_energy"] + self.results["dispersion_energy"]
+        )
+
+        if self.print_times:
+            print(
+                "It took ",
+                self.timings["time_calc_nonpol_energy"],
+                " seconds to compute the nonpolar solvation energy",
+            )
+
+    def calculate_cavity_energy(self, sas_mesh_density=None, units="kcal_mol"):
+        r"""Calculate the nonpolar cavity formation energy based on the Solvent Accessible Surface Area (SASA).
+
+        Computes the reversible work required to create a solute-sized cavity in the
+        solvent. This nonpolar component is modeled via a linear relationship with the SASA:
+
+        $$ E_{\text{cav}} = \gamma \cdot \text{SASA} + b $$
+
+        The SASA is determined by summing the surface area elements (`volumes`) of the SAS mesh.
+
+        Args:
+            sas_mesh_density (float, optional): Density parameter passed to `create_sas_mesh`
+                                                if the SAS mesh hasn't been generated yet.
+                                                Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed cavity energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - If `self.sas_mesh` is missing, triggers `self.create_sas_mesh(sas_mesh_density)`.
+            - Modifies `self.results["cavity_energy"]` to store the final energy calculation.
+        """
+
+        if not hasattr(self, "sas_mesh"):
+            self.create_sas_mesh(sas_mesh_density)
+
+        sasa = np.sum(self.sas_mesh.volumes)
+
+        gamma = self.gamma_cav_nonpolar
+        b = self.intercept_cav_nonpolar
+
+        cavity_energy = gamma * sasa + b
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        unit_conversion_base, _ = charge_tools.convert_units(
+            "kcal_mol", magnitude="energy"
+        )
+        factor_units = unit_conversion / unit_conversion_base
+        self.results["cavity_energy"] = factor_units * cavity_energy
+        self.results["cavity_energy_units"] = unit_label
+
+    def calculate_dispersion_energy(self, sas_mesh_density=None, units="kcal_mol"):
+        r"""Calculate the nonpolar dispersion energy based on the Solvent Accessible Surface Area (SASA).
+
+        Computes the hydrophobic/nonpolar dispersion contribution to the solvation free
+        energy using a linear relationship with the SASA ($E_{\text{disp}} = \gamma \cdot \text{SASA} + b$).
+        The SASA is determined by summing the individual element areas (`volumes`) of the SAS mesh.
+
+        Args:
+            sas_mesh_density (float, optional): Density parameter passed to `create_sas_mesh`
+                                                if the SAS mesh hasn't been generated yet.
+                                                Defaults to None.
+            units (str, optional): Unit identifier passed to `convert_units` for the
+                computed dispersion energy. Defaults to "kcal_mol".
+
+        Side Effects:
+            - If `self.sas_mesh` is missing, triggers `self.create_sas_mesh(sas_mesh_density)`
+              to generate it.
+            - Modifies `self.results["dispersion_energy"]` to store the final energy calculation.
+        """
+
+        if not hasattr(self, "sas_mesh"):
+            self.create_sas_mesh(sas_mesh_density)
+
+        sasa = np.sum(self.sas_mesh.volumes)
+
+        gamma = self.gamma_disp_nonpolar
+        b = self.intercept_disp_nonpolar
+
+        dispersion_energy = gamma * sasa + b
+        unit_conversion, unit_label = charge_tools.convert_units(
+            units, magnitude="energy"
+        )
+        unit_conversion_base, _ = charge_tools.convert_units(
+            "kcal_mol", magnitude="energy"
+        )
+        factor_units = unit_conversion / unit_conversion_base
+        self.results["dispersion_energy"] = factor_units * dispersion_energy
+        self.results["dispersion_energy_units"] = unit_label
 
     def calculate_coulomb_energy_multipole(self, state, units="kcal/mol"):
         """

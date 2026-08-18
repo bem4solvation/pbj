@@ -11,29 +11,9 @@ import pbj.implicit_solvent.pb_formulation.lpbe as pb_formulations
 class LPBE(Solute):
     """LPBE solute specialization."""
 
-    def __init__(
-        self,
-        solute_file_path,
-        solute_type="lpbe",
-        formulation="direct",
-        external_mesh_file=None,
-        force_field="amber",
-        **kwargs
-    ):
+    def __init__(self, solute_file_path, external_mesh_file=None, **kwargs):
 
-        super().__init__(
-            solute_file_path=solute_file_path,
-            solute_type=solute_type,
-            formulation=formulation,
-            **kwargs
-        )
-
-        if force_field == "amoeba":
-            raise ValueError(
-                "Use LPBE_AMOEBA solute class to create solute with %s" % force_field
-            )
-        else:
-            self.force_field = force_field
+        super().__init__(solute_file_path=solute_file_path, **kwargs)
 
         if external_mesh_file is not None:
             filename, file_extension = os.path.splitext(external_mesh_file)

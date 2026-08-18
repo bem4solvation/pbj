@@ -13,7 +13,7 @@ import os
 
 def test_multiple():
 
-    def spheres1():
+    def spheres_sing():
         """Generate a list of standard sphere solute meshes at powers-of-two densities.
 
         Loads the `test_sphere1.pqr` (sphere radius 2, charge 1) file and generates four
@@ -29,13 +29,12 @@ def test_multiple():
         print("Creating sphere meshes")
         pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere1.pqr")
         for mesh_dens in [2, 4, 8, 16]:
-            sphere = pbj.implicit_solvent.solutes.LPBE(
-                pqrpath, mesh_density=mesh_dens, mesh_generator="msms"
-            )
+            sphere = pbj.implicit_solvent.Simulation()
+            sphere.add_solute(pqrpath, mesh_density=mesh_dens, mesh_generator="msms")
             spheres.append(sphere)
         return spheres
 
-    def spheres2():
+    def spheres_double():
         """Generate a list of standard sphere solute meshes at powers-of-two densities.
 
         Loads the `test_sphere2.pqr` (sphere radius 2, charge 1, distance +3 A) file and generates
@@ -49,54 +48,53 @@ def test_multiple():
         """
         spheres = []
         print("Creating sphere meshes")
-        pqrpath = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere2.pqr")
+        pqrpath1 = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere1.pqr")
+        pqrpath2 = os.path.join(PBJ_PATH, "tests", "spheres", "test_sphere2.pqr")
         for mesh_dens in [2, 4, 8, 16]:
-            sphere = pbj.implicit_solvent.solutes.LPBE(
-                pqrpath, mesh_density=mesh_dens, mesh_generator="msms"
-            )
+            sphere = pbj.implicit_solvent.Simulation()
+            sphere.add_solute(pqrpath1, mesh_density=mesh_dens, mesh_generator="msms")
+            sphere.add_solute(pqrpath2, mesh_density=mesh_dens, mesh_generator="msms")
             spheres.append(sphere)
         return spheres
 
-    spheres_sing = spheres1()
-    spheres1 = spheres1()
-    spheres2 = spheres2()
+    spheres_sing = spheres_sing()
+    spheres_double = spheres_double()
     file = open("test_results_multiple.txt", "w")
 
     energy_vals = []
     force_vals_mst = []
     force_vals_ef = []
-    for j in range(len(spheres1)):
+    for j in range(len(spheres_sing)):
         print(
-            f"Calculating solvation energy/forces for mesh density {spheres1[j].mesh_density}"
+            f"Calculating solvation energy/forces for mesh density {spheres_sing[j].solutes[0].mesh_density}"
         )
-        simulation = pbj.implicit_solvent.Simulation()
-        simulation.add_solute(spheres_sing[j])
+        simulation = spheres_sing[j]
         simulation.calculate_solvation_energy()
-        energy_val_single = spheres_sing[j].results["electrostatic_solvation_energy"]
+        energy_val_single = (
+            spheres_sing[j].solutes[0].results["electrostatic_solvation_energy"]
+        )
 
-        simulation_mult = pbj.implicit_solvent.Simulation()
-        simulation_mult.add_solute(spheres1[j])
-        simulation_mult.add_solute(spheres2[j])
+        simulation_mult = spheres_double[j]
         simulation_mult.calculate_solvation_forces(force_formulation="maxwell_tensor")
-        f_solv_maxwell_tensor = spheres1[j].results["f_solv"]
+        f_solv_maxwell_tensor = spheres_double[j].solutes[0].results["f_solv"]
         force_vals_mst.append(np.linalg.norm(f_solv_maxwell_tensor))
 
         simulation_mult.calculate_solvation_forces(
             force_formulation="energy_functional"
         )
-        f_solv_energy_func = spheres1[j].results["f_solv"]
+        f_solv_energy_func = spheres_double[j].solutes[0].results["f_solv"]
         force_vals_ef.append(np.linalg.norm(f_solv_energy_func))
 
         simulation_mult.calculate_solvation_energy()
         energy_val_multiple = (
-            spheres1[j].results["electrostatic_solvation_energy"]
-            + spheres2[j].results["electrostatic_solvation_energy"]
+            spheres_double[j].solutes[0].results["electrostatic_solvation_energy"]
+            + spheres_double[j].solutes[1].results["electrostatic_solvation_energy"]
         )
 
         energy_val = energy_val_multiple - 2 * energy_val_single
         energy_vals.append(energy_val)
         file.write(
-            f"Mesh density: {spheres1[j].mesh_density}, Binding energy energy: {energy_val:.4f} "
+            f"Mesh density: {spheres_sing[j].solutes[0].mesh_density}, Binding energy energy: {energy_val:.4f} "
             f"Solvation forces (Maxwell tensor): {np.linalg.norm(f_solv_maxwell_tensor):.4f} "
             f"Solvation forces (Energy functional): {np.linalg.norm(f_solv_energy_func):.4f} \n"
         )

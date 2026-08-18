@@ -25,6 +25,7 @@ class Simulation:
         formulation="direct",
         formulation_preconditioning=True,
         stern_layer=False,
+        slic=False,
         print_times=False,
     ):
         """Initializes a Simulation environment with a specific Poisson-Boltzmann formulation.
@@ -38,71 +39,102 @@ class Simulation:
             print_times (bool, optional): If True, displays execution times during major solver
                 phases. Defaults to False.
         """
+        self.solutes_template = {
+            "lpbe": {
+                "constructor": "LPBE",
+                "defaults": {},
+                "default_param": {
+                    "gamma_cav_nonpolar": 0.06,
+                    "intercept_cav_nonpolar": -3,
+                    "gamma_disp_nonpolar": -0.055,
+                    "intercept_disp_nonpolar": 3.5,
+                    "stern_mesh_density_ratio": 0.5,
+                    "stern_probe_radius": 0.05,
+                    "pb_formulation_alpha": 1.0,
+                    "pb_formulation_beta": None,
+                    "pb_formulation_stern_width": 2.0,
+                    "stern_object": None,
+                },
+            },
+            "lpbe_slic": {
+                "constructor": "LPBE_SLIC",
+                "defaults": {},
+                "default_param": {
+                    "gamma_cav_nonpolar": 0.06,
+                    "intercept_cav_nonpolar": -3,
+                    "gamma_disp_nonpolar": -0.055,
+                    "intercept_disp_nonpolar": 3.5,
+                    "stern_mesh_density_ratio": 0.5,
+                    "stern_probe_radius": 0.05,
+                    "slic_max_iterations": 20,
+                    "slic_tolerance": 1e-4,
+                    "slic_alpha": 0.5,
+                    "slic_beta": -60,
+                    "slic_gamma": -0.5,
+                    "slic_sigma": None,
+                    "slic_e_hat_diel": None,
+                    "slic_e_hat_stern": None,
+                    "pb_formulation_stern_width": 2.0,
+                    "stern_object": None,
+                },
+            },
+            "lpbe_amoeba": {
+                "constructor": "LPBE_AMOEBA",
+                "defaults": {"radius_keyword": "solute", "solute_radius_type": "PB"},
+                "default_param": {
+                    "gamma_cav_nonpolar": 0.06,
+                    "intercept_cav_nonpolar": -3,
+                    "gamma_disp_nonpolar": -0.055,
+                    "intercept_disp_nonpolar": 3.5,
+                    "induced_dipole_iter_tol": 1e-2,
+                    "SOR": 0.7,
+                },
+            },
+            "npbe": {
+                "constructor": "NPBE",
+                "defaults": {"fem_mesh": True},
+                "default_param": {},
+            },
+        }
 
-        if stern_layer and formulation != "slic":
+        if force_field == "amoeba" and simulation_type == "lpbe":
+            self._solute_type = "lpbe_amoeba"
+        elif slic and simulation_type == "lpbe":
+            self._solute_type = "lpbe_slic"
+            if not stern_layer:
+                stern_layer = True
+                print("SLIC only available with stern layer. Using stern layer.")
+        else:
+            self._solute_type = simulation_type
+        self.force_field = force_field
+
+        if stern_layer and self._solute_type == "lpbe":
             self._pb_formulation = "direct_stern"
-            if formulation not in ("direct", "direct_stern"):
-                print(
-                    "Stern or ion-exclusion layer only supported with direct formulation. Using direct."
-                )
+            print(
+                "Stern or ion-exclusion layer only supported with direct formulation. Using direct."
+            )
         else:
             self._pb_formulation = formulation
 
-        if formulation in ("direct_stern", "slic"):
-            stern_layer = True
-
-        if force_field == "amoeba" and simulation_type == "lpbe":
-            self.solute_type = "lpbe_amoeba"
-        else:
-            self.solute_type = simulation_type
-        self.force_field = force_field
-
-        self.solute_object = getattr(pb_solutes, self.solute_type, None)
+        self.solute_object = getattr(pb_solutes, self._solute_type, None)
         if self.solute_object is None:
-            raise ValueError("Unrecognised solute type %s" % self.solute_type)
-
-        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
-        if solute_formulation_module is None:
-            raise ValueError(
-                f"Unrecognised formulation module '{self.solute_type}' in pb_formulations"
-            )
-
+            raise ValueError("Unrecognised simulation type %s" % self._solute_type)
+        solute_formulation_module = getattr(pb_formulations, self._solute_type, None)
         self.formulation_object = getattr(
             solute_formulation_module, self._pb_formulation, None
         )
         if self.formulation_object is None:
             raise AttributeError(
-                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self.solute_type}"
+                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self._solute_type}"
             )
-
-        self.gmres_tolerance = 1e-5
-        self.gmres_restart = 1000
-        self.gmres_max_iterations = 1000
-
-        self.induced_dipole_iter_tol = 1e-2
-        self.SOR = 0.7
-
-        self.slic_max_iterations = 20
-        self.slic_tolerance = 1e-4
-
-        self.solutes = list()
-        self.solutes_names = list()
-        self.matrices = dict()
-        self.rhs = dict()
-        self.timings = dict()
-        self.run_info = dict()
-
-        self._ep_ex = 80.0
-        self._kappa = 0.125
 
         self._pb_formulation_preconditioning = formulation_preconditioning
 
         if self._pb_formulation_preconditioning:
             if (
                 self._pb_formulation == "direct"
+                and (self._solute_type in ("lpbe", "lpbe_amoeba", "lpbe_slic"))
                 or self._pb_formulation == "direct_stern"
-                or self._pb_formulation == "slic"
-                or self._pb_formulation == "direct_amoeba"
             ):
                 self._pb_formulation_preconditioning_type = "block_diagonal"
             else:
@@ -110,7 +142,28 @@ class Simulation:
         else:
             self._pb_formulation_preconditioning_type = None
 
+        self.print_times = print_times
+        params = self.solutes_template[self._solute_type]["default_param"]
+        for key, value in params.items():
+            setattr(self, key, value)
+
+        self.gmres_tolerance = 1e-5
+        self.gmres_restart = 1000
+        self.gmres_max_iterations = 1000
+
+        self._ep_ex = 80.0
+        self._kappa = 0.125
+
         self.operator_assembler = "dense"
+        self.rhs_constructor = "numpy"
+        self.discrete_form_type = "weak"
+
+        self.solutes = list()
+        self.solutes_names = list()
+        self.matrices = dict()
+        self.rhs = dict()
+        self.timings = dict()
+        self.run_info = dict()
 
     @property
     def pb_formulation(self):
@@ -120,18 +173,13 @@ class Simulation:
     def pb_formulation(self, value):
         self._pb_formulation = value
 
-        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
-        if solute_formulation_module is None:
-            raise ValueError(
-                f"Unrecognised formulation module '{self.solute_type}' in pb_formulations"
-            )
-
+        solute_formulation_module = getattr(pb_formulations, self._solute_type, None)
         self.formulation_object = getattr(
             solute_formulation_module, self._pb_formulation, None
         )
         if self.formulation_object is None:
             raise AttributeError(
-                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self.solute_type}"
+                f"Formulation '{self._pb_formulation}' not found inside pb_formulations.{self._solute_type}"
             )
         self.matrices["preconditioning_matrix_gmres"] = None
         # reset solute
@@ -193,7 +241,7 @@ class Simulation:
 
         print("Current formulation: " + self.pb_formulation)
         print("List of available formulations:")
-        solute_formulation_module = getattr(pb_formulations, self.solute_type, None)
+        solute_formulation_module = getattr(pb_formulations, self._solute_type, None)
         available = getmembers(solute_formulation_module, ismodule)
         for element in available:
             if element[0] == "common":
@@ -214,72 +262,84 @@ class Simulation:
                 name_removed = name[:-15]
                 print(name_removed)
 
-    def add_solute(self, solute, name=None):
-        """Register a solute molecule in the simulation context and synchronize parameters.
+    def add_solute(
+        self,
+        solute_file_path,
+        save_mesh_build_files=False,
+        mesh_build_files_dir="mesh_files/",
+        mesh_density=2.0,
+        nanoshaper_grid_scale=None,
+        solvent_radius=1.4,
+        mesh_generator="nanoshaper",
+        external_mesh_file=None,
+        fill_cavities=True,
+        cavity_cutoff=60,
+        name=None,
+        ep_in=4.0,
+        **kwargs,
+    ):
 
-        Validates that the provided object conforms to the expected `Solute` specification,
-        then propagates simulation-wide global variables (for example, external permittivity,
-        ionic strength parameter, and preconditioning settings) down to the solute object.
+        config = self.solutes_template.get(self._solute_type)
+        if not config:
+            raise ValueError(f"Solute type not supported: {self._solute_type}")
+        for key, value in config["defaults"].items():
+            if key not in kwargs:
+                kwargs[key] = value
+        solute_constructor = getattr(self.solute_object, config["constructor"])
 
-        Args:
-            solute (Solute): An instance of the `pbj.implicit_solvent.solute.Solute` class
-                to be modeled.
-            name (str, optional): Display name to associate with the solute in the simulation.
-                If not provided, the solute's own `solute_name` is used. Defaults to None.
+        solute = solute_constructor(
+            solute_file_path,
+            save_mesh_build_files=save_mesh_build_files,
+            mesh_build_files_dir=mesh_build_files_dir,
+            mesh_density=mesh_density,
+            nanoshaper_grid_scale=nanoshaper_grid_scale,
+            solvent_radius=solvent_radius,
+            mesh_generator=mesh_generator,
+            external_mesh_file=external_mesh_file,
+            print_times=self.print_times,
+            fill_cavities=fill_cavities,
+            cavity_cutoff=cavity_cutoff,
+            **kwargs,
+        )
 
-        Raises:
-            ValueError: If the input object is not an instance of the `Solute` class or lacks
-                proper structural initialization.
-        """
-
-        if isinstance(solute, pb_solutes.solute_common.Solute) and hasattr(
-            solute, "solute_name"
-        ):
-            if solute in self.solutes:
-                print(
-                    "Solute object is already added to this simulation. Ignoring this add command."
-                )
-            elif solute.solute_type != self.solute_type:
-                raise ValueError(
-                    f"Solute type '{solute.solute_type}' does not match simulation solute type '{self.solute_type}'."
-                )
-            else:
-                if solute.pb_formulation != self.pb_formulation:
-                    print(
-                        f"Solute formulation '{solute.pb_formulation}' does not match simulation formulation '{self.pb_formulation}'. \
-                        Using the global formulation '{self.pb_formulation}' for this solute."
-                    )
-                solute.ep_ex = self.ep_ex
-                solute.kappa = self.kappa
-                solute.SOR = self.SOR
-                solute.induced_dipole_iter_tol = self.induced_dipole_iter_tol
-                solute.operator_assembler = self.operator_assembler
-                solute.pb_formulation_preconditioning = (
-                    self.pb_formulation_preconditioning
-                )
-                solute.pb_formulation_preconditioning_type = (
-                    self.pb_formulation_preconditioning_type
-                )
-                if (
-                    self.pb_formulation[-5:] == "stern" or self.pb_formulation == "slic"
-                ):  # Think of better way to do this
-                    solute.stern_mesh_density = (
-                        solute.stern_mesh_density_ratio * solute.sas_mesh_density
-                    )
-                if self.force_field == "amoeba":
-                    if self.pb_formulation not in ("direct", "direct_amoeba"):
-                        print(
-                            "AMOEBA force field is only supported for direct formulation with no Stern layer. Using direct"
-                        )
-                self.solutes.append(solute)
-                if isinstance(name, str):
-                    self.solutes_names.append(name)
-                else:
-                    self.solutes_names.append(solute.solute_name)
-        else:
-            raise ValueError(
-                "Given object is not of the 'Solute' class of the simulation or pdb/pqr file not correctly loaded."
+        if solute.solute_name in self.solutes_names:
+            print(
+                "Solute object is already added to this simulation. Ignoring this add command."
             )
+            return
+
+        solute.ep_in = ep_in
+        solute.ep_ex = self.ep_ex
+        solute.kappa = self.kappa
+
+        params = self.solutes_template[self._solute_type]["default_param"]
+        for key, value in params.items():
+            setattr(solute, key, value)
+        solute.pb_formulation_preconditioning = self.pb_formulation_preconditioning
+        solute.pb_formulation_preconditioning_type = (
+            self.pb_formulation_preconditioning_type
+        )
+        solute.formulation_object = self.formulation_object
+
+        solute.gmres_tolerance = self.gmres_tolerance
+        solute.gmres_restart = self.gmres_restart
+        solute.gmres_max_iterations = self.gmres_max_iterations
+
+        solute.operator_assembler = self.operator_assembler
+        solute.rhs_constructor = self.rhs_constructor
+        solute.discrete_form_type = self.discrete_form_type
+        solute.force_field = self.force_field
+
+        if "stern" in self.pb_formulation or self._solute_type == "lpbe_slic":
+            solute.stern_mesh_density = (
+                solute.stern_mesh_density_ratio * solute.sas_mesh_density
+            )
+
+        self.solutes.append(solute)
+        if isinstance(name, str):
+            self.solutes_names.append(name)
+        else:
+            self.solutes_names.append(solute.solute_name)
 
     def create_and_assemble_linear_system(self):
         """Builds and assembles the global blocked discrete operator matrix and right-hand side vectors.
@@ -325,9 +385,9 @@ class Simulation:
 
             rhs_final_discrete.extend(solute.rhs["rhs_discrete"])
 
-            if solute.matrices["preconditioning_matrix_gmres"] is not None:
+            if solute.matrices.get("preconditioning_matrix_gmres") is not None:
 
-                if solute.stern_object is None:
+                if getattr(solute, "stern_object", None) is None:
                     precond_matrix_top_row = []
                     precond_matrix_bottom_row = []
 
