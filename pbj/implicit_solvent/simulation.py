@@ -1,6 +1,8 @@
 import bempp_cl as bempp
 import bempp_cl.api
 import time
+from datetime import datetime
+import logging
 import trimesh
 import pbj.mesh.plotting_tools as plotting_tools
 import pbj.mesh.charge_tools as charge_tools
@@ -1172,3 +1174,115 @@ class Simulation:
             internal_derivative_plot=internal_derivative_plot,
         )
         return None
+
+    def get_info(self, save_log=True):
+
+        if save_log:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_filename = f"simulation_info_{timestamp}.log"
+            logging.basicConfig(
+                filename=log_filename,
+                level=logging.INFO,
+                format="%(message)s",
+                filemode="w",
+                force=True,
+            )
+
+        def log_print(msg):
+            print(msg)
+            if save_log:
+                logging.info(msg)
+
+        log_print(f"Simulation type: {self._solute_type}")
+        log_print(f"Formulation: {self.pb_formulation}")
+        log_print(f"Force field: {self.force_field}")
+        log_print("-" * 40)
+
+        for index, solute in enumerate(self.solutes):
+            log_print(f"solute name: {self.solutes_names[index]}")
+            log_print(f"number of vertices: {solute.mesh.number_of_vertices}")
+            log_print(f"number of elements: {solute.mesh.number_of_elements}")
+            log_print(f"mesh density: {solute.mesh_density}")
+            log_print(f"total area (Ang^2): {np.sum(solute.mesh.volumes)}")
+            log_print(f"dielectric solute (-): {solute.ep_in}")
+            log_print(f"dielectric solvent (-): {solute.ep_ex}")
+            log_print(f"inverse Debye length (1/Ang): {solute.kappa}")
+            log_print(f"operator ensembeler: {self.operator_assembler}")
+            log_print(f"rhs_constructor: {self.rhs_constructor}")
+            log_print(f"discrete_form_type: {self.discrete_form_type}")
+            log_print(f"gmres_tolerance: {self.gmres_tolerance}")
+            log_print(f"gmres_restart: {self.gmres_restart}")
+            log_print(f"gmres_max_iterations: {self.gmres_max_iterations}")
+            log_print("-" * 40)
+
+    def get_results(self, save_log=True):
+
+        if save_log:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_filename = f"simulation_results_{timestamp}.log"
+            logging.basicConfig(
+                filename=log_filename,
+                level=logging.INFO,
+                format="%(message)s",
+                filemode="w",
+                force=True,
+            )
+
+        def log_print(msg):
+            print(msg)
+            if save_log:
+                logging.info(msg)
+
+        log_print(f"simulation type: {self._solute_type}")
+        log_print(f"formulation: {self.pb_formulation}")
+        log_print(f"force field: {self.force_field}")
+        log_print("-" * 40)
+
+        for index, solute in enumerate(self.solutes):
+            log_print(f"solute name: {self.solutes_names[index]}")
+            log_print(f"dielectric solute (-): {solute.ep_in}")
+            log_print(f"dielectric solvent (-): {solute.ep_ex}")
+            log_print(f"inverse Debye length (1/Ang): {solute.kappa}")
+
+            res = solute.results
+
+            if res.get("electrostatic_solvation_energy"):
+                units = res["electrostatic_solvation_energy_units"]
+                val = res["electrostatic_solvation_energy"]
+                log_print(f"electrostatic solvation energy ({units}): {val:.3f}")
+
+            if res.get("cavity_energy"):
+                units = res["cavity_energy_units"]
+                val = res["cavity_energy"]
+                log_print(f"cavity energy ({units}): {val:.3f}")
+
+            if res.get("dispersion_energy"):
+                units = res["dispersion_energy_units"]
+                val = res["dispersion_energy"]
+                log_print(f"dispersion energy ({units}): {val:.3f}")
+
+            if res.get("nonpolar_solvation_energy"):
+                units = res.get("nonpolar_solvation_energy_units", "")
+                val = res["nonpolar_solvation_energy"]
+                log_print(f"nonpolar energy ({units}): {val:.3f}")
+
+            if res.get("solvation_energy"):
+                units = res["electrostatic_solvation_energy_units"]
+                val = res["solvation_energy"]
+                log_print(f"solvation energy ({units}): {val:.3f}")
+
+            if hasattr(solute, "force_formulation"):
+                log_print(f"force formulation {solute.force_formulation}")
+                log_print(f"Fdb approximation: {solute.fdb_approx}")
+                log_print(
+                    f'solvation forces ({res["f_solv_units"]}): {np.round(res["f_solv"], 3)}'
+                )
+
+                if solute.force_formulation == "maxwell_tensor":
+                    log_print(f'P normal {np.round(res["f_solv"] - res["f_ib"], 3)}')
+                    log_print(f'f ib {np.round(res["f_ib"])}')
+                else:
+                    log_print(f'f qf {np.round(res["f_qf"])}')
+                    log_print(f'f db {np.round(res["f_db"])}')
+                    log_print(f'f ib {np.round(res["f_ib"])}')
+            log_print("-" * 40)

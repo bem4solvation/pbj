@@ -386,7 +386,7 @@ class LPBE(Solute):
             units, magnitude="force"
         )
         dS = np.transpose(np.transpose(self.mesh.normals) * self.mesh.volumes)
-
+        self.fdb_approx = fdb_approx
         if fdb_approx:
             # Dielectric boundary force
             f_db = (
@@ -513,7 +513,7 @@ class LPBE(Solute):
                 "Please compute surface potential first with simulation.calculate_potentials()"
             )
             return
-
+        self.force_formulation = force_formulation
         if force_formulation == "energy_functional":
             if "f_qf" not in self.results:
                 self.calculate_gradient_field(h=h)
