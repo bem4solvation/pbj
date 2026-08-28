@@ -12,6 +12,9 @@ from .direct import (
     calculate_potential_slic,
 )  # maybe move to .common?????? CHECK
 import pbj
+from ..lpbe.common import calculate_potential_stern
+
+invert_potential = False
 
 
 def verify_parameters(self):
@@ -68,17 +71,23 @@ def create_ehat_stern(self):
     self.e_hat_stern = (1 / d2) * d1_op
 
 
-def calculate_potential(self, rerun_all, rerun_rhs):
-    dirichl_space_diel = self.dirichl_space
+def calculate_potential(simulation, rerun_all, rerun_rhs):
 
-    ep_stern = getattr(self, "ep_stern", self.ep_ex)
-    self.ep_stern = ep_stern
+    if len(simulation.solutes) > 1:
+        print("Direct prop only available for one solute")
+        return
 
-    if self.stern_object is None:
-        pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.create_stern_mesh(self)
+    solute = simulation.solutes[0]
+    dirichl_space_diel = solute.dirichl_space
 
-    max_iterations = self.slic_max_iterations
-    tolerance = self.slic_tolerance
+    ep_stern = getattr(solute, "ep_stern", solute.ep_ex)
+    solute.ep_stern = ep_stern
+
+    if solute.stern_object is None:
+        pbj.implicit_solvent.pb_formulation.lpbe.direct_stern.create_stern_mesh(solute)
+
+    max_iterations = solute.slic_max_iterations
+    tolerance = solute.slic_tolerance
 
     it = 0
     phi_L2error = 1.0
@@ -86,46 +95,50 @@ def calculate_potential(self, rerun_all, rerun_rhs):
     sigma = bempp.api.GridFunction(
         dirichl_space_diel, coefficients=np.zeros(dirichl_space_diel.global_dof_count)
     )
+    # Store initial sigma on the solute so solve_sigma can use it as x0
+    solute.slic_sigma = sigma
 
-    self.timings["time_gmres"] = []
-
-    self.timings["time_compute_potential"] = []
-
-    self.results["solver_iteration_count"] = []
+    solute.timings["time_gmres"] = []
+    solute.timings["time_compute_potential"] = []
+    solute.results["solver_iteration_count"] = []
 
     time_matrix_initialisation = []
     time_matrix_assembly = []
     time_preconditioning = []
 
-    self.initialise_rhs()
+    # Assemble initial system (matrices + discrete RHS) so rhs_discrete exists
+    calculate_potential_stern(simulation)
 
     while it < max_iterations and phi_L2error > tolerance:
 
         if it == 0:
-            self.e_hat_diel = self.ep_in / self.ep_stern
-            self.e_hat_stern = self.ep_stern / self.ep_ex
+            solute.e_hat_diel = solute.ep_in / solute.ep_stern
+            solute.e_hat_stern = solute.ep_stern / solute.ep_ex
 
         else:
-            pbj.implicit_solvent.pb_formulation.lpbe.slic.create_ehat_diel(self, sigma)
-            create_ehat_stern(self)
-            phi_old = self.results["phi"].coefficients.copy()
+            pbj.implicit_solvent.pb_formulation.lpbe_slic.direct.create_ehat_diel(
+                solute
+            )
+            create_ehat_stern(solute)
+            phi_old = solute.results["phi"].coefficients.copy()
 
-        calculate_potential_slic(self)
+        # reuse the SLIC solver which expects the full simulation object
+        calculate_potential_slic(simulation)
 
-        sigma = pbj.implicit_solvent.pb_formulation.lpbe.slic.solve_sigma(self)
+        sigma = pbj.implicit_solvent.pb_formulation.lpbe_slic.direct.solve_sigma(solute)
 
         if it != 0:
             phi_L2error = np.sqrt(
-                np.sum((phi_old - self.results["phi"].coefficients) ** 2)
-                / np.sum(self.results["phi"].coefficients ** 2)
+                np.sum((phi_old - solute.results["phi"].coefficients) ** 2)
+                / np.sum(solute.results["phi"].coefficients ** 2)
             )
 
         it += 1
 
-        time_matrix_initialisation.append(self.timings["time_matrix_initialisation"])
-        time_matrix_assembly.append(self.timings["time_matrix_assembly"])
-        time_preconditioning.append(self.timings["time_preconditioning"])
+        time_matrix_initialisation.append(solute.timings["time_matrix_initialisation"])
+        time_matrix_assembly.append(simulation.timings.get("time_assembly", 0))
+        time_preconditioning.append(solute.timings["time_preconditioning"])
 
-    self.timings["time_matrix_initialisation"] = time_matrix_initialisation
-    self.timings["time_matrix_assembly"] = time_matrix_assembly
-    self.timings["time_preconditioning"] = time_preconditioning
+    solute.timings["time_matrix_initialisation"] = time_matrix_initialisation
+    solute.timings["time_matrix_assembly"] = time_matrix_assembly
+    solute.timings["time_preconditioning"] = time_preconditioning

@@ -54,7 +54,7 @@ def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
         if not inside:
             idx_remove.add(i)
             print(
-                "Cavity index {:.d} far off the largest mesh detected and removed with volume {:.2f}.".format(
+                "Cavity index {:d} far off the largest mesh detected and removed with volume {:.2f}.".format(
                     i, comp.volume
                 )
             )
@@ -62,7 +62,7 @@ def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
         if abs(comp.volume) < volume_cutoff:
             idx_remove.add(i)
             print(
-                "Small inner cavity index {:.d} detected and removed with volume {:.2f}.".format(
+                "Small inner cavity index {:d} detected and removed with volume {:.2f}.".format(
                     i, comp.volume
                 )
             )

@@ -135,7 +135,7 @@ class Simulation:
         if self._pb_formulation_preconditioning:
             if (
                 self._pb_formulation == "direct"
-                and (self._solute_type in ("lpbe", "lpbe_amoeba", "lpbe_slic"))
+                and (self._solute_type in ("lpbe", "lpbe_slic"))
                 or self._pb_formulation == "direct_stern"
             ):
                 self._pb_formulation_preconditioning_type = "block_diagonal"
@@ -1175,7 +1175,7 @@ class Simulation:
         )
         return None
 
-    def get_info(self, save_log=True):
+    def get_info(self, save_log=False):
 
         if save_log:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1215,7 +1215,7 @@ class Simulation:
             log_print(f"gmres_max_iterations: {self.gmres_max_iterations}")
             log_print("-" * 40)
 
-    def get_results(self, save_log=True):
+    def get_results(self, save_log=False):
 
         if save_log:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
