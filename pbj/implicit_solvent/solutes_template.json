@@ -1,0 +1,62 @@
+{
+  "lpbe": {
+    "constructor": "LPBE",
+    "defaults": {},
+    "default_param": {
+      "gamma_cav_nonpolar": 0.06,
+      "intercept_cav_nonpolar": -3,
+      "gamma_disp_nonpolar": -0.055,
+      "intercept_disp_nonpolar": 3.5,
+      "stern_mesh_density_ratio": 0.5,
+      "stern_probe_radius": 0.05,
+      "pb_formulation_alpha": 1.0,
+      "pb_formulation_beta": null,
+      "pb_formulation_stern_width": 2.0,
+      "stern_object": null
+    }
+  },
+  "lpbe_slic": {
+    "constructor": "LPBE_SLIC",
+    "defaults": {},
+    "default_param": {
+      "gamma_cav_nonpolar": 0.06,
+      "intercept_cav_nonpolar": -3,
+      "gamma_disp_nonpolar": -0.055,
+      "intercept_disp_nonpolar": 3.5,
+      "stern_mesh_density_ratio": 0.5,
+      "stern_probe_radius": 0.05,
+      "slic_max_iterations": 20,
+      "slic_tolerance": 1e-4,
+      "slic_alpha": 0.5,
+      "slic_beta": -60,
+      "slic_gamma": -0.5,
+      "slic_sigma": null,
+      "slic_e_hat_diel": null,
+      "slic_e_hat_stern": null,
+      "pb_formulation_stern_width": 2.0,
+      "stern_object": null
+    }
+  },
+  "lpbe_amoeba": {
+    "constructor": "LPBE_AMOEBA",
+    "defaults": {
+      "radius_keyword": "solute",
+      "solute_radius_type": "PB"
+    },
+    "default_param": {
+      "gamma_cav_nonpolar": 0.06,
+      "intercept_cav_nonpolar": -3,
+      "gamma_disp_nonpolar": -0.055,
+      "intercept_disp_nonpolar": 3.5,
+      "induced_dipole_iter_tol": 0.01,
+      "SOR": 0.7
+    }
+  },
+  "npbe": {
+    "constructor": "NPBE",
+    "defaults": {
+      "fem_mesh": true
+    },
+    "default_param": {}
+  }
+}

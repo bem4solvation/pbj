@@ -9,6 +9,8 @@ import pbj.mesh.charge_tools as charge_tools
 import numpy as np
 import pbj.implicit_solvent.solutes as pb_solutes
 import pbj.implicit_solvent.pb_formulation as pb_formulations
+import json
+import os
 
 
 class Simulation:
@@ -41,63 +43,14 @@ class Simulation:
             print_times (bool, optional): If True, displays execution times during major solver
                 phases. Defaults to False.
         """
-        self.solutes_template = {
-            "lpbe": {
-                "constructor": "LPBE",
-                "defaults": {},
-                "default_param": {
-                    "gamma_cav_nonpolar": 0.06,
-                    "intercept_cav_nonpolar": -3,
-                    "gamma_disp_nonpolar": -0.055,
-                    "intercept_disp_nonpolar": 3.5,
-                    "stern_mesh_density_ratio": 0.5,
-                    "stern_probe_radius": 0.05,
-                    "pb_formulation_alpha": 1.0,
-                    "pb_formulation_beta": None,
-                    "pb_formulation_stern_width": 2.0,
-                    "stern_object": None,
-                },
-            },
-            "lpbe_slic": {
-                "constructor": "LPBE_SLIC",
-                "defaults": {},
-                "default_param": {
-                    "gamma_cav_nonpolar": 0.06,
-                    "intercept_cav_nonpolar": -3,
-                    "gamma_disp_nonpolar": -0.055,
-                    "intercept_disp_nonpolar": 3.5,
-                    "stern_mesh_density_ratio": 0.5,
-                    "stern_probe_radius": 0.05,
-                    "slic_max_iterations": 20,
-                    "slic_tolerance": 1e-4,
-                    "slic_alpha": 0.5,
-                    "slic_beta": -60,
-                    "slic_gamma": -0.5,
-                    "slic_sigma": None,
-                    "slic_e_hat_diel": None,
-                    "slic_e_hat_stern": None,
-                    "pb_formulation_stern_width": 2.0,
-                    "stern_object": None,
-                },
-            },
-            "lpbe_amoeba": {
-                "constructor": "LPBE_AMOEBA",
-                "defaults": {"radius_keyword": "solute", "solute_radius_type": "PB"},
-                "default_param": {
-                    "gamma_cav_nonpolar": 0.06,
-                    "intercept_cav_nonpolar": -3,
-                    "gamma_disp_nonpolar": -0.055,
-                    "intercept_disp_nonpolar": 3.5,
-                    "induced_dipole_iter_tol": 1e-2,
-                    "SOR": 0.7,
-                },
-            },
-            "npbe": {
-                "constructor": "NPBE",
-                "defaults": {"fem_mesh": True},
-                "default_param": {},
-            },
-        }
+        try:
+            template_file = os.path.join(
+                os.path.dirname(__file__), "solutes_template.json"
+            )
+            with open(template_file, "r") as fh:
+                self.solutes_template = json.load(fh)
+        except Exception:
+            raise FileNotFoundError("Fail to load solutes_template.json")
 
         if force_field == "amoeba" and simulation_type == "lpbe":
             self._solute_type = "lpbe_amoeba"
@@ -154,6 +107,7 @@ class Simulation:
         self.gmres_max_iterations = 1000
 
         self._ep_ex = 80.0
+        self.ep_stern = 80.0
         self._kappa = 0.125
 
         self.operator_assembler = "dense"
@@ -312,6 +266,7 @@ class Simulation:
 
         solute.ep_in = ep_in
         solute.ep_ex = self.ep_ex
+        solute.ep_stern = self.ep_stern
         solute.kappa = self.kappa
 
         params = self.solutes_template[self._solute_type]["default_param"]

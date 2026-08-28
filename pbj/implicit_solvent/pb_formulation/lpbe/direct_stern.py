@@ -287,12 +287,15 @@ def block_diagonal_preconditioner(solute):
     dirichl_space_stern = solute.stern_object.dirichl_space
     neumann_space_stern = solute.stern_object.neumann_space
 
-    if solute.slic_e_hat_diel is None:
+    slic_e_hat_diel = getattr(solute, "slic_e_hat_diel", None)
+    slic_e_hat_stern = getattr(solute, "slic_e_hat_stern", None)
+
+    if slic_e_hat_diel is None:
         e_hat_diel = solute.ep_in / solute.ep_stern
         e_hat_stern = solute.ep_stern / solute.ep_ex
     else:
-        e_hat_diel = solute.slic_e_hat_diel
-        e_hat_stern = solute.slic_e_hat_stern
+        e_hat_diel = slic_e_hat_diel
+        e_hat_stern = slic_e_hat_stern
 
     kappa = solute.kappa
 
