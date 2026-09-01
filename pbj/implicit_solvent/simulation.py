@@ -2,6 +2,7 @@ import bempp_cl as bempp
 import bempp_cl.api
 import time
 from datetime import datetime
+import pickle
 import logging
 import trimesh
 import pbj.mesh.plotting_tools as plotting_tools
@@ -48,7 +49,7 @@ class Simulation:
                 os.path.dirname(__file__), "solutes_template.json"
             )
             with open(template_file, "r") as fh:
-                self.solutes_template = json.load(fh)
+                self._solutes_template = json.load(fh)
         except Exception:
             raise FileNotFoundError("Fail to load solutes_template.json")
 
@@ -98,7 +99,7 @@ class Simulation:
             self._pb_formulation_preconditioning_type = None
 
         self.print_times = print_times
-        params = self.solutes_template[self._solute_type]["default_param"]
+        params = self._solutes_template[self._solute_type]["default_param"]
         for key, value in params.items():
             setattr(self, key, value)
 
@@ -235,7 +236,7 @@ class Simulation:
         **kwargs,
     ):
 
-        config = self.solutes_template.get(self._solute_type)
+        config = self._solutes_template.get(self._solute_type)
         if not config:
             raise ValueError(f"Solute type not supported: {self._solute_type}")
         for key, value in config["defaults"].items():
@@ -269,7 +270,7 @@ class Simulation:
         solute.ep_stern = self.ep_stern
         solute.kappa = self.kappa
 
-        params = self.solutes_template[self._solute_type]["default_param"]
+        params = self._solutes_template[self._solute_type]["default_param"]
         for key, value in params.items():
             setattr(solute, key, value)
         solute.pb_formulation_preconditioning = self.pb_formulation_preconditioning
@@ -1130,11 +1131,11 @@ class Simulation:
         )
         return None
 
-    def get_info(self, save_log=False):
+    def get_info(self, name=None, save_log=False):
 
         if save_log:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_filename = f"simulation_info_{timestamp}.log"
+            log_filename = f"simulation_info_{timestamp}.log" if not name else name
             logging.basicConfig(
                 filename=log_filename,
                 level=logging.INFO,
@@ -1148,33 +1149,23 @@ class Simulation:
             if save_log:
                 logging.info(msg)
 
-        log_print(f"Simulation type: {self._solute_type}")
-        log_print(f"Formulation: {self.pb_formulation}")
-        log_print(f"Force field: {self.force_field}")
-        log_print("-" * 40)
+        log_print(" Simulation ".center(40, "-"))
+        for attr, value in vars(self).items():
+            if not attr.startswith("_") and "solute" not in attr:
+                log_print(f"{attr}: {value}")
 
         for index, solute in enumerate(self.solutes):
-            log_print(f"solute name: {self.solutes_names[index]}")
-            log_print(f"number of vertices: {solute.mesh.number_of_vertices}")
-            log_print(f"number of elements: {solute.mesh.number_of_elements}")
-            log_print(f"mesh density: {solute.mesh_density}")
-            log_print(f"total area (Ang^2): {np.sum(solute.mesh.volumes)}")
-            log_print(f"dielectric solute (-): {solute.ep_in}")
-            log_print(f"dielectric solvent (-): {solute.ep_ex}")
-            log_print(f"inverse Debye length (1/Ang): {solute.kappa}")
-            log_print(f"operator ensembeler: {self.operator_assembler}")
-            log_print(f"rhs_constructor: {self.rhs_constructor}")
-            log_print(f"discrete_form_type: {self.discrete_form_type}")
-            log_print(f"gmres_tolerance: {self.gmres_tolerance}")
-            log_print(f"gmres_restart: {self.gmres_restart}")
-            log_print(f"gmres_max_iterations: {self.gmres_max_iterations}")
+            log_print(f" Solute:{self.solutes_names[index]} ".center(40, "-"))
+            for attr, value in vars(solute).items():
+                if "results" not in attr:
+                    log_print(f"{attr}: {value}")
             log_print("-" * 40)
 
-    def get_results(self, save_log=False):
+    def get_results(self, name=None, save_log=False, save_results=False):
 
         if save_log:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_filename = f"simulation_results_{timestamp}.log"
+            log_filename = f"simulation_results_{timestamp}.log" if not name else name
             logging.basicConfig(
                 filename=log_filename,
                 level=logging.INFO,
@@ -1193,51 +1184,26 @@ class Simulation:
         log_print(f"force field: {self.force_field}")
         log_print("-" * 40)
 
+        all_results = {}
         for index, solute in enumerate(self.solutes):
-            log_print(f"solute name: {self.solutes_names[index]}")
+            solute_name = self.solutes_names[index]
+            log_print(f"solute name: {solute_name}")
             log_print(f"dielectric solute (-): {solute.ep_in}")
             log_print(f"dielectric solvent (-): {solute.ep_ex}")
             log_print(f"inverse Debye length (1/Ang): {solute.kappa}")
 
             res = solute.results
-
-            if res.get("electrostatic_solvation_energy"):
-                units = res["electrostatic_solvation_energy_units"]
-                val = res["electrostatic_solvation_energy"]
-                log_print(f"electrostatic solvation energy ({units}): {val:.3f}")
-
-            if res.get("cavity_energy"):
-                units = res["cavity_energy_units"]
-                val = res["cavity_energy"]
-                log_print(f"cavity energy ({units}): {val:.3f}")
-
-            if res.get("dispersion_energy"):
-                units = res["dispersion_energy_units"]
-                val = res["dispersion_energy"]
-                log_print(f"dispersion energy ({units}): {val:.3f}")
-
-            if res.get("nonpolar_solvation_energy"):
-                units = res.get("nonpolar_solvation_energy_units", "")
-                val = res["nonpolar_solvation_energy"]
-                log_print(f"nonpolar energy ({units}): {val:.3f}")
-
-            if res.get("solvation_energy"):
-                units = res["electrostatic_solvation_energy_units"]
-                val = res["solvation_energy"]
-                log_print(f"solvation energy ({units}): {val:.3f}")
-
-            if hasattr(solute, "force_formulation"):
-                log_print(f"force formulation {solute.force_formulation}")
-                log_print(f"Fdb approximation: {solute.fdb_approx}")
-                log_print(
-                    f'solvation forces ({res["f_solv_units"]}): {np.round(res["f_solv"], 3)}'
-                )
-
-                if solute.force_formulation == "maxwell_tensor":
-                    log_print(f'P normal {np.round(res["f_solv"] - res["f_ib"], 3)}')
-                    log_print(f'f ib {np.round(res["f_ib"])}')
-                else:
-                    log_print(f'f qf {np.round(res["f_qf"])}')
-                    log_print(f'f db {np.round(res["f_db"])}')
-                    log_print(f'f ib {np.round(res["f_ib"])}')
+            for key, value in res.items():
+                log_print(f"{key}: {value}")
             log_print("-" * 40)
+
+            if save_results:
+                all_results[solute_name] = res
+
+        if save_results:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            pkl_filename = (
+                f"simulation_results_{timestamp}.pkl" if not name else f"{name}.pkl"
+            )
+            with open(pkl_filename, "wb") as f:
+                pickle.dump(all_results, f)
