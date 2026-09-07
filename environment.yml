@@ -22,6 +22,9 @@ dependencies:
   - pyopencl
   - scipy
   - tbb
+  - fenics-dolfinx
+  - mpich
+  - pyvista
   - pip:
     - bempp-cl
     - meshio
