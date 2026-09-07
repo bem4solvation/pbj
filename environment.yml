@@ -25,6 +25,7 @@ dependencies:
   - fenics-dolfinx
   - mpich
   - pyvista
+  - parmed
   - pip:
     - bempp-cl
     - meshio
