@@ -89,7 +89,7 @@ class Simulation:
         if self._pb_formulation_preconditioning:
             if (
                 self._pb_formulation == "direct"
-                and (self._solute_type in ("lpbe", "lpbe_slic"))
+                and (self._solute_type in ("lpbe", "lpbe_slic", "npbe"))
                 or self._pb_formulation == "direct_stern"
             ):
                 self._pb_formulation_preconditioning_type = "block_diagonal"
@@ -1201,6 +1201,7 @@ class Simulation:
                 all_results[solute_name] = res
 
         if save_results:
+            # guarda phi, d_phi, coefficients para el pickle
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             pkl_filename = (
                 f"simulation_results_{timestamp}.pkl" if not name else f"{name}.pkl"

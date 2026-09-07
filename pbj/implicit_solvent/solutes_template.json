@@ -54,9 +54,12 @@
   },
   "npbe": {
     "constructor": "NPBE",
-    "defaults": {
-      "fem_mesh": true
-    },
-    "default_param": {}
+    "defaults": {},
+    "default_param": {
+      "omega_tol": 1e-1,
+      "nonlinear_tol": 1e-3,
+      "lim_eps": 0.35,
+      "gmres_tolerance_0": 1e-3
+    }
   }
 }

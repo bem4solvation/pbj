@@ -302,7 +302,7 @@ def generate_nanoshaper_mesh(
                 + nanoshaper_temp_dir
                 + "surfaceConfiguration.prm"
             )
-    os.chdir("..")
+    os.chdir(original_dir)
 
     try:
         vert_file = open(nanoshaper_temp_dir + "triangulatedSurf.vert", "r")
@@ -312,18 +312,21 @@ def generate_nanoshaper_mesh(
         face = face_file.readlines()
         face_file.close()
 
-        vert_file = open(output_name + ".vert", "w")
+        target_dir = os.path.dirname(os.path.abspath(nanoshaper_temp_dir))
+        target_output = os.path.join(target_dir, output_name)
+        vert_file = open(target_output + ".vert", "w")
         vert_file.write("".join(vert[3:]))
         vert_file.close()
-        face_file = open(output_name + ".face", "w")
+        face_file = open(target_output + ".face", "w")
         face_file.write("".join(face[3:]))
         face_file.close()
 
         if not save_mesh_build_files:
             shutil.rmtree(nanoshaper_temp_dir)
 
-    except (OSError, FileNotFoundError):
+    except (OSError, FileNotFoundError) as e:
         print("The file doesn't exist or it wasn't created by NanoShaper")
+        print(f"Error: {e}")
 
     finally:
         os.chdir(original_dir)
