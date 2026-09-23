@@ -354,7 +354,11 @@ def calculate_potential_nonlinear(simulation, solute):
         ).array
         # The combination of rhs in Ωi of FEM.
         c_nlG = np.concatenate([c_fem, c_bem])
-        rhs_nlG = -(A_nl * (soln_l + soln0_nl) - simulation.rhs["rhs_discrete"] + c_nlG)
+        rhs_nlG = -(
+            A_nl * (state.soln_l + state.soln0_nl)
+            - simulation.rhs["rhs_discrete"]
+            + c_nlG
+        )
 
         # Creation of the matrix N.
         ud = ufl.TrialFunction(solute.fenics_space)
