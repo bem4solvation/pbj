@@ -288,63 +288,6 @@ class NPBE(Solute):
         self.results["dispersion_energy"] = factor_units * dispersion_energy
         self.results["dispersion_energy_units"] = unit_label
 
-    def calculate_charges_forces(self, h=0.001, units="kcal_molA"):
-        r"""Calculate the electrostatic fixed-charge reaction forces acting directly on the solute charges.
-
-        Computes the force exerted on each individual point charge within the solute due to
-        the gradient of the reaction potential ($\nabla \phi_{\text{reac}}$). It then sums
-        these components to obtain the total fixed-charge force ($f_{qf}$), scaling the final
-        output to kcal/mol/Å.
-
-        $$f_{qf} = \sum_{i} -q_i \\nabla \phi_{\text{reac}}(\mathbf{r}_i)$$
-
-        Args:
-            h (float, optional): Finite difference step size passed to `calculate_gradient_field`
-                                 if the reaction field gradient hasn't been computed yet.
-                                 Defaults to 0.001.
-            units (str, optional): Unit identifier passed to `convert_units` for the
-                calculated force values. Defaults to "kcal_molA".
-
-        Side Effects:
-            - Modifies `self.results["f_qf_charges"]` to store the 3D force vector for each charge.
-            - Modifies `self.results["f_qf"]` to store the cumulative 3D force vector.
-            - Updates execution profiling timestamps inside `self.timings`.
-            - Prints processing time information to standard output if `self.print_times` is True.
-        """
-        if "phi" not in self.results:
-            print(
-                "Please compute surface potential first with simulation.calculate_potentials()"
-            )
-            return
-
-        if "gradphir_charges" not in self.results:
-            # If gradient field has not been calculated, calculate it now
-            self.calculate_gradient_field(h=h)
-
-        start_time = time.time()
-
-        dphidr = self.results["gradphir_charges"]
-
-        unit_conversion, unit_label = charge_tools.convert_units(
-            units, magnitude="force"
-        )
-
-        f_reac = unit_conversion * -np.transpose(np.transpose(dphidr) * self.q)
-        f_reactotal = np.sum(f_reac, axis=0)
-
-        self.results["f_qf_charges"] = f_reac
-        self.results["f_qf"] = f_reactotal
-        self.results["f_qf_charges_units"] = unit_label
-        self.results["f_qf_units"] = unit_label
-        self.timings["time_calc_solute_force"] = time.time() - start_time
-
-        if self.print_times:
-            print(
-                "It took ",
-                self.timings["time_calc_solute_force"],
-                " seconds to compute the force on solute charges",
-            )
-
     def _numba_classify(self, signed_distances):
         """This function simply iterates through a list of distances in parallel and labels them. Saves a little bit of memory."""
         label = np.zeros_like(signed_distances, dtype=np.uint8)
