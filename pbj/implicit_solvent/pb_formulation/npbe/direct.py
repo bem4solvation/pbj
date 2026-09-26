@@ -285,8 +285,8 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         print("Total time in GMRES BEM: {:5.2f} [s]".format(curr_time1))
         print("Number of GMRES iterations of dU_m: {0}".format(it_count))
 
-        solute.results["phi"] = Um_l / C1
-        solute.results["d_phi"] = dUm_l / C1
+        solute.results["phi"] = Um_l / C1 #using C1 to convert from nondimensional to PyGBe units
+        solute.results["d_phi"] = dUm_l / C1 #using C1 to convert from nondimensional to PyGBe units
 
         calculate_potential_nonlinear(simulation, solute)
 
