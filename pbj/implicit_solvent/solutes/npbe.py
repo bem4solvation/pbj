@@ -12,6 +12,7 @@ from mpi4py import MPI
 from dolfinx.io import XDMFFile
 from numba import prange
 from scipy.spatial import KDTree
+import ufl
 
 
 class NPBE(Solute):
@@ -139,24 +140,74 @@ class NPBE(Solute):
 
         start_time = time.time()
 
-        solution_dirichl = self.results["phi"]
-        solution_neumann = self.results["d_phi"]
-
         from bempp_cl.api.operators.potential.laplace import single_layer, double_layer
 
         slp_q = single_layer(self.bempp_space0, self.x_q.transpose())
         dlp_q = double_layer(self.bempp_space0, self.x_q.transpose())
-        phi_q = slp_q * solution_neumann - dlp_q * solution_dirichl
+        phi_q_l = slp_q * self.results["d_phi_l"] - dlp_q * self.results["phi_l"]
+        phi_q = slp_q * self.results["d_phi"] - dlp_q * self.results["phi"]
 
-        self.results["phir_charges"] = phi_q
         unit_conversion, unit_label = charge_tools.convert_units(
             units, magnitude="energy"
         )
-        total_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q).real
-        self.results["electrostatic_solvation_energy"] = total_energy
+        unit_potential, _ = charge_tools.convert_units("kt")
+        constant = unit_conversion / (unit_potential**2)
+
+        u_T = unit_potential * self.results["phi_fem"]
+        KI = self.ep_ex * (self.kappa**2) * self.Alpha
+        NL_E = dolfinx.fem.Function(self.fenics_space)
+        expr_ufl_E = ufl.sinh(u_T) * u_T + 2 - 2 * ufl.cosh(u_T)
+        NL_E.interpolate(
+            dolfinx.fem.Expression(
+                expr_ufl_E, self.fenics_space.element.interpolation_points
+            )
+        )
+        stern_energy = (0.5 * constant) * dolfinx.fem.assemble_scalar(
+            dolfinx.fem.form(KI * NL_E * ufl.Measure("dx", self.mesh_v))
+        )
+        if np.abs(stern_energy) == np.inf:
+            # Taylor expansion of the energy terms
+            expr_ufl_S = (
+                u_T
+                + np.power(u_T, 3) / 6
+                + np.power(u_T, 5) / 120
+                + np.power(u_T, 7) / 5040
+                + np.power(u_T, 9) / 362880
+                + np.power(u_T, 11) / 39916800
+            )
+            expr_ufl_C = (
+                1
+                + np.power(u_T, 2) / 2
+                + np.power(u_T, 4) / 24
+                + np.power(u_T, 6) / 720
+                + np.power(u_T, 8) / 40320
+                + np.power(u_T, 10) / 3628800
+            )
+            expr_ufl_E = expr_ufl_S * u_T + 2 - 2 * expr_ufl_C
+            NL_E.interpolate(
+                dolfinx.fem.Expression(
+                    expr_ufl_E, self.fenics_space.element.interpolation_points
+                )
+            )
+            stern_energy = (0.5 * constant) * dolfinx.fem.assemble_scalar(
+                dolfinx.fem.form(KI * NL_E * ufl.Measure("dx", self.mesh_v))
+            )
+
+        self.results["phir_charges"] = phi_q
+
+        linear_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q_l).real
+        dif_energy = 0.5 * unit_conversion * np.sum(self.q * (phi_q - phi_q_l)).real
+        self.results["electrostatic_solvation_energy_linear"] = linear_energy
+        self.results["electrostatic_solvation_energy_linear_units"] = unit_label
+        self.results["electrostatic_solvation_energy_nonlinear"] = dif_energy
+        self.results["electrostatic_solvation_energy_nonlinear_units"] = unit_label
+        self.results["electrostatic_solvation_energy_stern"] = stern_energy
+        self.results["electrostatic_solvation_energy_stern_units"] = unit_label
+        self.results["electrostatic_solvation_energy"] = (
+            linear_energy + dif_energy + stern_energy
+        )
         self.results["electrostatic_solvation_energy_units"] = unit_label
         self.timings["time_calc_elec_energy"] = time.time() - start_time
-
         if self.print_times:
             print(
                 "It took ",

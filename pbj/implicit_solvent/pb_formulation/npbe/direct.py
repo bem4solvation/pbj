@@ -10,6 +10,7 @@ from bempp_cl.api.assembly.discrete_boundary_operator import (
 from bempp_cl.api.external import fenicsx
 from scipy.sparse.linalg import LinearOperator
 from numba import prange
+from scipy.sparse.linalg import gmres
 import ufl
 import time
 import math
@@ -37,6 +38,7 @@ class NonlinearState:
     solute: object
     soln_l: object
     soln0_nl: object
+    d_soln0_nl: object
     d_soln_nl: object
     c_bem: object
     A_nl: object
@@ -96,11 +98,6 @@ def lhs(self):
     self.matrices["A_nl"] = A_nl_blocked
     self.matrices["B"] = B.weak_form()
 
-    return
-
-
-def lhs_nl_d(self):
-
     from scipy.sparse import csr_matrix
 
     ZM1 = bempp_cl.api.ZeroBoundaryOperator(
@@ -121,9 +118,9 @@ def lhs_nl_d(self):
     blocks_N0[0][1] = csr_matrix(self.trace_matrix.T * ZM1.weak_form().to_sparse())
     blocks_N0[1][0] = ZK1.weak_form() * trace_op
     blocks_N0[1][1] = ZV1.weak_form()
-    dA_nl = blocks_N0
+    self.matrices["dA_nl"] = blocks_N0
 
-    return dA_nl
+    return
 
 
 def rhs(self):
@@ -184,57 +181,46 @@ def block_diagonal_preconditioner(solute):
     return
 
 
-def block_diagonal_preconditioner_rhs(solute):
-    return
-
-
 def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
 
-    start_time = time.time()
-    if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
-        simulation.create_and_assemble_rhs()
-    else:
-        simulation.create_and_assemble_linear_system()
+    from bempp_cl.api.linalg.iterative_solvers import IterationCounter
 
-    simulation.timings["time_assembly"] = time.time() - start_time
+    callback = IterationCounter(True)
 
-    it_count = 0
+    if rerun_all and rerun_rhs:  # if both are True, just rerun_all
+        rerun_rhs = False
 
-    def count_iterations(x):
-        nonlocal it_count
-        it_count += 1
-        if (it_count / 100) == (it_count // 100):
-            print(it_count, x)
+    elif ("phi_m" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
+        start_time = time.time()
+        if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
+            simulation.create_and_assemble_rhs()
+        else:
+            simulation.create_and_assemble_linear_system()
 
-    # Solution by GMRES. FEM
-    from scipy.sparse.linalg import gmres
+        simulation.timings["time_assembly"] = time.time() - start_time
 
-    start1 = time.time()
-    soln_l, info = gmres(
-        simulation.matrices["A_discrete"],
-        simulation.rhs["rhs_discrete"],
-        M=simulation.matrices["preconditioning_matrix_gmres"],
-        callback=count_iterations,
-        rtol=simulation.gmres_tolerance_0,
-        restart=simulation.gmres_restart,
-    )  # Modificado
-    end1 = time.time()
-
-    # Time to solve the equation.
-    curr_time1_L = end1 - start1
-    Iter_l = it_count
-    print(f"norm solution {np.linalg.norm(soln_l)}")
-    print("Number of GMRES Lineal iterations: {0}".format(Iter_l))
-    print("Total time in GMRES Lineal: {:5.2f} [s]".format(curr_time1_L))
-
-    for index, solute in enumerate(simulation.solutes):
-        if index > 0:
+        if len(simulation.solutes) > 1:
             raise NotImplementedError("Multiple solutes not implemented yet.")
+
+        start1 = time.time()
+        # Solution FEM-BEM linear PB
+        soln_l, info = gmres(
+            simulation.matrices["A_discrete"],
+            simulation.rhs["rhs_discrete"],
+            M=simulation.matrices["preconditioning_matrix_gmres"],
+            rtol=simulation.gmres_tolerance_0,
+            restart=simulation.gmres_restart,
+            callback=callback,
+            callback_type="legacy",
+        )  # Modificado
+        simulation.timings["time_gmres_lpbe"] = time.time() - start1
+        simulation.run_info["solver_iteration_count_lpbe"] = callback.count
+
+        solute = simulation.solutes[0]
         fem_size = solute.fenics_space.dofmap.index_map.size_global
-        soln_fem_l = soln_l[:fem_size]
         u_l = dolfinx.fem.Function(solute.fenics_space)
-        u_l.x.array[:] = np.ascontiguousarray(soln_fem_l)
-        solute.results["phi_fem_bem"] = u_l / C1
+        u_l.x.array[:] = np.ascontiguousarray(soln_l[:fem_size])
+        solute.results["phi_fem_l"] = u_l / C1
         solute.results["soln_l"] = soln_l / C1
 
         ep_in = solute.ep_in
@@ -242,15 +228,15 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         charge_positions = np.ascontiguousarray(solute.x_q)
 
         @bempp_cl.api.complex_callable(jit=False)
-        def U_c(x, n, domain_index, result):
+        def U_c0(x, n, domain_index, result):
             result[:] = (C1 / (4.0 * np.pi * ep_in)) * np.sum(
                 charges / np.linalg.norm(x - charge_positions, axis=1)
             )
 
-        U_c0 = bempp_cl.api.GridFunction(solute.bempp_space0, fun=U_c)
-        Um_l0 = Function_Um(solute.mesh0, u_l, solute.mesh_v)
+        Um_l0 = function_Um(solute.mesh0, u_l, solute.mesh_v)
+        U_c = bempp_cl.api.GridFunction(solute.bempp_space0, fun=U_c0)
         Um_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_l0)
-        rhs_0_values = rhs_0(solute, Um_l, U_c0)
+        rhs_0_values = rhs_0(solute, Um_l, U_c)
 
         V0 = bempp_cl.api.operators.boundary.laplace.single_layer(
             solute.bempp_space0,
@@ -258,40 +244,33 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             solute.bempp_space0,
             assembler=solute.operator_assembler,
         )
-        blocked_0 = V0.weak_form()  # 1x1 matrix.
         identity = bempp_cl.api.operators.boundary.sparse.identity(
             solute.bempp_space0, solute.bempp_space0, solute.bempp_space0
         ).weak_form()
-        P_0 = InverseSparseDiscreteBoundaryOperator(
-            identity
-        )  # Mass Matrix 1x1 preconditioner.
+        P_0 = InverseSparseDiscreteBoundaryOperator(identity)
 
         # Solution by GMRES.
-        it_count = 0
         start1 = time.time()
-        Sol_l, info = gmres(
-            blocked_0,
+        sol, info = gmres(
+            V0.weak_form(),
             rhs_0_values,
             M=P_0,
-            callback=count_iterations,
             rtol=solute.gmres_tolerance_0,
             restart=solute.gmres_restart,
+            callback=callback,
+            callback_type="legacy",
         )
-        end1 = time.time()
-        dUm_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_l)
-        # Time to solve the equation.
-        curr_time1 = end1 - start1
-        print(f"norm solution {np.linalg.norm(Sol_l)}")
-        print("Total time in GMRES BEM: {:5.2f} [s]".format(curr_time1))
-        print("Number of GMRES iterations of dU_m: {0}".format(it_count))
+        simulation.timings["time_gmres_lpbe_dphi"] = time.time() - start1
+        simulation.run_info["solver_iteration_count_lpbe_dphi"] = callback.count
+        dUm_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=sol)
 
-        solute.results["phi"] = (
+        solute.results["phi_l"] = (
             Um_l / C1
         )  # using C1 to convert from nondimensional to PyGBe units
-        solute.results["d_phi"] = (
+        solute.results["d_phi_l"] = (
             dUm_l / C1
         )  # using C1 to convert from nondimensional to PyGBe units
-
+        solute.results["phi_coul"] = U_c / C1
         calculate_potential_nonlinear(simulation, solute)
 
     return
@@ -299,34 +278,31 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
 
 def calculate_potential_nonlinear(simulation, solute):
 
-    from scipy.sparse.linalg import gmres
+    from bempp_cl.api.linalg.iterative_solvers import IterationCounter
 
-    def count_iterations(x):
-        nonlocal it_count
-        it_count += 1
-        if (it_count / 100) == (it_count // 100):
-            print(it_count, x)
-
-    # Initial data
-    it_count = 0
-    eps = 100.0  # error measure
+    # Initial parameters
+    eps = 100.0  # initial error measure
+    gmres_tol = solute.gmres_tolerance_0
     Iter = 0  # Iteration counter
-    maxiter = 100  # Max no of iterations allowed
-    Taylor_expansion = "T3"
+    Taylor_expansion = solute.taylor_expansion
     fem_size = solute.fenics_space.dofmap.index_map.size_global
-
-    # Initial vector
     u0_nl = dolfinx.fem.Function(solute.fenics_space)
     u0_nl.x.array[:] = 0.0
-    soln_fem_nl = np.zeros(fem_size)
-    soln_bem_nl = np.zeros(solute.bempp_space.global_dof_count)
-    soln0_nl = np.concatenate([soln_fem_nl, soln_bem_nl])
+    soln0_nl = np.concatenate(
+        [np.zeros(fem_size), np.zeros(solute.bempp_space.global_dof_count)]
+    )
     d_soln0_nl = soln0_nl
     c_bem = np.zeros(solute.bempp_space.global_dof_count)
+    simulation.timings["time_gmres_npbe_it"] = []
+    simulation.timings["time_npbe_it"] = []
+    simulation.run_info["solver_iteration_count_npbe_it"] = []
 
     KI = solute.ep_ex * (solute.kappa**2) * solute.Alpha
     v = ufl.TestFunction(solute.fenics_space)
-    u_l = C1 * solute.results["phi_fem_bem"]
+    u_l = dolfinx.fem.Function(solute.fenics_space)
+    u_l.x.array[:] = np.ascontiguousarray(
+        solute.results["phi_fem_l"].ufl_operands[0].x.array
+    )
     soln_l = C1 * solute.results["soln_l"]
     A_nl = solute.matrices["A_nl"]
     state = NonlinearState(
@@ -334,7 +310,8 @@ def calculate_potential_nonlinear(simulation, solute):
         solute=solute,
         soln_l=soln_l,
         soln0_nl=soln0_nl,
-        d_soln_nl=None,
+        d_soln0_nl=d_soln0_nl,
+        d_soln_nl=d_soln0_nl,
         c_bem=c_bem,
         fenics_space=solute.fenics_space,
         A_nl=A_nl,
@@ -342,11 +319,10 @@ def calculate_potential_nonlinear(simulation, solute):
 
     # Start of the nonlinear algorithm
     start3 = time.time()
-    while (eps > simulation.nonlinear_tol) and (Iter < maxiter):
+    while (eps > simulation.nonlinear_tol) and (Iter < solute.nonlinear_maxiter):
         start2 = time.time()
         Iter += 1
         print("#############################")
-        print("Tolerance GMRES Tol_0=%g" % (solute.gmres_tolerance_0))
         # Section 1: Choosing the Taylor approximation of vector c.
         NL_Fem_G_S, NL_Fem_G_C = Taylor_Expansion_of_vector_c(
             Taylor_expansion, u0_nl, u_l, solute.fenics_space
@@ -366,7 +342,7 @@ def calculate_potential_nonlinear(simulation, solute):
 
         # Creation of the matrix N.
         ud = ufl.TrialFunction(solute.fenics_space)
-        dA_nl = lhs_nl_d(solute)
+        dA_nl = solute.matrices["dA_nl"]
         dA_nl[0][0] = (
             fenicsx.FenicsOperator(KI * NL_Fem_G_C * ud * v * ufl.dx)
         ).weak_form()
@@ -374,22 +350,21 @@ def calculate_potential_nonlinear(simulation, solute):
 
         # Section 3: Solve the nonlinear matrix system with GMRES.
         # Solution by GMRES.
+        callback = IterationCounter(True)
         start1 = time.time()
         d_soln_nl, info = gmres(
             (A_nl + dA_nl),
             rhs_nlG,
-            x0=d_soln0_nl,
+            x0=state.d_soln0_nl,
             M=simulation.matrices["preconditioning_matrix_gmres"],
-            callback=count_iterations,
-            rtol=solute.gmres_tolerance_0,
+            rtol=gmres_tol,
             restart=solute.gmres_restart,
+            callback=callback,
+            callback_type="legacy",
         )
-        end1 = time.time()
         state.d_soln_nl = d_soln_nl
-        # Time to solve the equation.
-        curr_time1 = end1 - start1
-        print("Number of GMRES Nonlineal iterations: {0}".format(it_count))
-        print("Total time in GMRES Nonlineal: {:5.2f} [s]".format(curr_time1))
+        simulation.timings["time_gmres_npbe_it"].append(time.time() - start1)
+        simulation.run_info["solver_iteration_count_npbe_it"].append(callback.count)
 
         # Choosing the scheme to solve the problem and the next Taylor expansion.
         if Iter == 1:
@@ -431,33 +406,75 @@ def calculate_potential_nonlinear(simulation, solute):
                 print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
 
         # Section 5: Calculate the norm and update for next iteration.
-        d_soln0_nl = state.d_soln_nl * w
-        state.soln0_nl = state.soln0_nl + d_soln0_nl
-        eps = np.linalg.norm(d_soln0_nl, ord=np.inf)
-        soln_fem_nl = state.soln0_nl[:fem_size]
+        state.d_soln0_nl = state.d_soln_nl * w
+        state.soln0_nl = state.soln0_nl + state.d_soln0_nl
+        eps = np.linalg.norm(state.d_soln0_nl, ord=np.inf)
         u_nl = dolfinx.fem.Function(solute.fenics_space)
-        u_nl.x.array[:] = np.ascontiguousarray(soln_fem_nl)
+        u_nl.x.array[:] = np.ascontiguousarray(state.soln0_nl[:fem_size])
         u0_nl.x.array[:] = u_nl.x.array[:]
-        print("iter=%d: norm=%g" % (Iter, eps))
+        print("iter=%d: res=%g" % (Iter, eps))
 
         # Section 6: Calculate the norm and update for next iteration.
-        while ((eps / (1.25 * solute.gmres_tolerance_0)) // 1000 == 0) and (
-            solute.gmres_tolerance_0 >= simulation.gmres_tolerance * 10
+        while ((eps / (1.25 * gmres_tol)) // 1000 == 0) and (
+            gmres_tol >= simulation.gmres_tolerance * 10
         ):
-            solute.gmres_tolerance_0 = solute.gmres_tolerance_0 * 0.1
+            gmres_tol = gmres_tol * 0.1
 
         end2 = time.time()
         # Total time to solve 1 nonlinear iteration
         curr_time2 = end2 - start2
+        simulation.timings["time_npbe_it"].append(curr_time2)
         print(
             "Total time to solve 1 nonlinear iteration: {:5.2f} [s]".format(curr_time2)
         )
-        it_count = 0
 
     print("---------------------------------")
     end3 = time.time()
     curr_time3 = end3 - start3
     print("Total time Nonlinear: {:5.2f} [s]".format(curr_time3))
+
+    u_T = dolfinx.fem.Function(solute.fenics_space)
+    u_T.x.array[:] = u_nl.x.array[:] + u_l.x.array[:]
+    solute.results["phi_fem"] = (
+        u_T / C1
+    )  # using C1 to convert from nondimensional to PyGBe units
+
+    Um_T0 = function_Um(solute.mesh0, u_T, solute.mesh_v)
+    Um_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_T0)
+    rhs_0_values = rhs_0(solute, Um_T, C1 * solute.results["phi_coul"])
+
+    V0 = bempp_cl.api.operators.boundary.laplace.single_layer(
+        solute.bempp_space0,
+        solute.bempp_space0,
+        solute.bempp_space0,
+        assembler=solute.operator_assembler,
+    )
+    identity = bempp_cl.api.operators.boundary.sparse.identity(
+        solute.bempp_space0, solute.bempp_space0, solute.bempp_space0
+    ).weak_form()
+    P_0 = InverseSparseDiscreteBoundaryOperator(identity)
+
+    callback = IterationCounter(True)
+    start1 = time.time()
+    Sol_T, info = gmres(
+        V0.weak_form(),
+        rhs_0_values,
+        M=P_0,
+        rtol=solute.gmres_tolerance,
+        restart=solute.gmres_restart,
+        callback=callback,
+        callback_type="legacy",
+    )
+    simulation.timings["time_gmres_npbe_dphi"] = time.time() - start1
+    simulation.run_info["solver_iteration_count_npbe_dphi"].append(callback.count)
+
+    dUm_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_T)
+    solute.results["phi"] = (
+        Um_T / C1
+    )  # using C1 to convert from nondimensional to PyGBe units
+    solute.results["d_phi"] = (
+        dUm_T / C1
+    )  # using C1 to convert from nondimensional to PyGBe units
     return
 
 
@@ -530,8 +547,7 @@ def numba_classify(signed_distances):
     return label
 
 
-# Function to calculate the potential on the surface.
-def Function_Um(grid, u, mesh):
+def function_Um(grid, u, mesh):
     points_verts = np.array(grid.vertices.T, dtype=np.float64)
     Um = np.zeros(len(points_verts))
     bb_tree = dolfinx.geometry.bb_tree(mesh, mesh.topology.dim)
