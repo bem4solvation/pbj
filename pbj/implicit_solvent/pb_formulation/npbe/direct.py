@@ -51,6 +51,8 @@ def verify_parameters(self):
 
 def lhs(self):
 
+    from scipy.sparse import csr_matrix
+
     EI = self.ep_in + (self.ep_ex - self.ep_in) * self.Alpha
     KI = self.ep_ex * (self.kappa**2) * self.Alpha
     u = ufl.TrialFunction(self.fenics_space)
@@ -98,7 +100,14 @@ def lhs(self):
     self.matrices["A_nl"] = A_nl_blocked
     self.matrices["B"] = B.weak_form()
 
-    from scipy.sparse import csr_matrix
+    V0 = bempp_cl.api.operators.boundary.laplace.single_layer(
+        self.bempp_space0,
+        self.bempp_space0,
+        self.bempp_space0,
+        assembler=self.operator_assembler,
+    )
+
+    self.matrices["A0"] = V0.weak_form()
 
     ZM1 = bempp_cl.api.ZeroBoundaryOperator(
         self.bempp_space, self.bempp_space, self.trace_space
@@ -238,12 +247,6 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         Um_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_l0)
         rhs_0_values = rhs_0(solute, Um_l, U_c)
 
-        V0 = bempp_cl.api.operators.boundary.laplace.single_layer(
-            solute.bempp_space0,
-            solute.bempp_space0,
-            solute.bempp_space0,
-            assembler=solute.operator_assembler,
-        )
         identity = bempp_cl.api.operators.boundary.sparse.identity(
             solute.bempp_space0, solute.bempp_space0, solute.bempp_space0
         ).weak_form()
@@ -252,7 +255,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         # Solution by GMRES.
         start1 = time.time()
         sol, info = gmres(
-            V0.weak_form(),
+            solute.matrices["A0"],
             rhs_0_values,
             M=P_0,
             rtol=solute.gmres_tolerance_0,
@@ -296,7 +299,8 @@ def calculate_potential_nonlinear(simulation, solute):
     simulation.timings["time_gmres_npbe_it"] = []
     simulation.timings["time_npbe_it"] = []
     simulation.run_info["solver_iteration_count_npbe_it"] = []
-
+    simulation.run_info["solver_term_npbe"] = []
+    simulation.run_info["solver_error_npbe"] = []
     KI = solute.ep_ex * (solute.kappa**2) * solute.Alpha
     v = ufl.TestFunction(solute.fenics_space)
     u_l = dolfinx.fem.Function(solute.fenics_space)
@@ -322,6 +326,7 @@ def calculate_potential_nonlinear(simulation, solute):
     while (eps > simulation.nonlinear_tol) and (Iter < solute.nonlinear_maxiter):
         start2 = time.time()
         Iter += 1
+        simulation.run_info["solver_term_npbe"].append(Taylor_expansion)
         print("#############################")
         # Section 1: Choosing the Taylor approximation of vector c.
         NL_Fem_G_S, NL_Fem_G_C = Taylor_Expansion_of_vector_c(
@@ -377,7 +382,6 @@ def calculate_potential_nonlinear(simulation, solute):
             ) = Scheme_election(state)
         if Iter <= Iter_Transition:
             Taylor_expansion = Taylor_expansion_list[Iter - 1]
-
         # Section 4: Calculate the relaxation factor of the next iteration by Newton-Raphson method total.
         if Iter == 1:
             if Bisection_Secant_Method:
@@ -413,6 +417,7 @@ def calculate_potential_nonlinear(simulation, solute):
         u_nl.x.array[:] = np.ascontiguousarray(state.soln0_nl[:fem_size])
         u0_nl.x.array[:] = u_nl.x.array[:]
         print("iter=%d: res=%g" % (Iter, eps))
+        simulation.run_info["solver_error_npbe"].append(eps)
 
         # Section 6: Calculate the norm and update for next iteration.
         while ((eps / (1.25 * gmres_tol)) // 1000 == 0) and (
@@ -432,6 +437,7 @@ def calculate_potential_nonlinear(simulation, solute):
     end3 = time.time()
     curr_time3 = end3 - start3
     print("Total time Nonlinear: {:5.2f} [s]".format(curr_time3))
+    solute.results["soln_nl"] = soln0_nl / C1
 
     u_T = dolfinx.fem.Function(solute.fenics_space)
     u_T.x.array[:] = u_nl.x.array[:] + u_l.x.array[:]
@@ -443,12 +449,6 @@ def calculate_potential_nonlinear(simulation, solute):
     Um_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_T0)
     rhs_0_values = rhs_0(solute, Um_T, C1 * solute.results["phi_coul"])
 
-    V0 = bempp_cl.api.operators.boundary.laplace.single_layer(
-        solute.bempp_space0,
-        solute.bempp_space0,
-        solute.bempp_space0,
-        assembler=solute.operator_assembler,
-    )
     identity = bempp_cl.api.operators.boundary.sparse.identity(
         solute.bempp_space0, solute.bempp_space0, solute.bempp_space0
     ).weak_form()
@@ -457,7 +457,7 @@ def calculate_potential_nonlinear(simulation, solute):
     callback = IterationCounter(True)
     start1 = time.time()
     Sol_T, info = gmres(
-        V0.weak_form(),
+        solute.matrices["A0"],
         rhs_0_values,
         M=P_0,
         rtol=solute.gmres_tolerance,
@@ -466,7 +466,7 @@ def calculate_potential_nonlinear(simulation, solute):
         callback_type="legacy",
     )
     simulation.timings["time_gmres_npbe_dphi"] = time.time() - start1
-    simulation.run_info["solver_iteration_count_npbe_dphi"].append(callback.count)
+    simulation.run_info["solver_iteration_count_npbe_dphi"] = callback.count
 
     dUm_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_T)
     solute.results["phi"] = (
