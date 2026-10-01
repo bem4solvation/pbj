@@ -1161,10 +1161,12 @@ class Simulation:
                     log_print(f"{attr}: {value}")
             log_print("-" * 40)
 
-    def get_results(self, name=None, save_log=False, save_results=False):
+    def get_results(
+        self, name=None, save_log=False, save_results=False, save_vtu=False, units="kt"
+    ):
 
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if save_log:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_filename = f"simulation_results_{timestamp}.log" if not name else name
             logging.basicConfig(
                 filename=log_filename,
@@ -1201,7 +1203,6 @@ class Simulation:
                 all_results[solute_name] = res
 
         if save_results:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             h5_filename = (
                 f"simulation_results_{timestamp}.h5" if not name else f"{name}.h5"
             )
@@ -1238,3 +1239,29 @@ class Simulation:
 
             with h5py.File(h5_filename, "w") as f:
                 save_dict_to_h5(f, all_results)
+
+        if save_vtu:
+            for index, solute in enumerate(self.solutes):
+                solute_name = self.solutes_names[index]
+                phi, _ = solute.get_surface_potential(units=units)
+                d_phi, _ = solute.get_surface_potential_derivative(units=units)
+                bempp_cl.api.export(
+                    (
+                        f"simulation_results_{timestamp}_{solute_name}_phi.vtu"
+                        if not name
+                        else f"{name}_{solute_name}_phi.vtu"
+                    ),
+                    grid_function=bempp_cl.api.GridFunction(
+                        solute.dirichl_space, coefficients=phi
+                    ),
+                )
+                bempp_cl.api.export(
+                    (
+                        f"simulation_results_{timestamp}_{solute_name}_d_phi.vtu"
+                        if not name
+                        else f"{name}_{solute_name}_d_phi.vtu"
+                    ),
+                    grid_function=bempp_cl.api.GridFunction(
+                        solute.neumann_space, coefficients=d_phi
+                    ),
+                )
