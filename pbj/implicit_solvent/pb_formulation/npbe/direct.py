@@ -449,7 +449,6 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         print("Total time Nonlinear: {:5.2f} [s]".format(curr_time3))
         iters = len(simulation.run_info["solver_error_npbe"])
         simulation.run_info["solver_iteration_count_npbe_newton"] = iters
-        solute.results["soln_nl"] = soln0_nl / C1
 
         u_T = dolfinx.fem.Function(solute.fenics_space)
         u_T.x.array[:] = u_nl.x.array[:] + u_l.x.array[:]

@@ -2,7 +2,6 @@ import bempp_cl as bempp
 import bempp_cl.api
 import time
 from datetime import datetime
-import pickle
 import logging
 import trimesh
 import pbj.mesh.plotting_tools as plotting_tools
@@ -12,6 +11,7 @@ import pbj.implicit_solvent.solutes as pb_solutes
 import pbj.implicit_solvent.pb_formulation as pb_formulations
 import json
 import os
+import h5py
 
 
 class Simulation:
@@ -1201,10 +1201,40 @@ class Simulation:
                 all_results[solute_name] = res
 
         if save_results:
-            # guarda phi, d_phi, coefficients para el pickle
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            pkl_filename = (
-                f"simulation_results_{timestamp}.pkl" if not name else f"{name}.pkl"
+            h5_filename = (
+                f"simulation_results_{timestamp}.h5" if not name else f"{name}.h5"
             )
-            with open(pkl_filename, "wb") as f:
-                pickle.dump(all_results, f)
+
+            def save_dict_to_h5(h5_group, data_dict):
+                for key, value in data_dict.items():
+                    print(f"Saving {key} to HDF5...")
+                    if hasattr(value, "coefficients"):
+                        h5_group.create_dataset(
+                            key, data=np.asarray(value.coefficients)
+                        )
+
+                    elif hasattr(value, "ufl_operands") or hasattr(value, "x"):
+
+                        value_dolfinx = value.ufl_operands[0].x.array[:] / float(
+                            value.ufl_operands[1]
+                        )
+                        h5_group.create_dataset(key, data=np.asarray(value_dolfinx))
+
+                    elif isinstance(
+                        value, (np.ndarray, int, float, np.number, list, tuple)
+                    ):
+                        h5_group.create_dataset(key, data=np.asarray(value))
+
+                    elif isinstance(value, dict):
+                        subgroup = h5_group.create_group(key)
+                        save_dict_to_h5(subgroup, value)
+
+                    elif isinstance(value, str):
+                        h5_group.attrs[key] = value
+
+                    else:
+                        h5_group.attrs[key] = str(value)
+
+            with h5py.File(h5_filename, "w") as f:
+                save_dict_to_h5(f, all_results)
