@@ -216,7 +216,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             restart=simulation.gmres_restart,
             callback=callback,
             callback_type="legacy",
-        )  # Modificado
+        )
         simulation.timings["time_gmres_lpbe"] = time.time() - start1
         simulation.run_info["solver_iteration_count_lpbe"] = callback.count
 
@@ -260,7 +260,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         ).weak_form()
         P_0 = InverseSparseDiscreteBoundaryOperator(identity)
 
-        # Solution by GMRES.
+        # Solution by GMRES for d_phi LPBE.
         start1 = time.time()
         sol, info = gmres(
             solute.matrices["A0"],
@@ -312,12 +312,10 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         simulation.run_info["solver_error_npbe"] = []
 
         # Start of the nonlinear algorithm
-        start3 = time.time()
         while (eps > simulation.nonlinear_tol) and (Iter < solute.nonlinear_maxiter):
             start2 = time.time()
             Iter += 1
             simulation.run_info["solver_term_npbe"].append(Taylor_expansion)
-            print("#############################")
             # Section 1: Choosing the Taylor approximation of vector c.
             NL_Fem_G_S, NL_Fem_G_C = Taylor_Expansion_of_vector_c(
                 Taylor_expansion, u0_nl, u_l, solute.fenics_space
@@ -387,10 +385,10 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
                         Secant_equation=True,
                         Tol_w=simulation.omega_tol,
                     )
-                    print(
-                        "Iter Total BI-SEC previus w I_w0_NR=%d: w0_NR=%g"
-                        % (I_w0_NR, w0_NR)
-                    )
+                    # print(
+                    #     "Iter Total BI-SEC previus w I_w0_NR=%d: w0_NR=%g"
+                    #     % (I_w0_NR, w0_NR)
+                    # )
                 w, Iter_w = w_optimal_by_Newton_Rapson(
                     state,
                     simulation,
@@ -401,7 +399,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
                     0,
                     Tol_w=simulation.omega_tol,
                 )
-                print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
+                # print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
             else:
                 if eps >= simulation.lim_eps:
                     w, Iter_w = w_optimal_by_Newton_Rapson(
@@ -414,7 +412,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
                         0,
                         Tol_w=simulation.omega_tol,
                     )
-                    print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
+                    # print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
 
             # Section 5: Calculate the norm and update for next iteration.
             state.d_soln0_nl = state.d_soln_nl * w
@@ -423,7 +421,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             u_nl = dolfinx.fem.Function(solute.fenics_space)
             u_nl.x.array[:] = np.ascontiguousarray(state.soln0_nl[:fem_size])
             u0_nl.x.array[:] = u_nl.x.array[:]
-            print("iter=%d: res=%g" % (Iter, eps))
+            print("Newton-Raphson iteration=%d: residual=%g" % (Iter, eps))
             simulation.run_info["solver_error_npbe"].append(eps)
 
             # Section 6: Calculate the norm and update for next iteration.
@@ -437,16 +435,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             # Total time to solve 1 nonlinear iteration
             curr_time2 = end2 - start2
             simulation.timings["time_npbe_it"].append(curr_time2)
-            print(
-                "Total time to solve 1 nonlinear iteration: {:5.2f} [s]".format(
-                    curr_time2
-                )
-            )
 
-        print("---------------------------------")
-        end3 = time.time()
-        curr_time3 = end3 - start3
-        print("Total time Nonlinear: {:5.2f} [s]".format(curr_time3))
         iters = len(simulation.run_info["solver_error_npbe"])
         simulation.run_info["solver_iteration_count_npbe_newton"] = iters
 
@@ -594,11 +583,11 @@ def function_Um(grid, u, mesh):
 def Taylor_Expansion_of_vector_c(Taylor_expansion, u0_nl, u_l, fenics_space):
     US = u0_nl + u_l
     if Taylor_expansion == "T3":
-        print("Case: Cubic Taylor Exp.")
+        # print("Case: Cubic Taylor Exp.")
         expr_ufl_S = US + np.power(US, 3) / 6
         expr_ufl_C = 1 + np.power(US, 2) / 2
     elif Taylor_expansion == "T11":
-        print("Case: Taylor's 11th Exp.")
+        # print("Case: Taylor's 11th Exp.")
         expr_ufl_S = (
             US
             + np.power(US, 3) / 6
@@ -616,7 +605,7 @@ def Taylor_Expansion_of_vector_c(Taylor_expansion, u0_nl, u_l, fenics_space):
             + np.power(US, 10) / 3628800
         )
     else:
-        print("Case: Hyperbolic Sine")
+        # print("Case: Hyperbolic Sine")
         expr_ufl_S = ufl.sinh(US)
         expr_ufl_C = ufl.cosh(US)
     NL_Fem_G_S = dolfinx.fem.Function(fenics_space)
@@ -633,8 +622,8 @@ def Taylor_Expansion_of_vector_c(Taylor_expansion, u0_nl, u_l, fenics_space):
 def Scheme_election(state, simulation, solute, c_bem):
     # Calculation of values fd_w1(1).
     fD_w0, _ = Evaluate_fd_dfd(state, simulation, solute, c_bem, "SINH", 1, False)
-    print("iter S=%d: norm=%g: w=%g" % (0, abs(fD_w0), 1))
-    print("Evaluate point w0=%g" % (1))
+    # print("iter S=%d: norm=%g: w=%g" % (0, abs(fD_w0), 1))
+    # print("Evaluate point w0=%g" % (1))
     # Choice of scheme
     Scheme = "T3-HS"
     if np.abs(fD_w0) < 100000:
@@ -648,7 +637,7 @@ def Scheme_election(state, simulation, solute, c_bem):
         w0_NR = 1
     else:
         w0_NR = 2
-    print("Scheme " + Scheme)
+    # print("Scheme " + Scheme)
     # Important variables that depend on the scheme used
     if Scheme == "T3-HS":
         Taylor_expansion_list = ["SINH"]
@@ -783,7 +772,7 @@ def w_optimal_by_Bisection(
             w = w0 + d
         else:
             w = w0 - d
-        print("Iter BI S=%d: norm=%g: w=%g" % (Iter, eps, w0))
+        # print("Iter BI S=%d: norm=%g: w=%g" % (Iter, eps, w0))
         if Secant_equation:
             if Iter == (1 + Iter0):
                 wb_sec, fD_wb_sec = w0, fD
@@ -796,16 +785,17 @@ def w_optimal_by_Bisection(
                     fD_wa_sec - fD_wb_sec
                 )  # Equation of the line
                 if Iter == (2 + Iter0):
-                    print(
-                        "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g:"
-                        % (Iter, (Iter - 1), wc_sec)
-                    )
+                    # print(
+                    #     "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g:"
+                    #     % (Iter, (Iter - 1), wc_sec)
+                    # )
+                    return
                 else:
                     Diff = abs(wc_sec - wc0_sec)
-                    print(
-                        "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g: Diff=%g"
-                        % (Iter, (Iter - 1), wc_sec, Diff)
-                    )
+                    # print(
+                    #     "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g: Diff=%g"
+                    #     % (Iter, (Iter - 1), wc_sec, Diff)
+                    # )
                     if Diff < 0.05 and abs(fD_wb_sec) < 50 and abs(fD_wa_sec) < 50:
                         break
         if Iter == 50 or w0 >= (wb - Tol_aditional) or w0 <= (wa + Tol_aditional):
@@ -821,7 +811,7 @@ def w_optimal_by_Newton_Rapson(
         state, simulation, solute, c_bem, Taylor_expansion, w0, derivate=True
     )
     w, eps = w0 - fD / dfD, abs(fD)
-    print("Iter NR S=%d: norm=%g: w=%g" % (Iter, eps, w0))
+    # print("Iter NR S=%d: norm=%g: w=%g" % (Iter, eps, w0))
 
     while eps > Tol_w:
         w0 = w
@@ -830,7 +820,7 @@ def w_optimal_by_Newton_Rapson(
             state, simulation, solute, c_bem, Taylor_expansion, w0, derivate=True
         )
         w, eps = w0 - fD / dfD, abs(fD)
-        print("Iter NR S=%d: norm=%g: w=%g" % (Iter, eps, w0))
+        # print("Iter NR S=%d: norm=%g: w=%g" % (Iter, eps, w0))
 
         if Iter == 30:
             break

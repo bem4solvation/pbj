@@ -363,7 +363,7 @@ class NPBE(Solute):
         k = 4  # Number of nearest neighbors to check
         m, d = mesh.vertices.shape  # vertices shape: m x 3
         n, _ = points.shape  # points shape: n x 3
-        print(f"m: {m}, n: {n}, d: {d}, k: {k}")
+        # print(f"m: {m}, n: {n}, d: {d}, k: {k}")
 
         # Run KDTree to find k-nearest neighbors with their distances:
         tree = KDTree(mesh.vertices)
@@ -389,7 +389,7 @@ class NPBE(Solute):
         mask_tocheck[classification == 2] = (
             True  # Points on which the neighbors disagreed
         )
-        print("Problematic points:", mask_tocheck.sum())
+        # print("Problematic points:", mask_tocheck.sum())
 
         # Check problematic points: (This part can still be memory heavy with very big examples)
 
@@ -399,7 +399,7 @@ class NPBE(Solute):
                 15,
             )  # Subdivide the list by memory size.
             subdiv = 1 + int(GB_estimate / GB_limit)
-            print("Calculating signed_distances...")
+            # print("Calculating signed_distances...")
 
             q = trimesh.proximity.ProximityQuery(mesh)
             sub_point_mask_tocheck = np.array_split(points[mask_tocheck, :], subdiv)
@@ -413,7 +413,7 @@ class NPBE(Solute):
                 )
 
             # https://trimesh.org/trimesh.proximity.html#trimesh.proximity.ProximityQuery.signed_distance
-            print("Signed_distances calculated")
+            # print("Signed_distances calculated")
             # 0: outside, 1: inside, 2: signed_distance = 0
             classification[mask_tocheck] = self._numba_classify(signed_distances)
 
