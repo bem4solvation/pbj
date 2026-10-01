@@ -26,6 +26,7 @@ dependencies:
   - mpich
   - pyvista
   - parmed
+  - h5py
   - pip:
     - bempp-cl
     - meshio
