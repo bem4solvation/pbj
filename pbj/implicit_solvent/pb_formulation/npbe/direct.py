@@ -231,8 +231,11 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             solute.bempp_space,
             coefficients=soln_l[fem_size:],
         )
-
-        solute.results["phi_s_l"] = function_Um(solute.mesh, u_l, solute.mesh_v) / C1
+        phi_s_l = bempp_cl.api.GridFunction(
+            solute.bempp_space,
+            coefficients=function_Um(solute.trace_space.grid, u_l, solute.mesh_v),
+        )
+        solute.results["phi_s_l"] = phi_s_l / C1
         solute.results["d_phi_s_l"] = d_phi_s_l / C1
 
         ep_in = solute.ep_in
@@ -458,6 +461,11 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             solute.bempp_space,
             coefficients=state.soln0_nl[fem_size:],
         )
+        phi_s = bempp_cl.api.GridFunction(
+            solute.bempp_space,
+            coefficients=function_Um(solute.trace_space.grid, u_T, solute.mesh_v),
+        )
+        solute.results["phi_s"] = phi_s / C1
         solute.results["d_phi_s"] = d_phi_s / C1
 
         Um_T0 = function_Um(solute.mesh0, u_T, solute.mesh_v)
