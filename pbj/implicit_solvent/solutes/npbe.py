@@ -144,8 +144,8 @@ class NPBE(Solute):
 
         slp_q = single_layer(self.bempp_space0, self.x_q.transpose())
         dlp_q = double_layer(self.bempp_space0, self.x_q.transpose())
-        phi_q_l = slp_q * self.results["d_phi_l"] - dlp_q * self.results["phi_l"]
         phi_q = slp_q * self.results["d_phi"] - dlp_q * self.results["phi"]
+        self.results["phir_charges"] = phi_q
 
         unit_conversion, unit_label = charge_tools.convert_units(
             units, magnitude="energy"
@@ -193,19 +193,12 @@ class NPBE(Solute):
                 dolfinx.fem.form(KI * NL_E * ufl.Measure("dx", self.mesh_v))
             )
 
-        self.results["phir_charges"] = phi_q
-
-        linear_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q_l).real
-        dif_energy = 0.5 * unit_conversion * np.sum(self.q * (phi_q - phi_q_l)).real
-        self.results["electrostatic_solvation_energy_linear"] = linear_energy
-        self.results["electrostatic_solvation_energy_linear_units"] = unit_label
-        self.results["electrostatic_solvation_energy_nonlinear"] = dif_energy
-        self.results["electrostatic_solvation_energy_nonlinear_units"] = unit_label
+        charges_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q).real
+        self.results["electrostatic_solvation_energy_charges"] = charges_energy
+        self.results["electrostatic_solvation_energy_charges_units"] = unit_label
         self.results["electrostatic_solvation_energy_stern"] = stern_energy
         self.results["electrostatic_solvation_energy_stern_units"] = unit_label
-        self.results["electrostatic_solvation_energy"] = (
-            linear_energy + dif_energy + stern_energy
-        )
+        self.results["electrostatic_solvation_energy"] = charges_energy + stern_energy
         self.results["electrostatic_solvation_energy_units"] = unit_label
         self.timings["time_calc_elec_energy"] = time.time() - start_time
         if self.print_times:

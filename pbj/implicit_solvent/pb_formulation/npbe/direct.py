@@ -34,15 +34,10 @@ C1 = (m2A * (qe**2)) / (KB * T * E0)
 
 @dataclass
 class NonlinearState:
-    simulation: object
-    solute: object
     soln_l: object
     soln0_nl: object
-    d_soln0_nl: object
     d_soln_nl: object
-    c_bem: object
-    A_nl: object
-    fenics_space: object
+    d_soln0_nl: object
 
 
 def verify_parameters(self):
@@ -199,7 +194,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
     if rerun_all and rerun_rhs:  # if both are True, just rerun_all
         rerun_rhs = False
 
-    elif ("phi_m" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
+    elif ("phi" not in simulation.solutes[0].results) or (rerun_all) or (rerun_rhs):
         start_time = time.time()
         if rerun_rhs and "A_discrete" in simulation.solutes[0].matrices:
             simulation.create_and_assemble_rhs()
@@ -227,24 +222,34 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
 
         solute = simulation.solutes[0]
         fem_size = solute.fenics_space.dofmap.index_map.size_global
+        bem_size = solute.bempp_space.global_dof_count
+
         u_l = dolfinx.fem.Function(solute.fenics_space)
         u_l.x.array[:] = np.ascontiguousarray(soln_l[:fem_size])
         solute.results["phi_fem_l"] = u_l / C1
-        solute.results["soln_l"] = soln_l / C1
+        d_phi_s_l = bempp_cl.api.GridFunction(
+            solute.bempp_space,
+            coefficients=soln_l[fem_size:],
+        )
+
+        solute.results["phi_s_l"] = function_Um(solute.mesh, u_l, solute.mesh_v) / C1
+        solute.results["d_phi_s_l"] = d_phi_s_l / C1
 
         ep_in = solute.ep_in
-        charges = np.ascontiguousarray(solute.q)
-        charge_positions = np.ascontiguousarray(solute.x_q)
+        q = np.ascontiguousarray(solute.q)
+        x_q = np.ascontiguousarray(solute.x_q)
 
         @bempp_cl.api.complex_callable(jit=False)
         def U_c0(x, n, domain_index, result):
             result[:] = (C1 / (4.0 * np.pi * ep_in)) * np.sum(
-                charges / np.linalg.norm(x - charge_positions, axis=1)
+                q / np.linalg.norm(x - x_q, axis=1)
             )
 
-        Um_l0 = function_Um(solute.mesh0, u_l, solute.mesh_v)
         U_c = bempp_cl.api.GridFunction(solute.bempp_space0, fun=U_c0)
-        Um_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_l0)
+        Um_l = bempp_cl.api.GridFunction(
+            solute.bempp_space0,
+            coefficients=function_Um(solute.mesh0, u_l, solute.mesh_v),
+        )
         rhs_0_values = rhs_0(solute, Um_l, U_c)
 
         identity = bempp_cl.api.operators.boundary.sparse.identity(
@@ -274,207 +279,218 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
             dUm_l / C1
         )  # using C1 to convert from nondimensional to PyGBe units
         solute.results["phi_coul"] = U_c / C1
-        calculate_potential_nonlinear(simulation, solute)
 
-    return
+        # Newton-Raphson iteration
+        eps = 100.0  # initial error measure
+        gmres_tol = solute.gmres_tolerance_0
+        Iter = 0  # Iteration counter
+        Taylor_expansion = solute.taylor_expansion
+        u0_nl = dolfinx.fem.Function(solute.fenics_space)
+        u0_nl.x.array[:] = 0.0
+        soln0_nl = np.concatenate([np.zeros(fem_size), np.zeros(bem_size)])
+        d_soln0_nl = soln0_nl
+        d_zeros = soln0_nl
+        c_bem = np.zeros(bem_size)
+        KI = solute.ep_ex * (solute.kappa**2) * solute.Alpha
+        v = ufl.TestFunction(solute.fenics_space)
 
-
-def calculate_potential_nonlinear(simulation, solute):
-
-    from bempp_cl.api.linalg.iterative_solvers import IterationCounter
-
-    # Initial parameters
-    eps = 100.0  # initial error measure
-    gmres_tol = solute.gmres_tolerance_0
-    Iter = 0  # Iteration counter
-    Taylor_expansion = solute.taylor_expansion
-    fem_size = solute.fenics_space.dofmap.index_map.size_global
-    u0_nl = dolfinx.fem.Function(solute.fenics_space)
-    u0_nl.x.array[:] = 0.0
-    soln0_nl = np.concatenate(
-        [np.zeros(fem_size), np.zeros(solute.bempp_space.global_dof_count)]
-    )
-    d_soln0_nl = soln0_nl
-    c_bem = np.zeros(solute.bempp_space.global_dof_count)
-    simulation.timings["time_gmres_npbe_it"] = []
-    simulation.timings["time_npbe_it"] = []
-    simulation.run_info["solver_iteration_count_npbe_it"] = []
-    simulation.run_info["solver_term_npbe"] = []
-    simulation.run_info["solver_error_npbe"] = []
-    KI = solute.ep_ex * (solute.kappa**2) * solute.Alpha
-    v = ufl.TestFunction(solute.fenics_space)
-    u_l = dolfinx.fem.Function(solute.fenics_space)
-    u_l.x.array[:] = np.ascontiguousarray(
-        solute.results["phi_fem_l"].ufl_operands[0].x.array
-    )
-    soln_l = C1 * solute.results["soln_l"]
-    A_nl = solute.matrices["A_nl"]
-    state = NonlinearState(
-        simulation=simulation,
-        solute=solute,
-        soln_l=soln_l,
-        soln0_nl=soln0_nl,
-        d_soln0_nl=d_soln0_nl,
-        d_soln_nl=d_soln0_nl,
-        c_bem=c_bem,
-        fenics_space=solute.fenics_space,
-        A_nl=A_nl,
-    )
-
-    # Start of the nonlinear algorithm
-    start3 = time.time()
-    while (eps > simulation.nonlinear_tol) and (Iter < solute.nonlinear_maxiter):
-        start2 = time.time()
-        Iter += 1
-        simulation.run_info["solver_term_npbe"].append(Taylor_expansion)
-        print("#############################")
-        # Section 1: Choosing the Taylor approximation of vector c.
-        NL_Fem_G_S, NL_Fem_G_C = Taylor_Expansion_of_vector_c(
-            Taylor_expansion, u0_nl, u_l, solute.fenics_space
+        A_nl = solute.matrices["A_nl"]
+        state = NonlinearState(
+            soln_l=soln_l,
+            soln0_nl=soln0_nl,
+            d_soln_nl=d_soln0_nl,
+            d_soln0_nl=d_soln0_nl,
         )
 
-        # Section 2: Update the new right-hand side vector.
-        c_fem = dolfinx.fem.assemble_vector(
-            dolfinx.fem.form(KI * NL_Fem_G_S * v * ufl.dx)
-        ).array
-        # The combination of rhs in Ωi of FEM.
-        c_nlG = np.concatenate([c_fem, c_bem])
-        rhs_nlG = -(
-            A_nl * (state.soln_l + state.soln0_nl)
-            - simulation.rhs["rhs_discrete"]
-            + c_nlG
-        )
+        simulation.timings["time_gmres_npbe_it"] = []
+        simulation.timings["time_npbe_it"] = []
+        simulation.run_info["solver_iteration_count_npbe_it"] = []
+        simulation.run_info["solver_term_npbe"] = []
+        simulation.run_info["solver_error_npbe"] = []
 
-        # Creation of the matrix N.
-        ud = ufl.TrialFunction(solute.fenics_space)
-        dA_nl = solute.matrices["dA_nl"]
-        dA_nl[0][0] = (
-            fenicsx.FenicsOperator(KI * NL_Fem_G_C * ud * v * ufl.dx)
+        # Start of the nonlinear algorithm
+        start3 = time.time()
+        while (eps > simulation.nonlinear_tol) and (Iter < solute.nonlinear_maxiter):
+            start2 = time.time()
+            Iter += 1
+            simulation.run_info["solver_term_npbe"].append(Taylor_expansion)
+            print("#############################")
+            # Section 1: Choosing the Taylor approximation of vector c.
+            NL_Fem_G_S, NL_Fem_G_C = Taylor_Expansion_of_vector_c(
+                Taylor_expansion, u0_nl, u_l, solute.fenics_space
+            )
+
+            # Section 2: Update the new right-hand side vector.
+            c_fem = dolfinx.fem.assemble_vector(
+                dolfinx.fem.form(KI * NL_Fem_G_S * v * ufl.dx)
+            ).array
+            # The combination of rhs in Ωi of FEM.
+            c_nlG = np.concatenate([c_fem, c_bem])
+            rhs_nlG = -(
+                A_nl * (soln_l + state.soln0_nl)
+                - simulation.rhs["rhs_discrete"]
+                + c_nlG
+            )
+
+            # Creation of the matrix N.
+            ud = ufl.TrialFunction(solute.fenics_space)
+            dA_nl = solute.matrices["dA_nl"]
+            dA_nl[0][0] = (
+                fenicsx.FenicsOperator(KI * NL_Fem_G_C * ud * v * ufl.dx)
+            ).weak_form()
+            dA_nl = BlockedDiscreteOperator(np.array(dA_nl))
+
+            # Section 3: Solve the nonlinear matrix system with GMRES.
+            # Solution by GMRES.
+            callback = IterationCounter(True)
+            start1 = time.time()
+            d_soln_nl, info = gmres(
+                (A_nl + dA_nl),
+                rhs_nlG,
+                x0=d_zeros,  # pr
+                M=simulation.matrices["preconditioning_matrix_gmres"],
+                rtol=gmres_tol,
+                restart=solute.gmres_restart,
+                callback=callback,
+                callback_type="legacy",
+            )
+            state.d_soln_nl = d_soln_nl
+            simulation.timings["time_gmres_npbe_it"].append(time.time() - start1)
+            simulation.run_info["solver_iteration_count_npbe_it"].append(callback.count)
+
+            # Choosing the scheme to solve the problem and the next Taylor expansion.
+            if Iter == 1:
+                (
+                    Scheme,
+                    Taylor_expansion_list,
+                    w0_NR,
+                    Iter_Transition,
+                    Bisection_Secant_Method,
+                ) = Scheme_election(state, simulation, solute, c_bem)
+            if Iter <= Iter_Transition:
+                Taylor_expansion = Taylor_expansion_list[Iter - 1]
+            # Section 4: Calculate the relaxation factor of the next iteration by Newton-Raphson method total.
+            if Iter == 1:
+                if Bisection_Secant_Method:
+                    _, I_w0_NR, w0_NR = w_optimal_by_Bisection(
+                        state,
+                        simulation,
+                        solute,
+                        c_bem,
+                        Taylor_expansion,
+                        2,
+                        3,
+                        0,
+                        Secant_equation=True,
+                        Tol_w=simulation.omega_tol,
+                    )
+                    print(
+                        "Iter Total BI-SEC previus w I_w0_NR=%d: w0_NR=%g"
+                        % (I_w0_NR, w0_NR)
+                    )
+                w, Iter_w = w_optimal_by_Newton_Rapson(
+                    state,
+                    simulation,
+                    solute,
+                    c_bem,
+                    Taylor_expansion,
+                    w0_NR,
+                    0,
+                    Tol_w=simulation.omega_tol,
+                )
+                print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
+            else:
+                if eps >= simulation.lim_eps:
+                    w, Iter_w = w_optimal_by_Newton_Rapson(
+                        state,
+                        simulation,
+                        solute,
+                        c_bem,
+                        Taylor_expansion,
+                        1,
+                        0,
+                        Tol_w=simulation.omega_tol,
+                    )
+                    print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
+
+            # Section 5: Calculate the norm and update for next iteration.
+            state.d_soln0_nl = state.d_soln_nl * w
+            state.soln0_nl = state.soln0_nl + state.d_soln0_nl
+            eps = np.linalg.norm(state.d_soln0_nl, ord=np.inf)
+            u_nl = dolfinx.fem.Function(solute.fenics_space)
+            u_nl.x.array[:] = np.ascontiguousarray(state.soln0_nl[:fem_size])
+            u0_nl.x.array[:] = u_nl.x.array[:]
+            print("iter=%d: res=%g" % (Iter, eps))
+            simulation.run_info["solver_error_npbe"].append(eps)
+
+            # Section 6: Calculate the norm and update for next iteration.
+            while ((eps / (1.25 * gmres_tol)) // 1000 == 0) and (
+                gmres_tol
+                >= simulation.gmres_tolerance * simulation.gmres_tolerance_factor_npbe
+            ):
+                gmres_tol = gmres_tol * (1 / simulation.gmres_tolerance_factor_npbe)
+
+            end2 = time.time()
+            # Total time to solve 1 nonlinear iteration
+            curr_time2 = end2 - start2
+            simulation.timings["time_npbe_it"].append(curr_time2)
+            print(
+                "Total time to solve 1 nonlinear iteration: {:5.2f} [s]".format(
+                    curr_time2
+                )
+            )
+
+        print("---------------------------------")
+        end3 = time.time()
+        curr_time3 = end3 - start3
+        print("Total time Nonlinear: {:5.2f} [s]".format(curr_time3))
+        iters = len(simulation.run_info["solver_error_npbe"])
+        simulation.run_info["solver_iteration_count_npbe_newton"] = iters
+        solute.results["soln_nl"] = soln0_nl / C1
+
+        u_T = dolfinx.fem.Function(solute.fenics_space)
+        u_T.x.array[:] = u_nl.x.array[:] + u_l.x.array[:]
+        solute.results["phi_fem"] = (
+            u_T / C1
+        )  # using C1 to convert from nondimensional to PyGBe units
+
+        d_phi_s = bempp_cl.api.GridFunction(
+            solute.bempp_space,
+            coefficients=state.soln0_nl[fem_size:],
+        )
+        solute.results["d_phi_s"] = d_phi_s / C1
+
+        Um_T0 = function_Um(solute.mesh0, u_T, solute.mesh_v)
+        Um_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_T0)
+        rhs_0_values = rhs_0(solute, Um_T, C1 * solute.results["phi_coul"])
+
+        identity = bempp_cl.api.operators.boundary.sparse.identity(
+            solute.bempp_space0, solute.bempp_space0, solute.bempp_space0
         ).weak_form()
-        dA_nl = BlockedDiscreteOperator(np.array(dA_nl))
+        P_0 = InverseSparseDiscreteBoundaryOperator(identity)
 
-        # Section 3: Solve the nonlinear matrix system with GMRES.
-        # Solution by GMRES.
         callback = IterationCounter(True)
         start1 = time.time()
-        d_soln_nl, info = gmres(
-            (A_nl + dA_nl),
-            rhs_nlG,
-            x0=state.d_soln0_nl,
-            M=simulation.matrices["preconditioning_matrix_gmres"],
-            rtol=gmres_tol,
+        Sol_T, info = gmres(
+            solute.matrices["A0"],
+            rhs_0_values,
+            M=P_0,
+            rtol=solute.gmres_tolerance,
             restart=solute.gmres_restart,
             callback=callback,
             callback_type="legacy",
         )
-        state.d_soln_nl = d_soln_nl
-        simulation.timings["time_gmres_npbe_it"].append(time.time() - start1)
-        simulation.run_info["solver_iteration_count_npbe_it"].append(callback.count)
+        simulation.timings["time_gmres_npbe_dphi"] = time.time() - start1
+        simulation.run_info["solver_iteration_count_npbe_dphi"] = callback.count
 
-        # Choosing the scheme to solve the problem and the next Taylor expansion.
-        if Iter == 1:
-            (
-                Scheme,
-                Taylor_expansion_list,
-                w0_NR,
-                Iter_Transition,
-                Bisection_Secant_Method,
-            ) = Scheme_election(state)
-        if Iter <= Iter_Transition:
-            Taylor_expansion = Taylor_expansion_list[Iter - 1]
-        # Section 4: Calculate the relaxation factor of the next iteration by Newton-Raphson method total.
-        if Iter == 1:
-            if Bisection_Secant_Method:
-                _, I_w0_NR, w0_NR = w_optimal_by_Bisection(
-                    state,
-                    Taylor_expansion,
-                    2,
-                    3,
-                    0,
-                    Secant_equation=True,
-                    Tol_w=simulation.omega_tol,
-                )
-                print(
-                    "Iter Total BI-SEC previus w I_w0_NR=%d: w0_NR=%g"
-                    % (I_w0_NR, w0_NR)
-                )
-            w, Iter_w = w_optimal_by_Newton_Rapson(
-                state, Taylor_expansion, w0_NR, 0, Tol_w=simulation.omega_tol
-            )
-            print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
-        else:
-            if eps >= simulation.lim_eps:
-                w, Iter_w = w_optimal_by_Newton_Rapson(
-                    state, Taylor_expansion, 1, 0, Tol_w=simulation.omega_tol
-                )
-                print("Iter Total NR I_w=%d: w=%g" % (Iter_w, w))
+        dUm_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_T)
+        solute.results["phi"] = (
+            Um_T / C1
+        )  # using C1 to convert from nondimensional to PyGBe units
+        solute.results["d_phi"] = (
+            dUm_T / C1
+        )  # using C1 to convert from nondimensional to PyGBe units
 
-        # Section 5: Calculate the norm and update for next iteration.
-        state.d_soln0_nl = state.d_soln_nl * w
-        state.soln0_nl = state.soln0_nl + state.d_soln0_nl
-        eps = np.linalg.norm(state.d_soln0_nl, ord=np.inf)
-        u_nl = dolfinx.fem.Function(solute.fenics_space)
-        u_nl.x.array[:] = np.ascontiguousarray(state.soln0_nl[:fem_size])
-        u0_nl.x.array[:] = u_nl.x.array[:]
-        print("iter=%d: res=%g" % (Iter, eps))
-        simulation.run_info["solver_error_npbe"].append(eps)
-
-        # Section 6: Calculate the norm and update for next iteration.
-        while ((eps / (1.25 * gmres_tol)) // 1000 == 0) and (
-            gmres_tol >= simulation.gmres_tolerance * 10
-        ):
-            gmres_tol = gmres_tol * 0.1
-
-        end2 = time.time()
-        # Total time to solve 1 nonlinear iteration
-        curr_time2 = end2 - start2
-        simulation.timings["time_npbe_it"].append(curr_time2)
-        print(
-            "Total time to solve 1 nonlinear iteration: {:5.2f} [s]".format(curr_time2)
-        )
-
-    print("---------------------------------")
-    end3 = time.time()
-    curr_time3 = end3 - start3
-    print("Total time Nonlinear: {:5.2f} [s]".format(curr_time3))
-    solute.results["soln_nl"] = soln0_nl / C1
-
-    u_T = dolfinx.fem.Function(solute.fenics_space)
-    u_T.x.array[:] = u_nl.x.array[:] + u_l.x.array[:]
-    solute.results["phi_fem"] = (
-        u_T / C1
-    )  # using C1 to convert from nondimensional to PyGBe units
-
-    Um_T0 = function_Um(solute.mesh0, u_T, solute.mesh_v)
-    Um_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_T0)
-    rhs_0_values = rhs_0(solute, Um_T, C1 * solute.results["phi_coul"])
-
-    identity = bempp_cl.api.operators.boundary.sparse.identity(
-        solute.bempp_space0, solute.bempp_space0, solute.bempp_space0
-    ).weak_form()
-    P_0 = InverseSparseDiscreteBoundaryOperator(identity)
-
-    callback = IterationCounter(True)
-    start1 = time.time()
-    Sol_T, info = gmres(
-        solute.matrices["A0"],
-        rhs_0_values,
-        M=P_0,
-        rtol=solute.gmres_tolerance,
-        restart=solute.gmres_restart,
-        callback=callback,
-        callback_type="legacy",
-    )
-    simulation.timings["time_gmres_npbe_dphi"] = time.time() - start1
-    simulation.run_info["solver_iteration_count_npbe_dphi"] = callback.count
-
-    dUm_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_T)
-    solute.results["phi"] = (
-        Um_T / C1
-    )  # using C1 to convert from nondimensional to PyGBe units
-    solute.results["d_phi"] = (
-        dUm_T / C1
-    )  # using C1 to convert from nondimensional to PyGBe units
     return
 
 
@@ -607,9 +623,9 @@ def Taylor_Expansion_of_vector_c(Taylor_expansion, u0_nl, u_l, fenics_space):
     return NL_Fem_G_S, NL_Fem_G_C
 
 
-def Scheme_election(state):
+def Scheme_election(state, simulation, solute, c_bem):
     # Calculation of values fd_w1(1).
-    fD_w0, _ = Evaluate_fd_dfd(state, "SINH", 1, False)
+    fD_w0, _ = Evaluate_fd_dfd(state, simulation, solute, c_bem, "SINH", 1, False)
     print("iter S=%d: norm=%g: w=%g" % (0, abs(fD_w0), 1))
     print("Evaluate point w0=%g" % (1))
     # Choice of scheme
@@ -641,15 +657,17 @@ def Scheme_election(state):
     )
 
 
-def Evaluate_fd_dfd(state: NonlinearState, taylor_expansion, w0, derivate=False):
+def Evaluate_fd_dfd(
+    state, simulation, solute, c_bem, taylor_expansion, w0, derivate=False
+):
 
-    fem_size = state.fenics_space.dofmap.index_map.size_global
-    v = ufl.TestFunction(state.fenics_space)
-    KI = state.solute.ep_ex * (state.solute.kappa**2) * state.solute.Alpha
+    fem_size = solute.fenics_space.dofmap.index_map.size_global
+    v = ufl.TestFunction(solute.fenics_space)
+    KI = solute.ep_ex * (solute.kappa**2) * solute.Alpha
     soln0_nl_S = state.soln_l + state.soln0_nl + state.d_soln_nl * w0
     soln0_nl_dS = state.d_soln_nl
     soln_fem_nl_S = soln0_nl_S[:fem_size]
-    u_nl_S = dolfinx.fem.Function(state.fenics_space)
+    u_nl_S = dolfinx.fem.Function(solute.fenics_space)
     u_nl_S.x.array[:] = np.ascontiguousarray(soln_fem_nl_S)
 
     US = u_nl_S
@@ -673,32 +691,32 @@ def Evaluate_fd_dfd(state: NonlinearState, taylor_expansion, w0, derivate=False)
     else:
         raise ValueError(f"Taylor expansion no soportada: {taylor_expansion}")
 
-    NL_Fem_G_S = dolfinx.fem.Function(state.fenics_space)
+    NL_Fem_G_S = dolfinx.fem.Function(solute.fenics_space)
     NL_Fem_G_S.interpolate(
         dolfinx.fem.Expression(
-            expr_ufl_S, state.fenics_space.element.interpolation_points
+            expr_ufl_S, solute.fenics_space.element.interpolation_points
         )
     )
-    NL_Fem_G_dS = dolfinx.fem.Function(state.fenics_space)
+    NL_Fem_G_dS = dolfinx.fem.Function(solute.fenics_space)
     NL_Fem_G_dS.interpolate(
         dolfinx.fem.Expression(
-            expr_ufl_dS, state.fenics_space.element.interpolation_points
+            expr_ufl_dS, solute.fenics_space.element.interpolation_points
         )
     )
 
     c_fem_S = dolfinx.fem.assemble_vector(
         dolfinx.fem.form(KI * NL_Fem_G_S * v * ufl.dx)
     ).array
-    c_nlG_S = np.concatenate([c_fem_S, state.c_bem])
+    c_nlG_S = np.concatenate([c_fem_S, c_bem])
     c_fem_dS = dolfinx.fem.assemble_vector(
         dolfinx.fem.form(KI * NL_Fem_G_dS * v * ufl.dx)
     ).array
-    c_nlG_dS = np.concatenate([c_fem_dS, state.c_bem])
+    c_nlG_dS = np.concatenate([c_fem_dS, c_bem])
 
-    rhs_A = -(state.A_nl * soln0_nl_dS)
+    rhs_A = -(solute.matrices["A_nl"] * soln0_nl_dS)
     rhs_B = -(
-        state.A_nl * (state.soln_l + state.soln0_nl)
-        - state.simulation.rhs["rhs_discrete"]
+        solute.matrices["A_nl"] * (state.soln_l + state.soln0_nl)
+        - simulation.rhs["rhs_discrete"]
         + c_nlG_S
     )
     rhs_dB = -(c_nlG_dS * soln0_nl_dS)
@@ -712,16 +730,16 @@ def Evaluate_fd_dfd(state: NonlinearState, taylor_expansion, w0, derivate=False)
     if taylor_expansion == "SINH":
         c_nlG_ddS = c_nlG_S
     else:
-        NL_Fem_G_ddS = dolfinx.fem.Function(state.fenics_space)
+        NL_Fem_G_ddS = dolfinx.fem.Function(solute.fenics_space)
         NL_Fem_G_ddS.interpolate(
             dolfinx.fem.Expression(
-                expr_ufl_ddS, state.fenics_space.element.interpolation_points
+                expr_ufl_ddS, solute.fenics_space.element.interpolation_points
             )
         )
         c_fem_ddS = dolfinx.fem.assemble_vector(
             dolfinx.fem.form(KI * NL_Fem_G_ddS * v * ufl.dx)
         ).array
-        c_nlG_ddS = np.concatenate([c_fem_ddS, state.c_bem])
+        c_nlG_ddS = np.concatenate([c_fem_ddS, c_bem])
 
     rhs_ddB = -(c_nlG_ddS * (soln0_nl_dS**2))
     AddB = np.dot(rhs_A, rhs_ddB)
@@ -732,7 +750,16 @@ def Evaluate_fd_dfd(state: NonlinearState, taylor_expansion, w0, derivate=False)
 
 
 def w_optimal_by_Bisection(
-    state, Taylor_expansion, wa, wb, Iter0, Secant_equation, Tol_w
+    state,
+    simulation,
+    solute,
+    c_bem,
+    Taylor_expansion,
+    wa,
+    wb,
+    Iter0,
+    Secant_equation,
+    Tol_w,
 ):
     Iter = Iter0
     Tol_aditional = 0.001
@@ -741,7 +768,9 @@ def w_optimal_by_Bisection(
     while eps > Tol_w:
         w0, d = w, d / 2
         Iter = Iter + 1
-        fD, _ = Evaluate_fd_dfd(state, Taylor_expansion, w0, derivate=False)
+        fD, _ = Evaluate_fd_dfd(
+            state, simulation, solute, c_bem, Taylor_expansion, w0, derivate=False
+        )
         Sgn, eps = np.sign(fD), abs(fD)
         if Sgn > 0:
             w = w0 + d
@@ -777,16 +806,22 @@ def w_optimal_by_Bisection(
     return w0, Iter, wc_sec
 
 
-def w_optimal_by_Newton_Rapson(state, Taylor_expansion, w0, Iter0, Tol_w):
+def w_optimal_by_Newton_Rapson(
+    state, simulation, solute, c_bem, Taylor_expansion, w0, Iter0, Tol_w
+):
     Iter = Iter0
-    fD, dfD = Evaluate_fd_dfd(state, Taylor_expansion, w0, derivate=True)
+    fD, dfD = Evaluate_fd_dfd(
+        state, simulation, solute, c_bem, Taylor_expansion, w0, derivate=True
+    )
     w, eps = w0 - fD / dfD, abs(fD)
     print("Iter NR S=%d: norm=%g: w=%g" % (Iter, eps, w0))
 
     while eps > Tol_w:
         w0 = w
         Iter = Iter + 1
-        fD, dfD = Evaluate_fd_dfd(state, Taylor_expansion, w0, derivate=True)
+        fD, dfD = Evaluate_fd_dfd(
+            state, simulation, solute, c_bem, Taylor_expansion, w0, derivate=True
+        )
         w, eps = w0 - fD / dfD, abs(fD)
         print("Iter NR S=%d: norm=%g: w=%g" % (Iter, eps, w0))
 

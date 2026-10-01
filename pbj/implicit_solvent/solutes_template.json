@@ -60,6 +60,7 @@
       "nonlinear_tol": 1e-3,
       "lim_eps": 0.35,
       "gmres_tolerance_0": 1e-3,
+      "gmres_tolerance_factor_npbe": 10,
       "nonlinear_maxiter": 100,
       "taylor_expansion": "T3"
     }
