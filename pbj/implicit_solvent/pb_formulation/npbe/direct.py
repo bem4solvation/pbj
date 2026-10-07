@@ -229,11 +229,11 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         solute.results["phi_fem_l"] = u_l / C1
         d_phi_s_l = bempp_cl.api.GridFunction(
             solute.bempp_space,
-            coefficients=soln_l[fem_size:],
+            coefficients=soln_l[fem_size:].real,
         )
         phi_s_l = bempp_cl.api.GridFunction(
             solute.bempp_space,
-            coefficients=function_Um(solute.trace_space.grid, u_l, solute.mesh_v),
+            coefficients=function_Um(solute.trace_space.grid, u_l, solute.mesh_v).real,
         )
         solute.results["phi_s_l"] = phi_s_l / C1
         solute.results["d_phi_s_l"] = d_phi_s_l / C1
@@ -251,7 +251,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         U_c = bempp_cl.api.GridFunction(solute.bempp_space0, fun=U_c0)
         Um_l = bempp_cl.api.GridFunction(
             solute.bempp_space0,
-            coefficients=function_Um(solute.mesh0, u_l, solute.mesh_v),
+            coefficients=function_Um(solute.mesh, u_l, solute.mesh_v).real,
         )
         rhs_0_values = rhs_0(solute, Um_l, U_c)
 
@@ -273,7 +273,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         )
         simulation.timings["time_gmres_lpbe_dphi"] = time.time() - start1
         simulation.run_info["solver_iteration_count_lpbe_dphi"] = callback.count
-        dUm_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=sol)
+        dUm_l = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=sol.real)
 
         solute.results["phi_l"] = (
             Um_l / C1
@@ -447,17 +447,17 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
 
         d_phi_s = bempp_cl.api.GridFunction(
             solute.bempp_space,
-            coefficients=state.soln0_nl[fem_size:],
+            coefficients=state.soln0_nl[fem_size:].real,
         )
         phi_s = bempp_cl.api.GridFunction(
             solute.bempp_space,
-            coefficients=function_Um(solute.trace_space.grid, u_T, solute.mesh_v),
+            coefficients=function_Um(solute.trace_space.grid, u_T, solute.mesh_v).real,
         )
         solute.results["phi_s"] = phi_s / C1
         solute.results["d_phi_s"] = d_phi_s / C1
 
-        Um_T0 = function_Um(solute.mesh0, u_T, solute.mesh_v)
-        Um_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_T0)
+        Um_T0 = function_Um(solute.mesh, u_T, solute.mesh_v)
+        Um_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Um_T0.real)
         rhs_0_values = rhs_0(solute, Um_T, C1 * solute.results["phi_coul"])
 
         identity = bempp_cl.api.operators.boundary.sparse.identity(
@@ -479,7 +479,7 @@ def calculate_potential(simulation, rerun_all=False, rerun_rhs=False):
         simulation.timings["time_gmres_npbe_dphi"] = time.time() - start1
         simulation.run_info["solver_iteration_count_npbe_dphi"] = callback.count
 
-        dUm_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_T)
+        dUm_T = bempp_cl.api.GridFunction(solute.bempp_space0, coefficients=Sol_T.real)
         solute.results["phi"] = (
             Um_T / C1
         )  # using C1 to convert from nondimensional to PyGBe units

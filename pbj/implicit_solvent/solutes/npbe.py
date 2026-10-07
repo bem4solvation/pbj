@@ -48,14 +48,14 @@ class NPBE(Solute):
 
         with XDMFFile(MPI.COMM_WORLD, mesh_v_filepath, "r") as xdmf:
             self.mesh_v = xdmf.read_mesh(name="mesh")
-        self.mesh0 = mesh_tools.import_off_mesh(mesh_s_filepath)
+        self.mesh = mesh_tools.import_off_mesh(mesh_s_filepath)
 
         self.fenics_space = dolfinx.fem.functionspace(self.mesh_v, ("CG", 1))
         self.trace_space, self.trace_matrix = fenicsx.fenics_to_bempp_trace_data(
             self.fenics_space
         )
         self.bempp_space = bempp_cl.api.function_space(self.trace_space.grid, "P", 1)
-        self.bempp_space0 = bempp_cl.api.function_space(self.mesh0, "P", 1)
+        self.bempp_space0 = bempp_cl.api.function_space(self.mesh, "P", 1)
 
         coord_0 = self.mesh_v.geometry.x
         mesh_s = trimesh.load(mesh_s_filepath, process=False)
