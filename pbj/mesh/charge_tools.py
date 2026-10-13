@@ -191,7 +191,7 @@ def generate_gmsh_mesh_import_charges(solute):
         solute.mesh_msh_path = mesh_msh_path
     else:
         shutil.rmtree(mesh_dir)
-    return mesh_v, mesh, ses_mesh_trimesh, q, x_q, r_q, atom_name, res_name, res_num
+    return mesh_v, mesh, q, x_q, r_q, atom_name, res_name, res_num
 
 
 def generate_msms_mesh_import_charges(solute):

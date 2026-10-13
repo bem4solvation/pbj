@@ -528,3 +528,33 @@ def generate_gmsh_mesh(
     gmsh.finalize()
 
     return
+
+
+def eval_inside_fem(function, function_space, points):
+
+    mesh = function_space.mesh
+    u = dolfinx.fem.Function(function_space)
+    u.x.array[:] = np.ascontiguousarray(function.ufl_operands[0].x.array[:])
+    C1 = function.ufl_operands[1].value()
+    points = np.asarray(points, dtype=mesh.geometry.x.dtype)
+    points = points.T
+
+    tdim = mesh.topology.dim
+    bb_tree = dolfinx.geometry.bb_tree(mesh, tdim)
+    cell_candidates = dolfinx.geometry.compute_collisions_points(bb_tree, points)
+    colliding_cells = dolfinx.geometry.compute_colliding_cells(
+        mesh, cell_candidates, points
+    )
+
+    results = []
+
+    for i, pt in enumerate(points):
+        cell_index = colliding_cells.links(i)
+        if len(cell_index) > 0:
+            target_cell = cell_index[0]
+            val = u.eval(pt, target_cell) / C1
+            results.append(val)
+        else:
+            results.append(np.nan)
+
+    return np.array(results)

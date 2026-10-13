@@ -55,7 +55,7 @@ class NPBE(Solute):
                 return
 
             self.mesh = mesh_tools.import_off_mesh(self.external_mesh_path)
-            mesh_s = trimesh.load(self.external_mesh_path, process=False)
+            mesh_tri = trimesh.load(self.external_mesh_path, process=False)
             (
                 self.q,
                 self.x_q,
@@ -74,7 +74,6 @@ class NPBE(Solute):
             (
                 self.mesh_v,
                 self.mesh,
-                mesh_s,
                 self.q,
                 self.x_q,
                 self.r_q,
@@ -91,12 +90,17 @@ class NPBE(Solute):
         )
         self.bempp_space = bempp_cl.api.function_space(self.trace_space.grid, "P", 1)
         self.bempp_space0 = bempp_cl.api.function_space(self.mesh, "P", 1)
+        self.dirichl_space = self.bempp_space0
+        self.neumann_space = self.bempp_space0
 
+        verts = np.transpose(self.mesh.vertices)
+        faces = np.transpose(self.mesh.elements)
+        mesh_tri = trimesh.Trimesh(vertices=verts, faces=faces)
         coord_0 = self.mesh_v.geometry.x
-        element_diameter_ext = np.max(mesh_s.edges_unique_length)
+        element_diameter_ext = np.max(mesh_tri.edges_unique_length)
         L_Alpha = (
             np.logical_not(
-                self._contains_kdtree(mesh_s, coord_0, element_diameter_ext, k=4)
+                self._contains_kdtree(mesh_tri, coord_0, element_diameter_ext, k=4)
             )
         ).astype(int)
 

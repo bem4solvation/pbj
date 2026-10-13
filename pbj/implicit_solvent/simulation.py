@@ -6,6 +6,7 @@ import logging
 import trimesh
 import pbj.mesh.plotting_tools as plotting_tools
 import pbj.mesh.charge_tools as charge_tools
+import pbj.mesh.mesh_tools as mesh_tools
 import numpy as np
 import pbj.implicit_solvent.solutes as pb_solutes
 import pbj.implicit_solvent.pb_formulation as pb_formulations
@@ -666,51 +667,88 @@ class Simulation:
             self.calculate_surface_potential()
 
         eval_points = np.transpose(eval_points)  # format that Bempp likes
-
+        print(f"{eval_points.shape=}")
         # Mask out points in solute
         points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)
         for index, solute in enumerate(self.solutes):
+            if self._solute_type == "npbe":
+                # Check if evaluation points are inside a solute
+                mesh_tri_solute = trimesh.Trimesh(
+                    vertices=np.transpose(solute.mesh.vertices),
+                    faces=np.transpose(solute.mesh.elements),
+                )
+                mesh_tri_solvent = trimesh.Trimesh(
+                    vertices=np.transpose(solute.trace_space.grid.vertices),
+                    faces=np.transpose(solute.trace_space.grid.elements),
+                )
+                points_solute_in = mesh_tri_solute.contains(np.transpose(eval_points))
+                points_solvent_in = mesh_tri_solvent.contains(np.transpose(eval_points))
+                points_stern = np.logical_and(
+                    points_solvent_in, np.logical_not(points_solute_in)
+                )
+                points_solvent = np.logical_and(
+                    np.logical_not(points_solvent_in), np.logical_not(points_solute_in)
+                )
+                print(f"{points_stern.shape=}")
+                print(f"{points_solvent.shape=}")
 
-            # Check if evaluation points are inside a solute
-            verts = np.transpose(solute.mesh.vertices)
-            faces = np.transpose(solute.mesh.elements)
+            else:
+                # Check if evaluation points are inside a solute
+                verts = np.transpose(solute.mesh.vertices)
+                faces = np.transpose(solute.mesh.elements)
 
-            mesh_tri = trimesh.Trimesh(vertices=verts, faces=faces)
+                mesh_tri = trimesh.Trimesh(vertices=verts, faces=faces)
 
-            points_solute = mesh_tri.contains(np.transpose(eval_points))
+                points_solute = mesh_tri.contains(np.transpose(eval_points))
 
-            points_solvent = np.logical_and(
-                points_solvent, np.logical_not(points_solute)
-            )
+                points_stern = False
+                points_solvent = np.logical_and(
+                    points_solvent, np.logical_not(points_solute)
+                )
 
         # Compute potential
         phi_solvent = np.zeros(np.shape(eval_points)[1], dtype=float)
         for index, solute in enumerate(self.solutes):
 
-            if self.kappa < 1e-12:
-                V = bempp.api.operators.potential.laplace.single_layer(
-                    solute.neumann_space, eval_points[:, points_solvent]
-                )
-                K = bempp.api.operators.potential.laplace.double_layer(
-                    solute.dirichl_space, eval_points[:, points_solvent]
-                )
-            else:
-                V = bempp.api.operators.potential.modified_helmholtz.single_layer(
-                    solute.neumann_space, eval_points[:, points_solvent], self.kappa
-                )
-                K = bempp.api.operators.potential.modified_helmholtz.double_layer(
-                    solute.dirichl_space, eval_points[:, points_solvent], self.kappa
-                )
+            if points_solvent.any():
 
-            phi_aux = (
-                K * solute.results["phi"]
-                - solute.ep_in / solute.ep_ex * V * solute.results["d_phi"]
-            )
-            phi_solvent[points_solvent] += phi_aux[0, :]
+                if self.kappa < 1e-12:
+                    V = bempp.api.operators.potential.laplace.single_layer(
+                        solute.neumann_space, eval_points[:, points_solvent]
+                    )
+                    K = bempp.api.operators.potential.laplace.double_layer(
+                        solute.dirichl_space, eval_points[:, points_solvent]
+                    )
+                else:
+                    V = bempp.api.operators.potential.modified_helmholtz.single_layer(
+                        solute.neumann_space, eval_points[:, points_solvent], self.kappa
+                    )
+                    K = bempp.api.operators.potential.modified_helmholtz.double_layer(
+                        solute.dirichl_space, eval_points[:, points_solvent], self.kappa
+                    )
+
+                phi_aux = (
+                    K * solute.results["phi"]
+                    - solute.ep_in
+                    / solute.ep_ex
+                    * V
+                    * solute.results["d_phi"]  # ojo aqui
+                )
+                phi_solvent[points_solvent] += phi_aux[0, :]
+
+            if points_stern.any():
+                phi_aux = mesh_tools.eval_inside_fem(
+                    solute.results["phi_fem"],
+                    solute.fenics_space,
+                    eval_points[:, points_stern],
+                )
+                phi_solvent[points_stern] += phi_aux[:, 0]
+
+            print(f"{phi_solvent.shape=}")
 
         unit_conversion, _ = charge_tools.convert_units(units)
 
-        return unit_conversion * phi_solvent, points_solvent
+        return unit_conversion * phi_solvent, points_solvent, points_stern
 
     def calculate_reaction_potential_solute(
         self,
@@ -1102,7 +1140,7 @@ class Simulation:
                 (z_min - extension) : (z_max + extension) : ref,
             ]
             coordinates = [X, Y, Z]
-            potential, _ = self.calculate_potential_solvent(
+            potential, _, _ = self.calculate_potential_solvent(
                 np.stack((X.ravel(), Y.ravel(), Z.ravel()), axis=1), units=units
             )
             isosurface_potential_vals = (
@@ -1110,6 +1148,7 @@ class Simulation:
                 potential,
                 isosurface_potential,
             )
+            print(f"{np.mean(potential)=}")
         else:
             isosurface_potential_vals = (None, None, None)
 
