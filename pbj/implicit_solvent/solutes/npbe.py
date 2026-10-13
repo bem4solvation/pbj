@@ -18,19 +18,44 @@ import ufl
 class NPBE(Solute):
     """NPBE solute."""
 
-    def __init__(self, solute_file_path, external_mesh_file=None, **kwargs):
+    def __init__(
+        self,
+        solute_file_path,
+        external_mesh_volume_file=None,
+        external_mesh_file=None,
+        mesh_algorithm=10,
+        mesh_gradation=0.1,
+        pb_formulation_stern_width=2.0,
+        **kwargs,
+    ):
+
         super().__init__(solute_file_path=solute_file_path, **kwargs)
 
-        if external_mesh_file is not None:
-            _, file_extension = os.path.splitext(external_mesh_file)
-            if file_extension == "":  # Assume use of vert and face
-                mesh_v_filepath = external_mesh_file + ".xdmf"
-                mesh_s_filepath = external_mesh_file + ".off"
+        if external_mesh_file is not None and external_mesh_volume_file is not None:
+
+            self.external_mesh_volume_path = external_mesh_volume_file
+            self.external_mesh_path = external_mesh_file
+            file_extension = os.path.splitext(self.external_mesh_volume_path)[1]
+            if "xdmf" in file_extension:  # Assume use of vert and face
+                with XDMFFile(
+                    MPI.COMM_WORLD, self.external_mesh_volume_path, "r"
+                ) as xdmf:
+                    self.mesh_v = xdmf.read_mesh(name="mesh")
+            elif "gmsh" in file_extension:
+                mesh_data = dolfinx.io.gmsh.read_from_msh(
+                    self.external_mesh_volume_path,
+                    MPI.COMM_WORLD,
+                    rank=0,
+                    gdim=3,
+                )
+                self.mesh_v = mesh_data.mesh
             else:
-                filename = os.path.basename(external_mesh_file)
-                filename = os.path.splitext(filename)[0]
-                mesh_v_filepath = filename + ".xdmf"
-                mesh_s_filepath = filename + ".off"
+                print(f"Unrecognizable format for volumetric mesh: {file_extension}. \
+                      Only available formats are .xdmf and .msh (gmsh).")
+                return
+
+            self.mesh = mesh_tools.import_off_mesh(self.external_mesh_path)
+            mesh_s = trimesh.load(self.external_mesh_path, process=False)
             (
                 self.q,
                 self.x_q,
@@ -41,14 +66,24 @@ class NPBE(Solute):
             ) = charge_tools.load_charges_to_solute(
                 self
             )  # Import charges from given file
-        else:
-            print("No he implementado la forma de crear mallas!")
-            return
-            # mesh = mesh_tools.load_fem_mesh()
 
-        with XDMFFile(MPI.COMM_WORLD, mesh_v_filepath, "r") as xdmf:
-            self.mesh_v = xdmf.read_mesh(name="mesh")
-        self.mesh = mesh_tools.import_off_mesh(mesh_s_filepath)
+        else:
+            self.mesh_algorithm = mesh_algorithm
+            self.mesh_gradation = mesh_gradation
+            self.pb_formulation_stern_width = pb_formulation_stern_width
+            (
+                self.mesh_v,
+                self.mesh,
+                mesh_s,
+                self.q,
+                self.x_q,
+                self.r_q,
+                self.atom_name,
+                self.res_name,
+                self.res_num,
+            ) = charge_tools.generate_gmsh_mesh_import_charges(
+                self
+            )  # Import charges from given file
 
         self.fenics_space = dolfinx.fem.functionspace(self.mesh_v, ("CG", 1))
         self.trace_space, self.trace_matrix = fenicsx.fenics_to_bempp_trace_data(
@@ -58,7 +93,6 @@ class NPBE(Solute):
         self.bempp_space0 = bempp_cl.api.function_space(self.mesh, "P", 1)
 
         coord_0 = self.mesh_v.geometry.x
-        mesh_s = trimesh.load(mesh_s_filepath, process=False)
         element_diameter_ext = np.max(mesh_s.edges_unique_length)
         L_Alpha = (
             np.logical_not(

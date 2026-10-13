@@ -5,8 +5,12 @@ from .mesh_tools import (
     convert_pdb2pqr,
     generate_msms_mesh,
     convert_pqr2xyzr,
+    create_stern_xyzr,
     generate_nanoshaper_mesh,
     import_msms_mesh,
+    import_trimesh_mesh,
+    generate_gmsh_mesh,
+    import_msh_mesh,
     fix_mesh,
     check_cavity,
 )
@@ -76,6 +80,118 @@ def import_charges_from_pqr(pqr_path):
         count += 1
 
     return q, x_q, r_q, atom_name, res_name, res_num
+
+
+def generate_gmsh_mesh_import_charges(solute):
+    """Generates the molecular mesh grid and imports charges for the given solute object.
+
+    Handles file format conversions (PDB to PQR if needed, then to XYZR), runs the
+    specified mesh generator (MSMS or NanoShaper), and extracts all charge and residue
+    metadata.
+
+    Args:
+        solute (Solute): An instance of the Solute class containing the molecule's
+            configuration parameters.
+
+    Returns:
+        tuple: A tuple containing seven elements:
+            - grid (bempp.api.Grid): The imported Bempp Grid object.
+            - q (numpy.ndarray): 1-dim array of atom charges.
+            - x_q (numpy.ndarray): 2-dim array of shape $(N, 3)$ with the Cartesian coordinates of the charges.
+            - r_q (numpy.ndarray): 1-dim array of atom radii.
+            - atom_name (numpy.ndarray): 1-dim array of strings containing atom names.
+            - res_name (numpy.ndarray): 1-dim array of strings containing residue names.
+            - res_num (numpy.ndarray): 1-dim array of strings containing residue sequence numbers.
+    """
+    mesh_dir = os.path.abspath("mesh_temp/")
+    if solute.save_mesh_build_files:
+        mesh_dir = solute.mesh_build_files_dir
+
+    if not os.path.exists(mesh_dir):
+        try:
+            os.mkdir(mesh_dir)
+        except OSError:
+            print("Creation of the directory %s failed" % mesh_dir)
+
+    if solute.imported_file_type == "pdb":
+        mesh_pqr_path = os.path.join(mesh_dir, solute.solute_name + ".pqr")
+        mesh_pqr_log = os.path.join(mesh_dir, solute.solute_name + ".log")
+        convert_pdb2pqr(solute.pdb_path, mesh_pqr_path, solute.force_field)
+    else:
+        mesh_pqr_path = solute.pqr_path
+
+    mesh_xyzr_path = os.path.join(mesh_dir, solute.solute_name + ".xyzr")
+    mesh_xyzr_stern_path = os.path.join(mesh_dir, solute.solute_name + "_stern.xyzr")
+    convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path)
+    create_stern_xyzr(
+        mesh_xyzr_path, mesh_xyzr_stern_path, solute.pb_formulation_stern_width
+    )
+    mesh_face_path = os.path.join(mesh_dir, solute.solute_name + ".face")
+    mesh_vert_path = os.path.join(mesh_dir, solute.solute_name + ".vert")
+    mesh_face_path_stern = os.path.join(mesh_dir, solute.solute_name + "_stern.face")
+    mesh_vert_path_stern = os.path.join(mesh_dir, solute.solute_name + "_stern.vert")
+    generate_nanoshaper_mesh(
+        mesh_xyzr_path,
+        mesh_dir,
+        solute.solute_name,
+        solute.nanoshaper_grid_scale,
+        solute.mesh_probe_radius,
+        solute.save_mesh_build_files,
+        cavity_cutoff=solute.cavity_cutoff,
+        fill_cavities=solute.fill_cavities,
+    )
+
+    generate_nanoshaper_mesh(
+        mesh_xyzr_stern_path,
+        mesh_dir,
+        solute.solute_name + "_stern",
+        solute.nanoshaper_grid_scale,
+        solute.mesh_probe_radius,
+        solute.save_mesh_build_files,
+        cavity_cutoff=solute.cavity_cutoff,
+        fill_cavities=solute.fill_cavities,
+    )
+
+    mesh_off_path = os.path.join(mesh_dir, solute.solute_name + ".off")
+    mesh_stern_off_path = os.path.join(mesh_dir + "_stern", solute.solute_name + ".off")
+
+    mesh = import_msms_mesh(mesh_face_path, mesh_vert_path)
+    ses_mesh_trimesh = import_trimesh_mesh(mesh_face_path, mesh_vert_path)
+    stern_mesh_trimesh = import_trimesh_mesh(mesh_face_path_stern, mesh_vert_path_stern)
+    q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
+
+    ses_stl_path = os.path.join(mesh_dir, solute.solute_name + "_ses.stl")
+    stern_stl_path = os.path.join(mesh_dir, solute.solute_name + "_stern.stl")
+
+    ses_mesh_trimesh.export(ses_stl_path)
+    stern_mesh_trimesh.export(stern_stl_path)
+
+    generate_gmsh_mesh(
+        ses_stl_path,
+        stern_stl_path,
+        mesh_dir,
+        solute.solute_name,
+        solute.nanoshaper_grid_scale,
+        solute.mesh_algorithm,
+        solute.mesh_gradation,
+    )
+
+    mesh_msh_path = os.path.join(mesh_dir, solute.solute_name + ".msh")
+    mesh_v = import_msh_mesh(mesh_msh_path)
+
+    if solute.save_mesh_build_files:
+        if solute.imported_file_type == "pdb":
+            solute.mesh_pqr_path = mesh_pqr_path
+            solute.mesh_pqr_log = mesh_pqr_log
+        solute.mesh_xyzr_path = mesh_xyzr_path
+        solute.mesh_face_path = mesh_face_path
+        solute.mesh_vert_path = mesh_vert_path
+        solute.mesh_off_path = mesh_off_path
+        solute.mesh_stern_off_path = mesh_stern_off_path
+        solute.mesh_msh_path = mesh_msh_path
+    else:
+        shutil.rmtree(mesh_dir)
+    return mesh_v, mesh, ses_mesh_trimesh, q, x_q, r_q, atom_name, res_name, res_num
 
 
 def generate_msms_mesh_import_charges(solute):

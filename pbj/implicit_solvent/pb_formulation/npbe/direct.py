@@ -784,20 +784,20 @@ def w_optimal_by_Bisection(
                 wc_sec = wa_sec - (wa_sec - wb_sec) * (fD_wa_sec) / (
                     fD_wa_sec - fD_wb_sec
                 )  # Equation of the line
-                if Iter == (2 + Iter0):
-                    # print(
-                    #     "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g:"
-                    #     % (Iter, (Iter - 1), wc_sec)
-                    # )
-                    return
-                else:
-                    Diff = abs(wc_sec - wc0_sec)
-                    # print(
-                    #     "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g: Diff=%g"
-                    #     % (Iter, (Iter - 1), wc_sec, Diff)
-                    # )
-                    if Diff < 0.05 and abs(fD_wb_sec) < 50 and abs(fD_wa_sec) < 50:
-                        break
+                # if Iter == (2 + Iter0):
+                # print(
+                #     "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g:"
+                #     % (Iter, (Iter - 1), wc_sec)
+                # )
+                # continue
+                # else:
+                Diff = abs(wc_sec - wc0_sec)
+                # print(
+                #     "w calculate for Secant equation use point S=%d: and S=%d: wc_sec=%g: Diff=%g"
+                #     % (Iter, (Iter - 1), wc_sec, Diff)
+                # )
+                if Diff < 0.05 and abs(fD_wb_sec) < 50 and abs(fD_wa_sec) < 50:
+                    break
         if Iter == 50 or w0 >= (wb - Tol_aditional) or w0 <= (wa + Tol_aditional):
             break
     return w0, Iter, wc_sec

@@ -6,6 +6,9 @@ import bempp_cl as bempp
 import bempp_cl.api
 import platform
 import shutil
+import gmsh
+import dolfinx
+from mpi4py import MPI
 
 
 def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
@@ -171,6 +174,22 @@ def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
         )
     pqr_file.close()
     xyzr_file.close()
+
+
+def create_stern_xyzr(mesh_xyzr_path, mesh_xyzr_stern_path, thickness):
+
+    xyzr_file = open(mesh_xyzr_path, "r")
+    stern_file = open(mesh_xyzr_stern_path, "w")
+    for line in xyzr_file:
+        line = line.split()
+        if len(line) > 0:
+            radii = float(line[-1])
+            stern_radii = radii + thickness
+            line[-1] = str(stern_radii)
+            stern_line = "\t".join(line) + "\n"
+            stern_file.write(stern_line)
+    xyzr_file.close()
+    stern_file.close()
 
 
 # Probar en Linux:
@@ -363,6 +382,18 @@ def convert_msms2off(mesh_face_path, mesh_vert_path, mesh_off_path):
         )
 
 
+def import_trimesh_mesh(mesh_face_path, mesh_vert_path):
+
+    face = open(mesh_face_path, "r").read()
+    vert = open(mesh_vert_path, "r").read()
+
+    faces = np.vstack(np.char.split(face.split("\n")[0:-1]))[:, :3].astype(int) - 1
+    verts = np.vstack(np.char.split(vert.split("\n")[0:-1]))[:, :3].astype(float)
+
+    grid = trimesh.Trimesh(vertices=verts, faces=faces)
+    return grid
+
+
 def import_msms_mesh(mesh_face_path, mesh_vert_path):
     """Loads MSMS surface outputs directly into a Bempp Grid.
 
@@ -399,6 +430,17 @@ def import_off_mesh(mesh_off_path):
     return grid
 
 
+def import_msh_mesh(mesh_msh_path):
+
+    mesh_data = dolfinx.io.gmsh.read_from_msh(
+        mesh_msh_path,
+        MPI.COMM_WORLD,
+        rank=0,
+        gdim=3,
+    )
+    return mesh_data.mesh
+
+
 def density_to_nanoshaper_grid_scale_conversion(mesh_density):
     r"""Converts a standard face triangle density value into NanoShaper's internal spatial grid scale.
 
@@ -416,3 +458,73 @@ def density_to_nanoshaper_grid_scale_conversion(mesh_density):
         0.797 * (mesh_density**0.507), 2
     )  # Emperical relation found by creating meshes using nanoshaper and calculating their density
     return grid_scale
+
+
+def generate_gmsh_mesh(
+    ses_stl_path,
+    stern_stl_path,
+    mesh_dir,
+    output_name,
+    grid_scale,
+    algorithm,
+    gradation,
+):
+
+    if not gmsh.isInitialized():
+        gmsh.initialize()
+
+    gmsh.clear()
+    gmsh.model.add("molecular_volume_coupled")
+
+    # 1. Cargar las mallas STL
+    gmsh.merge(ses_stl_path)
+    surf_ses_tag = gmsh.model.getEntities(2)[-1][1]
+
+    gmsh.merge(stern_stl_path)
+    surf_stern_tag = gmsh.model.getEntities(2)[-1][1]
+
+    # 2. Definición de Volúmenes y orientaciones (Ojo con las normales del hueco)
+    sl_ses = gmsh.model.geo.addSurfaceLoop([surf_ses_tag])
+    vol_solute = gmsh.model.geo.addVolume([sl_ses])
+
+    sl_stern_ext = gmsh.model.geo.addSurfaceLoop([surf_stern_tag])
+    vol_stern = gmsh.model.geo.addVolume([sl_stern_ext, sl_ses])
+
+    gmsh.model.geo.synchronize()
+
+    # 3. Asignación de Physical Groups (SIEMPRE antes de generate)
+    gmsh.model.addPhysicalGroup(3, [vol_solute], tag=1, name="Solute")
+    gmsh.model.addPhysicalGroup(3, [vol_stern], tag=2, name="Stern")
+    gmsh.model.addPhysicalGroup(2, [surf_ses_tag], tag=1, name="SES")
+    gmsh.model.addPhysicalGroup(2, [surf_stern_tag], tag=2, name="Stern Surface")
+
+    # 4. Configuración de algoritmos y campos de refinamiento
+    gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)
+    gmsh.option.setNumber("Mesh.Algorithm3D", algorithm)
+    gmsh.option.setNumber("Mesh.Optimize", 1)
+    gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
+
+    gmsh.model.mesh.field.add("Distance", 1)
+    gmsh.model.mesh.field.setNumbers(1, "SurfacesList", [surf_ses_tag])
+
+    surface_size = 1.0 / grid_scale
+
+    gmsh.model.mesh.field.add("MathEval", 2)
+    gmsh.model.mesh.field.setString(2, "F", f"{surface_size} + {gradation}*F1")
+
+    gmsh.model.mesh.field.add("Restrict", 3)
+    gmsh.model.mesh.field.setNumber(3, "InField", 2)
+    gmsh.model.mesh.field.setNumbers(3, "VolumesList", [vol_solute])
+    gmsh.model.mesh.field.setAsBackgroundMesh(3)
+
+    gmsh.model.mesh.field.add("Min", 4)
+    gmsh.model.mesh.field.setNumbers(4, "FieldsList", [2, 3])
+
+    gmsh.model.mesh.field.setAsBackgroundMesh(4)
+    gmsh.model.mesh.generate(3)
+
+    target_output = os.path.join(mesh_dir, output_name)
+    gmsh.write(target_output + ".msh")
+    gmsh.finalize()
+
+    return
