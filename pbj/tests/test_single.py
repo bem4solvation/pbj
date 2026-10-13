@@ -148,7 +148,7 @@ def test_single():
         vals_solute_coul, _ = simulation.calculate_coulomb_potential_solute(
             np.array([[r, 0, 0] for r in r_test])
         )
-        vals_solv, _ = simulation.calculate_potential_solvent(
+        vals_solv, _, _ = simulation.calculate_potential_solvent(
             np.array([[r, 0, 0] for r in r_test])
         )
         vals_solv_p.append(vals_solv[-3] / 1000)

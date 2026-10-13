@@ -670,6 +670,7 @@ class Simulation:
         print(f"{eval_points.shape=}")
         # Mask out points in solute
         points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)
+        points_stern = np.zeros(np.shape(eval_points)[1], dtype=bool)
         for index, solute in enumerate(self.solutes):
             if self._solute_type == "npbe":
                 # Check if evaluation points are inside a solute
@@ -701,7 +702,6 @@ class Simulation:
 
                 points_solute = mesh_tri.contains(np.transpose(eval_points))
 
-                points_stern = False
                 points_solvent = np.logical_and(
                     points_solvent, np.logical_not(points_solute)
                 )
