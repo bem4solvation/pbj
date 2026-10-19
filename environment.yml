@@ -28,6 +28,7 @@ dependencies:
   - parmed
   - h5py
   - pip:
+    - tetgen
     - bempp-cl
     - meshio
     - gmsh
