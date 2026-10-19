@@ -25,7 +25,7 @@ class NPBE(Solute):
         external_mesh_file=None,
         mesh_algorithm=10,
         mesh_gradation=0.1,
-        pb_formulation_stern_width=2.0,
+        pb_formulation_stern_width=3.0,
         **kwargs,
     ):
 
@@ -55,7 +55,6 @@ class NPBE(Solute):
                 return
 
             self.mesh = mesh_tools.import_off_mesh(self.external_mesh_path)
-            mesh_tri = trimesh.load(self.external_mesh_path, process=False)
             (
                 self.q,
                 self.x_q,
@@ -74,13 +73,14 @@ class NPBE(Solute):
             (
                 self.mesh_v,
                 self.mesh,
+                self.mesh_out,
                 self.q,
                 self.x_q,
                 self.r_q,
                 self.atom_name,
                 self.res_name,
                 self.res_num,
-            ) = charge_tools.generate_gmsh_mesh_import_charges(
+            ) = charge_tools.generate_tetgen_mesh_import_charges(
                 self
             )  # Import charges from given file
 

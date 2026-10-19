@@ -9,8 +9,8 @@ from .mesh_tools import (
     generate_nanoshaper_mesh,
     import_msms_mesh,
     import_trimesh_mesh,
-    generate_gmsh_mesh,
-    import_msh_mesh,
+    generate_tetgen_mesh,
+    import_xmdf_mesh,
     fix_mesh,
     check_cavity,
 )
@@ -82,7 +82,7 @@ def import_charges_from_pqr(pqr_path):
     return q, x_q, r_q, atom_name, res_name, res_num
 
 
-def generate_gmsh_mesh_import_charges(solute):
+def generate_tetgen_mesh_import_charges(solute):
     """Generates the molecular mesh grid and imports charges for the given solute object.
 
     Handles file format conversions (PDB to PQR if needed, then to XYZR), runs the
@@ -145,7 +145,7 @@ def generate_gmsh_mesh_import_charges(solute):
         mesh_xyzr_stern_path,
         mesh_dir,
         solute.solute_name + "_stern",
-        solute.nanoshaper_grid_scale,
+        solute.nanoshaper_grid_scale / 2,
         solute.mesh_probe_radius,
         solute.save_mesh_build_files,
         cavity_cutoff=solute.cavity_cutoff,
@@ -156,6 +156,7 @@ def generate_gmsh_mesh_import_charges(solute):
     mesh_stern_off_path = os.path.join(mesh_dir + "_stern", solute.solute_name + ".off")
 
     mesh = import_msms_mesh(mesh_face_path, mesh_vert_path)
+    mesh_out = import_msms_mesh(mesh_face_path_stern, mesh_vert_path_stern)
     ses_mesh_trimesh = import_trimesh_mesh(mesh_face_path, mesh_vert_path)
     stern_mesh_trimesh = import_trimesh_mesh(mesh_face_path_stern, mesh_vert_path_stern)
     q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
@@ -166,18 +167,19 @@ def generate_gmsh_mesh_import_charges(solute):
     ses_mesh_trimesh.export(ses_stl_path)
     stern_mesh_trimesh.export(stern_stl_path)
 
-    generate_gmsh_mesh(
-        ses_stl_path,
-        stern_stl_path,
+    generate_tetgen_mesh(
+        mesh.elements,
+        mesh.vertices,
+        mesh_out.elements,
+        mesh_out.vertices,
         mesh_dir,
         solute.solute_name,
-        solute.nanoshaper_grid_scale,
-        solute.mesh_algorithm,
-        solute.mesh_gradation,
+        tm=4,
+        vol=0.1,
     )
 
-    mesh_msh_path = os.path.join(mesh_dir, solute.solute_name + ".msh")
-    mesh_v = import_msh_mesh(mesh_msh_path)
+    mesh_xmdf_path = os.path.join(mesh_dir, solute.solute_name + ".xdmf")
+    mesh_v = import_xmdf_mesh(mesh_xmdf_path)
 
     if solute.save_mesh_build_files:
         if solute.imported_file_type == "pdb":
@@ -188,10 +190,10 @@ def generate_gmsh_mesh_import_charges(solute):
         solute.mesh_vert_path = mesh_vert_path
         solute.mesh_off_path = mesh_off_path
         solute.mesh_stern_off_path = mesh_stern_off_path
-        solute.mesh_msh_path = mesh_msh_path
+        # solute.mesh_msh_path = mesh_msh_path
     else:
         shutil.rmtree(mesh_dir)
-    return mesh_v, mesh, q, x_q, r_q, atom_name, res_name, res_num
+    return mesh_v, mesh, mesh_out, q, x_q, r_q, atom_name, res_name, res_num
 
 
 def generate_msms_mesh_import_charges(solute):

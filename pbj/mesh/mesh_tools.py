@@ -7,8 +7,12 @@ import bempp_cl.api
 import platform
 import shutil
 import gmsh
+import pyvista as pv
+import tetgen
+import meshio
 import dolfinx
 from mpi4py import MPI
+from dolfinx.io import XDMFFile
 
 
 def check_cavity(mesh, fill_cavities=True, volume_cutoff=11.4):
@@ -438,7 +442,16 @@ def import_msh_mesh(mesh_msh_path):
         rank=0,
         gdim=3,
     )
+
     return mesh_data.mesh
+
+
+def import_xmdf_mesh(mesh_xmdf_path):
+    print(f"{mesh_xmdf_path}")
+    with XDMFFile(MPI.COMM_WORLD, mesh_xmdf_path, "r") as xdmf:
+        mesh_v = xdmf.read_mesh(name="Grid")
+
+    return mesh_v
 
 
 def density_to_nanoshaper_grid_scale_conversion(mesh_density):
@@ -458,6 +471,35 @@ def density_to_nanoshaper_grid_scale_conversion(mesh_density):
         0.797 * (mesh_density**0.507), 2
     )  # Emperical relation found by creating meshes using nanoshaper and calculating their density
     return grid_scale
+
+
+def generate_tetgen_mesh(
+    faces_mesh_in,
+    vertices_mesh_in,
+    faces_mesh_out,
+    vertices_mesh_out,
+    mesh_dir,
+    output_name,
+    tm=4,
+    vol=0.1,
+):
+
+    combined_verts = np.vstack([vertices_mesh_in.T, vertices_mesh_out.T])
+    faces_out_offset = faces_mesh_out.T + len(vertices_mesh_in.T)
+    combined_faces_triplets = np.vstack([faces_mesh_in.T, faces_out_offset])
+    pv_faces = np.column_stack(
+        [np.full(len(combined_faces_triplets), 3), combined_faces_triplets]
+    ).ravel()
+
+    surface_mesh = pv.PolyData(combined_verts, pv_faces)
+    tgen = tetgen.TetGen(surface_mesh)
+    switches = "-pq" + str(tm) + "a" + str(vol) + "YAO2/3"
+    tgen.tetrahedralize(switches=switches)
+    target_output = os.path.join(mesh_dir, output_name)
+    tgen.grid.save(target_output + "_temp.vtu")
+    meshio.write(target_output + ".xdmf", meshio.read(target_output + "_temp.vtu"))
+
+    return
 
 
 def generate_gmsh_mesh(
