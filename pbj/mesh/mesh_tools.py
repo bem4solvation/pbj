@@ -480,7 +480,7 @@ def generate_tetgen_mesh(
     vertices_mesh_out,
     mesh_dir,
     output_name,
-    vol=0.1
+    vol=0.1,
 ):
 
     combined_verts = np.vstack([vertices_mesh_in.T, vertices_mesh_out.T])
@@ -538,7 +538,9 @@ def generate_gmsh_mesh(
     gmsh.model.addPhysicalGroup(3, [vol_solute], tag=1, name="Solute")
     gmsh.model.addPhysicalGroup(3, [vol_thickness], tag=2, name="thickness")
     gmsh.model.addPhysicalGroup(2, [surf_ses_tag], tag=1, name="SES")
-    gmsh.model.addPhysicalGroup(2, [surf_thickness_tag], tag=2, name="thickness Surface")
+    gmsh.model.addPhysicalGroup(
+        2, [surf_thickness_tag], tag=2, name="thickness Surface"
+    )
 
     # 4. Configuración de algoritmos y campos de refinamiento
     gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)

@@ -234,7 +234,9 @@ class NPBE(Solute):
         self.results["electrostatic_solvation_energy_charges_units"] = unit_label
         self.results["electrostatic_solvation_energy_thickness"] = thickness_energy
         self.results["electrostatic_solvation_energy_thickness_units"] = unit_label
-        self.results["electrostatic_solvation_energy"] = charges_energy + thickness_energy
+        self.results["electrostatic_solvation_energy"] = (
+            charges_energy + thickness_energy
+        )
         self.results["electrostatic_solvation_energy_units"] = unit_label
         self.timings["time_calc_elec_energy"] = time.time() - start_time
         if self.print_times:

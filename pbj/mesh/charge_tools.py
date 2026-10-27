@@ -121,15 +121,21 @@ def generate_tetgen_mesh_import_charges(solute):
         mesh_pqr_path = solute.pqr_path
 
     mesh_xyzr_path = os.path.join(mesh_dir, solute.solute_name + ".xyzr")
-    mesh_xyzr_thickness_path = os.path.join(mesh_dir, solute.solute_name + "_thickness.xyzr")
+    mesh_xyzr_thickness_path = os.path.join(
+        mesh_dir, solute.solute_name + "_thickness.xyzr"
+    )
     convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path)
     create_thickness_xyzr(
         mesh_xyzr_path, mesh_xyzr_thickness_path, solute.pb_formulation_thickness_width
     )
     mesh_face_path = os.path.join(mesh_dir, solute.solute_name + ".face")
     mesh_vert_path = os.path.join(mesh_dir, solute.solute_name + ".vert")
-    mesh_face_path_thickness = os.path.join(mesh_dir, solute.solute_name + "_thickness.face")
-    mesh_vert_path_thickness = os.path.join(mesh_dir, solute.solute_name + "_thickness.vert")
+    mesh_face_path_thickness = os.path.join(
+        mesh_dir, solute.solute_name + "_thickness.face"
+    )
+    mesh_vert_path_thickness = os.path.join(
+        mesh_dir, solute.solute_name + "_thickness.vert"
+    )
     generate_nanoshaper_mesh(
         mesh_xyzr_path,
         mesh_dir,
@@ -153,12 +159,16 @@ def generate_tetgen_mesh_import_charges(solute):
     )
 
     mesh_off_path = os.path.join(mesh_dir, solute.solute_name + ".off")
-    mesh_thickness_off_path = os.path.join(mesh_dir + "_thickness", solute.solute_name + ".off")
+    mesh_thickness_off_path = os.path.join(
+        mesh_dir + "_thickness", solute.solute_name + ".off"
+    )
 
     mesh = import_msms_mesh(mesh_face_path, mesh_vert_path)
     mesh_out = import_msms_mesh(mesh_face_path_thickness, mesh_vert_path_thickness)
     ses_mesh_trimesh = import_trimesh_mesh(mesh_face_path, mesh_vert_path)
-    thickness_mesh_trimesh = import_trimesh_mesh(mesh_face_path_thickness, mesh_vert_path_thickness)
+    thickness_mesh_trimesh = import_trimesh_mesh(
+        mesh_face_path_thickness, mesh_vert_path_thickness
+    )
     q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
 
     ses_stl_path = os.path.join(mesh_dir, solute.solute_name + "_ses.stl")
