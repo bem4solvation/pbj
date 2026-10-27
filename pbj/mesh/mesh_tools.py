@@ -180,20 +180,20 @@ def convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path):
     xyzr_file.close()
 
 
-def create_stern_xyzr(mesh_xyzr_path, mesh_xyzr_stern_path, thickness):
+def create_thickness_xyzr(mesh_xyzr_path, mesh_xyzr_thickness_path, thickness):
 
     xyzr_file = open(mesh_xyzr_path, "r")
-    stern_file = open(mesh_xyzr_stern_path, "w")
+    thickness_file = open(mesh_xyzr_thickness_path, "w")
     for line in xyzr_file:
         line = line.split()
         if len(line) > 0:
             radii = float(line[-1])
-            stern_radii = radii + thickness
-            line[-1] = str(stern_radii)
-            stern_line = "\t".join(line) + "\n"
-            stern_file.write(stern_line)
+            thickness_radii = radii + thickness
+            line[-1] = str(thickness_radii)
+            thickness_line = "\t".join(line) + "\n"
+            thickness_file.write(thickness_line)
     xyzr_file.close()
-    stern_file.close()
+    thickness_file.close()
 
 
 # Probar en Linux:
@@ -480,8 +480,7 @@ def generate_tetgen_mesh(
     vertices_mesh_out,
     mesh_dir,
     output_name,
-    tm=4,
-    vol=0.1,
+    vol=0.1
 ):
 
     combined_verts = np.vstack([vertices_mesh_in.T, vertices_mesh_out.T])
@@ -493,10 +492,11 @@ def generate_tetgen_mesh(
 
     surface_mesh = pv.PolyData(combined_verts, pv_faces)
     tgen = tetgen.TetGen(surface_mesh)
-    switches = "-pq" + str(tm) + "a" + str(vol) + "YAO2/3"
+    switches = "-pq2a" + str(vol) + "YAO2/3"
     tgen.tetrahedralize(switches=switches)
     target_output = os.path.join(mesh_dir, output_name)
     tgen.grid.save(target_output + "_temp.vtu")
+    # pasar tetgen a dolfinx directo (ToDo)
     meshio.write(target_output + ".xdmf", meshio.read(target_output + "_temp.vtu"))
 
     return
@@ -504,7 +504,7 @@ def generate_tetgen_mesh(
 
 def generate_gmsh_mesh(
     ses_stl_path,
-    stern_stl_path,
+    thickness_stl_path,
     mesh_dir,
     output_name,
     grid_scale,
@@ -522,23 +522,23 @@ def generate_gmsh_mesh(
     gmsh.merge(ses_stl_path)
     surf_ses_tag = gmsh.model.getEntities(2)[-1][1]
 
-    gmsh.merge(stern_stl_path)
-    surf_stern_tag = gmsh.model.getEntities(2)[-1][1]
+    gmsh.merge(thickness_stl_path)
+    surf_thickness_tag = gmsh.model.getEntities(2)[-1][1]
 
     # 2. Definición de Volúmenes y orientaciones (Ojo con las normales del hueco)
     sl_ses = gmsh.model.geo.addSurfaceLoop([surf_ses_tag])
     vol_solute = gmsh.model.geo.addVolume([sl_ses])
 
-    sl_stern_ext = gmsh.model.geo.addSurfaceLoop([surf_stern_tag])
-    vol_stern = gmsh.model.geo.addVolume([sl_stern_ext, sl_ses])
+    sl_thickness_ext = gmsh.model.geo.addSurfaceLoop([surf_thickness_tag])
+    vol_thickness = gmsh.model.geo.addVolume([sl_thickness_ext, sl_ses])
 
     gmsh.model.geo.synchronize()
 
     # 3. Asignación de Physical Groups (SIEMPRE antes de generate)
     gmsh.model.addPhysicalGroup(3, [vol_solute], tag=1, name="Solute")
-    gmsh.model.addPhysicalGroup(3, [vol_stern], tag=2, name="Stern")
+    gmsh.model.addPhysicalGroup(3, [vol_thickness], tag=2, name="thickness")
     gmsh.model.addPhysicalGroup(2, [surf_ses_tag], tag=1, name="SES")
-    gmsh.model.addPhysicalGroup(2, [surf_stern_tag], tag=2, name="Stern Surface")
+    gmsh.model.addPhysicalGroup(2, [surf_thickness_tag], tag=2, name="thickness Surface")
 
     # 4. Configuración de algoritmos y campos de refinamiento
     gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)

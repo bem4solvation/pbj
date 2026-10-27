@@ -5,7 +5,7 @@ from .mesh_tools import (
     convert_pdb2pqr,
     generate_msms_mesh,
     convert_pqr2xyzr,
-    create_stern_xyzr,
+    create_thickness_xyzr,
     generate_nanoshaper_mesh,
     import_msms_mesh,
     import_trimesh_mesh,
@@ -121,15 +121,15 @@ def generate_tetgen_mesh_import_charges(solute):
         mesh_pqr_path = solute.pqr_path
 
     mesh_xyzr_path = os.path.join(mesh_dir, solute.solute_name + ".xyzr")
-    mesh_xyzr_stern_path = os.path.join(mesh_dir, solute.solute_name + "_stern.xyzr")
+    mesh_xyzr_thickness_path = os.path.join(mesh_dir, solute.solute_name + "_thickness.xyzr")
     convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path)
-    create_stern_xyzr(
-        mesh_xyzr_path, mesh_xyzr_stern_path, solute.pb_formulation_stern_width
+    create_thickness_xyzr(
+        mesh_xyzr_path, mesh_xyzr_thickness_path, solute.pb_formulation_thickness_width
     )
     mesh_face_path = os.path.join(mesh_dir, solute.solute_name + ".face")
     mesh_vert_path = os.path.join(mesh_dir, solute.solute_name + ".vert")
-    mesh_face_path_stern = os.path.join(mesh_dir, solute.solute_name + "_stern.face")
-    mesh_vert_path_stern = os.path.join(mesh_dir, solute.solute_name + "_stern.vert")
+    mesh_face_path_thickness = os.path.join(mesh_dir, solute.solute_name + "_thickness.face")
+    mesh_vert_path_thickness = os.path.join(mesh_dir, solute.solute_name + "_thickness.vert")
     generate_nanoshaper_mesh(
         mesh_xyzr_path,
         mesh_dir,
@@ -142,9 +142,9 @@ def generate_tetgen_mesh_import_charges(solute):
     )
 
     generate_nanoshaper_mesh(
-        mesh_xyzr_stern_path,
+        mesh_xyzr_thickness_path,
         mesh_dir,
-        solute.solute_name + "_stern",
+        solute.solute_name + "_thickness",
         solute.nanoshaper_grid_scale / 2,
         solute.mesh_probe_radius,
         solute.save_mesh_build_files,
@@ -153,19 +153,19 @@ def generate_tetgen_mesh_import_charges(solute):
     )
 
     mesh_off_path = os.path.join(mesh_dir, solute.solute_name + ".off")
-    mesh_stern_off_path = os.path.join(mesh_dir + "_stern", solute.solute_name + ".off")
+    mesh_thickness_off_path = os.path.join(mesh_dir + "_thickness", solute.solute_name + ".off")
 
     mesh = import_msms_mesh(mesh_face_path, mesh_vert_path)
-    mesh_out = import_msms_mesh(mesh_face_path_stern, mesh_vert_path_stern)
+    mesh_out = import_msms_mesh(mesh_face_path_thickness, mesh_vert_path_thickness)
     ses_mesh_trimesh = import_trimesh_mesh(mesh_face_path, mesh_vert_path)
-    stern_mesh_trimesh = import_trimesh_mesh(mesh_face_path_stern, mesh_vert_path_stern)
+    thickness_mesh_trimesh = import_trimesh_mesh(mesh_face_path_thickness, mesh_vert_path_thickness)
     q, x_q, r_q, atom_name, res_name, res_num = import_charges_from_pqr(mesh_pqr_path)
 
     ses_stl_path = os.path.join(mesh_dir, solute.solute_name + "_ses.stl")
-    stern_stl_path = os.path.join(mesh_dir, solute.solute_name + "_stern.stl")
+    thickness_stl_path = os.path.join(mesh_dir, solute.solute_name + "_thickness.stl")
 
     ses_mesh_trimesh.export(ses_stl_path)
-    stern_mesh_trimesh.export(stern_stl_path)
+    thickness_mesh_trimesh.export(thickness_stl_path)
 
     generate_tetgen_mesh(
         mesh.elements,
@@ -174,8 +174,7 @@ def generate_tetgen_mesh_import_charges(solute):
         mesh_out.vertices,
         mesh_dir,
         solute.solute_name,
-        tm=4,
-        vol=0.1,
+        vol=solute.max_volume_size,
     )
 
     mesh_xmdf_path = os.path.join(mesh_dir, solute.solute_name + ".xdmf")
@@ -189,7 +188,7 @@ def generate_tetgen_mesh_import_charges(solute):
         solute.mesh_face_path = mesh_face_path
         solute.mesh_vert_path = mesh_vert_path
         solute.mesh_off_path = mesh_off_path
-        solute.mesh_stern_off_path = mesh_stern_off_path
+        solute.mesh_thickness_off_path = mesh_thickness_off_path
         # solute.mesh_msh_path = mesh_msh_path
     else:
         shutil.rmtree(mesh_dir)

@@ -23,9 +23,8 @@ class NPBE(Solute):
         solute_file_path,
         external_mesh_volume_file=None,
         external_mesh_file=None,
-        mesh_algorithm=10,
-        mesh_gradation=0.1,
-        pb_formulation_stern_width=3.0,
+        max_volume_size=0.1,
+        pb_formulation_thickness_width=3.0,
         **kwargs,
     ):
 
@@ -67,9 +66,8 @@ class NPBE(Solute):
             )  # Import charges from given file
 
         else:
-            self.mesh_algorithm = mesh_algorithm
-            self.mesh_gradation = mesh_gradation
-            self.pb_formulation_stern_width = pb_formulation_stern_width
+            self.max_volume_size = max_volume_size
+            self.pb_formulation_thickness_width = pb_formulation_thickness_width
             (
                 self.mesh_v,
                 self.mesh,
@@ -200,10 +198,10 @@ class NPBE(Solute):
                 expr_ufl_E, self.fenics_space.element.interpolation_points
             )
         )
-        stern_energy = (0.5 * constant) * dolfinx.fem.assemble_scalar(
+        thickness_energy = (0.5 * constant) * dolfinx.fem.assemble_scalar(
             dolfinx.fem.form(KI * NL_E * ufl.Measure("dx", self.mesh_v))
         )
-        if np.abs(stern_energy) == np.inf:
+        if np.abs(thickness_energy) == np.inf:
             # Taylor expansion of the energy terms
             expr_ufl_S = (
                 u_T
@@ -227,16 +225,16 @@ class NPBE(Solute):
                     expr_ufl_E, self.fenics_space.element.interpolation_points
                 )
             )
-            stern_energy = (0.5 * constant) * dolfinx.fem.assemble_scalar(
+            thickness_energy = (0.5 * constant) * dolfinx.fem.assemble_scalar(
                 dolfinx.fem.form(KI * NL_E * ufl.Measure("dx", self.mesh_v))
             )
 
         charges_energy = 0.5 * unit_conversion * np.sum(self.q * phi_q).real
         self.results["electrostatic_solvation_energy_charges"] = charges_energy
         self.results["electrostatic_solvation_energy_charges_units"] = unit_label
-        self.results["electrostatic_solvation_energy_stern"] = stern_energy
-        self.results["electrostatic_solvation_energy_stern_units"] = unit_label
-        self.results["electrostatic_solvation_energy"] = charges_energy + stern_energy
+        self.results["electrostatic_solvation_energy_thickness"] = thickness_energy
+        self.results["electrostatic_solvation_energy_thickness_units"] = unit_label
+        self.results["electrostatic_solvation_energy"] = charges_energy + thickness_energy
         self.results["electrostatic_solvation_energy_units"] = unit_label
         self.timings["time_calc_elec_energy"] = time.time() - start_time
         if self.print_times:
