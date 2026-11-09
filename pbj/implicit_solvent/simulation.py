@@ -255,6 +255,7 @@ class Simulation:
             mesh_generator=mesh_generator,
             external_mesh_file=external_mesh_file,
             print_times=self.print_times,
+            force_field=self.force_field,
             fill_cavities=fill_cavities,
             cavity_cutoff=cavity_cutoff,
             **kwargs,
@@ -287,7 +288,6 @@ class Simulation:
         solute.operator_assembler = self.operator_assembler
         solute.rhs_constructor = self.rhs_constructor
         solute.discrete_form_type = self.discrete_form_type
-        solute.force_field = self.force_field
 
         if "stern" in self.pb_formulation or self._solute_type == "lpbe_slic":
             solute.stern_mesh_density = (

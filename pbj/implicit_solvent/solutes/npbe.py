@@ -24,7 +24,7 @@ class NPBE(Solute):
         external_mesh_volume_file=None,
         external_mesh_file=None,
         max_volume_size=0.1,
-        pb_formulation_thickness_width=3.0,
+        nonlinear_thickness=3.0,
         **kwargs,
     ):
 
@@ -67,7 +67,7 @@ class NPBE(Solute):
 
         else:
             self.max_volume_size = max_volume_size
-            self.pb_formulation_thickness_width = pb_formulation_thickness_width
+            self.nonlinear_thickness = nonlinear_thickness
             (
                 self.mesh_v,
                 self.mesh,

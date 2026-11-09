@@ -126,7 +126,7 @@ def generate_tetgen_mesh_import_charges(solute):
     )
     convert_pqr2xyzr(mesh_pqr_path, mesh_xyzr_path)
     create_thickness_xyzr(
-        mesh_xyzr_path, mesh_xyzr_thickness_path, solute.pb_formulation_thickness_width
+        mesh_xyzr_path, mesh_xyzr_thickness_path, solute.nonlinear_thickness
     )
     mesh_face_path = os.path.join(mesh_dir, solute.solute_name + ".face")
     mesh_vert_path = os.path.join(mesh_dir, solute.solute_name + ".vert")

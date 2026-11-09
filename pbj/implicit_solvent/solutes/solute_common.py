@@ -25,6 +25,7 @@ class Solute:
         solvent_radius=1.4,
         mesh_generator="nanoshaper",
         print_times=False,
+        force_field="amber",
         fill_cavities=True,
         cavity_cutoff=60,
     ):
@@ -102,6 +103,7 @@ class Solute:
                     )
                 )
         self.mesh_probe_radius = solvent_radius
+        self.force_field = force_field
         self.mesh_generator = mesh_generator
         self.fill_cavities = fill_cavities
         self.cavity_cutoff = cavity_cutoff
