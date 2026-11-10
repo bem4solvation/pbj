@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 import logging
 import trimesh
+import pyvista as pv
 import pbj.mesh.plotting_tools as plotting_tools
 import pbj.mesh.charge_tools as charge_tools
 import pbj.mesh.mesh_tools as mesh_tools
@@ -667,10 +668,10 @@ class Simulation:
             self.calculate_surface_potential()
 
         eval_points = np.transpose(eval_points)  # format that Bempp likes
-        print(f"{eval_points.shape=}")
+        # print(f"{eval_points.shape=}")
         # Mask out points in solute
         points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)
-        points_stern = np.zeros(np.shape(eval_points)[1], dtype=bool)
+        points_nonlinear = np.zeros(np.shape(eval_points)[1], dtype=bool)
         for index, solute in enumerate(self.solutes):
             if self._solute_type == "npbe":
                 # Check if evaluation points are inside a solute
@@ -684,14 +685,14 @@ class Simulation:
                 )
                 points_solute_in = mesh_tri_solute.contains(np.transpose(eval_points))
                 points_solvent_in = mesh_tri_solvent.contains(np.transpose(eval_points))
-                points_stern = np.logical_and(
+                points_nonlinear = np.logical_and(
                     points_solvent_in, np.logical_not(points_solute_in)
                 )
                 points_solvent = np.logical_and(
                     np.logical_not(points_solvent_in), np.logical_not(points_solute_in)
                 )
-                print(f"{points_stern.shape=}")
-                print(f"{points_solvent.shape=}")
+                # print(f"{points_nonlinear.shape=}")
+                # print(f"{points_solvent.shape=}")
 
             else:
                 # Check if evaluation points are inside a solute
@@ -736,19 +737,17 @@ class Simulation:
                 )
                 phi_solvent[points_solvent] += phi_aux[0, :]
 
-            if points_stern.any():
+            if points_nonlinear.any():
                 phi_aux = mesh_tools.eval_inside_fem(
                     solute.results["phi_fem"],
                     solute.fenics_space,
-                    eval_points[:, points_stern],
+                    eval_points[:, points_nonlinear],
                 )
-                phi_solvent[points_stern] += phi_aux[:, 0]
-
-            print(f"{phi_solvent.shape=}")
+                phi_solvent[points_nonlinear] += phi_aux[:, 0]
 
         unit_conversion, _ = charge_tools.convert_units(units)
 
-        return unit_conversion * phi_solvent, points_solvent, points_stern
+        return unit_conversion * phi_solvent, points_solvent, points_nonlinear
 
     def calculate_reaction_potential_solute(
         self,
@@ -1148,7 +1147,9 @@ class Simulation:
                 potential,
                 isosurface_potential,
             )
-            print(f"{np.mean(potential)=}")
+            self.isosurface_grid = pv.StructuredGrid(X, Y, Z)
+            self.isosurface_grid.point_data["Potential"] = potential
+            print(f"max value: {np.max(potential)}, min value: {np.min(potential)}")
         else:
             isosurface_potential_vals = (None, None, None)
 
@@ -1304,3 +1305,10 @@ class Simulation:
                         solute.neumann_space, coefficients=d_phi
                     ),
                 )
+            if hasattr(self, "isosurface_grid"):
+                output_filename = (
+                    f"simulation_results_{timestamp}_phi_eval.vts"
+                    if not name
+                    else f"{name}_phi_eval.vts"
+                )
+                self.isosurface_grid.save(output_filename)
