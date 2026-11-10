@@ -25,6 +25,32 @@ class NPBE(Solute):
         nonlinear_thickness=3.0,
         **kwargs,
     ):
+        """Initializes an NPBE solute with its surface (BEM) and volumetric (FEM) meshes.
+
+        When both external meshes are provided, they are imported and the charges are read
+        from the structure file. Otherwise the meshes are generated with TetGen and the charges
+        are imported at the same time. The constructor then builds the FEniCSx function space,
+        the trace space linking FEM and BEM, the bempp boundary spaces, and `Alpha`, a FEM
+        indicator function that is 1 outside the solute and 0 inside it.
+
+        Args:
+            solute_file_path (str): Path to the molecular structure file (.pdb, .pqr, or .xyz).
+            external_mesh_volume_file (str, optional): Path to a precomputed volumetric mesh,
+                in .xdmf or .msh (gmsh) format. Only used together with `external_mesh_file`.
+                Defaults to None.
+            external_mesh_file (str, optional): Path to a precomputed surface mesh in .off
+                format. Only used together with `external_mesh_volume_file`. Defaults to None.
+            max_volume_size (float, optional): Maximum tetrahedron volume used by TetGen when
+                generating the volumetric mesh. Defaults to 0.1.
+            nonlinear_thickness (float, optional): Thickness, in Angstrom, of the region around
+                the solute where the nonlinear equation is solved. Defaults to 3.0.
+            **kwargs: Additional keyword arguments forwarded to `Solute.__init__`
+                (e.g., `mesh_density`, `solvent_radius`, `mesh_generator`, `force_field`).
+
+        Note:
+            If the volumetric mesh format is not recognized, a message is printed and the
+            constructor returns early, leaving the object only partially initialized.
+        """
 
         super().__init__(solute_file_path=solute_file_path, **kwargs)
 

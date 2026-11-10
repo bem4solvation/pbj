@@ -140,6 +140,15 @@ class Solute:
         self.timings = dict()
 
     def initialise_matrices(self):
+        """Assembles the boundary integral operators of the active formulation.
+
+        Verifies that the parameters required by `formulation_object` are set and, if so,
+        calls its `lhs` routine to build the left-hand side operators of the linear system.
+
+        Side Effects:
+            - Stores the assembled operators in `self.matrices` (through `formulation_object.lhs`).
+            - Stores the elapsed time in `self.timings["time_matrix_initialisation"]`.
+        """
         start_time = time.time()  # Start the timing for the matrix construction
         # Construct matrices based on the desired formulation
         # Verify if parameters are already set and save A matrix
@@ -148,6 +157,15 @@ class Solute:
         self.timings["time_matrix_initialisation"] = time.time() - start_time
 
     def initialise_rhs(self):
+        """Assembles the right-hand side of the linear system for the active formulation.
+
+        Verifies that the parameters required by `formulation_object` are set and, if so,
+        calls its `rhs` routine to build the boundary condition vectors.
+
+        Side Effects:
+            - Stores the right-hand side vectors in `self.rhs` (through `formulation_object.rhs`).
+            - Stores the elapsed time in `self.timings["time_rhs_initialisation"]`.
+        """
         start_rhs = time.time()
         # Verify if parameters are already set and then save RHS
         if self.formulation_object.verify_parameters(self):

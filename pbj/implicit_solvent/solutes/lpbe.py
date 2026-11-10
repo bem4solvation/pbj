@@ -12,6 +12,21 @@ class LPBE(Solute):
     """LPBE solute specialization."""
 
     def __init__(self, solute_file_path, external_mesh_file=None, **kwargs):
+        """Initializes an LPBE solute by loading or generating its surface mesh and charges.
+
+        If an external mesh is given, it is imported and the atomic charges are read from the
+        structure file. Otherwise the mesh is generated from the structure file and the charges
+        are imported at the same time. Finally, the Dirichlet and Neumann boundary element
+        spaces (continuous piecewise linear, "P1") are created on the mesh.
+
+        Args:
+            solute_file_path (str): Path to the molecular structure file (.pdb, .pqr, or .xyz).
+            external_mesh_file (str, optional): Path to a precomputed surface mesh. If it has no
+                extension, MSMS files (`<path>.face` and `<path>.vert`) are assumed; otherwise
+                the file must be importable directly by bempp. Defaults to None.
+            **kwargs: Additional keyword arguments forwarded to `Solute.__init__`
+                (e.g., `mesh_density`, `solvent_radius`, `mesh_generator`, `force_field`).
+        """
 
         super().__init__(solute_file_path=solute_file_path, **kwargs)
 
@@ -59,6 +74,12 @@ class LPBE(Solute):
 
     @property
     def stern_mesh_density(self):
+        """float: Mesh density used for the Stern (ion-exclusion) layer surface.
+
+        Setting a new value also updates `stern_mesh_density_ratio` (the value divided by
+        `sas_mesh_density`) and regenerates the Stern layer mesh with
+        `pb_formulations.direct_stern.create_stern_mesh`.
+        """
         return self._stern_mesh_density
 
     @stern_mesh_density.setter

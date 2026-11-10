@@ -38,11 +38,18 @@ class Simulation:
         """Initializes a Simulation environment with a specific Poisson-Boltzmann formulation.
 
         Args:
+            simulation_type (str, optional): The type of simulation to run (e.g., 'lpbe', 'npbe'). Defaults to 'lpbe'.
+            force_field (str, optional): The molecular force field to use for solute charge and
+                radius parameters (e.g., 'amber', 'charmm', 'amoeba'). Defaults to "amber".
             formulation (str, optional): The PB boundary integral formulation to use
                 (e.g., 'direct', 'direct_stern', 'slic', 'direct_amoeba'). Defaults to "direct".
-            simulation_type (str, optional): The type of simulation to run (e.g., 'lpbe', 'npbe'). Defaults to 'lpbe'.
+                Use methods like `display_available_formulations()` to see supported formulations.
+            formulation_preconditioning (bool, optional): If True, applies a preconditioner to the
+                global linear system to accelerate convergence. Defaults to True.
             stern_layer (bool, optional): If True, incorporates a Stern (ion-exclusion) layer
                 into the formulation workspace. Defaults to False.
+            slic (bool, optional): If True, enables the SLIC (Solvation Layer Interface Condition) model for solvation.
+                Defaults to False.
             print_times (bool, optional): If True, displays execution times during major solver
                 phases. Defaults to False.
         """
@@ -126,6 +133,15 @@ class Simulation:
 
     @property
     def pb_formulation(self):
+        """str: Name of the active Poisson-Boltzmann boundary integral formulation.
+
+        Setting a new value reloads `formulation_object` from the formulation module of the
+        current solute type, discards the cached GMRES preconditioning matrix, and propagates
+        the new formulation to every solute already registered.
+
+        Raises:
+            AttributeError: If the formulation does not exist for the current solute type.
+        """
         return self._pb_formulation
 
     @pb_formulation.setter
@@ -148,6 +164,10 @@ class Simulation:
 
     @property
     def pb_formulation_preconditioning(self):
+        """bool: Whether a preconditioner is applied to the global linear system.
+
+        Setting a new value propagates it to every solute already registered.
+        """
         return self._pb_formulation_preconditioning
 
     @pb_formulation_preconditioning.setter
@@ -160,6 +180,11 @@ class Simulation:
 
     @property
     def pb_formulation_preconditioning_type(self):
+        """str or None: Type of preconditioner used by the formulation.
+
+        Typically "block_diagonal" or "mass_matrix", or None when preconditioning is disabled.
+        Setting a new value propagates it to every solute already registered.
+        """
         return self._pb_formulation_preconditioning_type
 
     @pb_formulation_preconditioning_type.setter
@@ -172,6 +197,12 @@ class Simulation:
 
     @property
     def ep_ex(self):
+        """float: Relative dielectric constant of the exterior (solvent) region.
+
+        Setting a new value propagates it to every registered solute and updates their
+        dependent quantities: the Stern-layer dielectric ratio (`e_hat_stern`) and the
+        dielectric ratio `pb_formulation_beta` (exterior over interior permittivity).
+        """
         return self._ep_ex
 
     @ep_ex.setter
@@ -185,6 +216,11 @@ class Simulation:
 
     @property
     def kappa(self):
+        """float: Inverse Debye length of the solvent, in 1/Angstrom.
+
+        A value of (nearly) zero corresponds to the Laplace (no salt) case. Setting a new
+        value propagates it to every solute already registered.
+        """
         return self._kappa
 
     @kappa.setter
@@ -196,6 +232,14 @@ class Simulation:
                 solute.kappa = value
 
     def display_available_formulations(self):
+        """Prints the formulations available for the current solute type.
+
+        Lists the formulation modules found in `pb_formulations.<solute_type>` (the shared
+        "common" module is excluded) and shows which one is currently selected.
+
+        Returns:
+            None
+        """
         from inspect import getmembers, ismodule
 
         print("Current formulation: " + self.pb_formulation)
@@ -209,6 +253,14 @@ class Simulation:
             print(name)
 
     def display_available_preconditioners(self):
+        """Prints the preconditioners available for the current formulation.
+
+        Inspects `formulation_object` for functions whose names end in "preconditioner" and
+        prints each name without that suffix.
+
+        Returns:
+            None
+        """
         from inspect import getmembers, isfunction
 
         print(
@@ -237,6 +289,48 @@ class Simulation:
         ep_in=4.0,
         **kwargs,
     ):
+        """Builds a solute from a structure file and registers it in the simulation.
+
+        Creates the solute (surface mesh, charges and radii) using the constructor defined in
+        the solutes template for the current simulation type, copies the simulation-level
+        parameters to it (dielectric constants, kappa, GMRES settings, preconditioning,
+        assembler options), and appends it to `solutes` and `solutes_names`.
+
+        Args:
+            solute_file_path (str): Path to the solute structure file (e.g., PQR or PDB) from
+                which atomic coordinates, charges and radii are read.
+            save_mesh_build_files (bool, optional): If True, keeps the intermediate files
+                generated while building the mesh. Defaults to False.
+            mesh_build_files_dir (str, optional): Directory where the mesh build files are
+                stored when `save_mesh_build_files` is True. Defaults to "mesh_files/".
+            mesh_density (float, optional): Target density of mesh vertices per square
+                Angstrom on the molecular surface. Defaults to 2.0.
+            nanoshaper_grid_scale (float, optional): Grid scale passed to NanoShaper. If None,
+                it is derived from `mesh_density`. Defaults to None.
+            solvent_radius (float, optional): Probe radius, in Angstrom, used to define the
+                solvent-excluded surface. Defaults to 1.4.
+            mesh_generator (str, optional): Mesh generation backend (e.g., "nanoshaper" or "msms").
+                Defaults to "nanoshaper".
+            external_mesh_file (str, optional): Path to a precomputed mesh to use instead of
+                generating one. Defaults to None.
+            fill_cavities (bool, optional): If True, fills internal cavities of the molecular
+                surface according to `cavity_cutoff`. Defaults to True.
+            cavity_cutoff (float, optional): Threshold used to decide which cavities are
+                filled when `fill_cavities` is True. Defaults to 60.
+            name (str, optional): Name used to identify the solute in this simulation. If not
+                a string, the name derived from the input file is used. Defaults to None.
+            ep_in (float, optional): Relative dielectric constant inside the solute.
+                Defaults to 4.0.
+            **kwargs: Additional keyword arguments forwarded to the solute constructor. Any
+                key missing here is filled from the "defaults" section of the solutes template.
+
+        Returns:
+            None: If a solute with the same name is already registered, a message is printed
+            and the call is ignored.
+
+        Raises:
+            ValueError: If the current solute type is not defined in the solutes template.
+        """
 
         config = self._solutes_template.get(self._solute_type)
         if not config:
@@ -545,7 +639,7 @@ class Simulation:
             rerun_rhs (bool, optional): Triggers RHS re-assembly before potential calculation.
                 Defaults to False.
             units (str, optional): Unit identifier passed to `convert_units` for the
-                computed solvation energies. Defaults to "kcal_mol".
+                computed solvation energies. Defaults to "kcal_mol", "kJ_mol", "kT".
 
         Returns:
             None
@@ -592,12 +686,14 @@ class Simulation:
             h (float, optional): Finite difference step size or regularization parameter. Defaults to 0.001.
             rerun_all (bool, optional): Triggers full re-computation of surface potentials if True.
                 Defaults to False.
+            rerun_rhs (bool, optional): Triggers RHS re-assembly before potential calculation.
+                Defaults to False.
             force_formulation (str, optional): Formulation type for force evaluation, such as
                 'maxwell_tensor' or 'energy_functional'. Defaults to "maxwell_tensor".
             fdb_approx (bool, optional): If True, applies an normal-approximation to the dielectric
                 boundary force component when using the energy functional formulation.
             units (str, optional): Unit identifier passed to `convert_units` for the
-                computed solvation forces. Defaults to "kcal_molA".
+                computed solvation forces. Defaults to "kcal_molA", "kJ_molA", "kT_a", "pn".
 
         Returns:
             None
@@ -649,13 +745,19 @@ class Simulation:
                 'kcal_mol_e', 'kJ_mol_e', 'e_eps0_angs'). Defaults to "mV".
             rerun_all (bool, optional): Forces full potential re-assembly if True. Defaults to False.
             rerun_rhs (bool, optional): Forces RHS re-assembly if True. Defaults to False.
-
+            lookup_algorithm (str, optional): Algorithm used to decide whether each point lies
+                inside a solute: "kdtree" (default) or "trimesh". Unknown values fall back to
+                "kdtree".
         Returns:
-            tuple: A tuple containing two elements:
+            tuple: A tuple containing three elements:
                 - phi_solvent (numpy.ndarray): 1D array of shape $(N,)$ representing the converted
                   electrostatic potentials at the valid points (points inside solutes are set to $0.0$).
                 - points_solvent (numpy.ndarray): 1D boolean array of shape $(N,)$ marking True for
-                  points belonging to the exterior solvent region.
+                  points belonging to the exterior (linear) solvent region.
+                - points_nonlinear (numpy.ndarray): 1D boolean array of shape $(N,)$ marking True for
+                  points in the nonlinear region evaluated with the FEM solution (only for "npbe";
+                  all False otherwise).
+            If no solutes are loaded, a message is printed and None is returned.
         """
 
         if len(self.solutes) == 0:
@@ -1111,7 +1213,7 @@ class Simulation:
             values (str, optional): Surface quantity to display. Supported values are "phi"
                 for the surface potential and "d_phi" for its derivative. Defaults to "phi".
             units (str, optional): Unit identifier passed to the solute accessors for
-                value conversion. Defaults to "kt".
+                value conversion. Defaults to "kt" ("mv", "atomic").
             max_colorbar_scale (float, optional): Scaling factor used to set the absolute
                 colorbar range when `min_max_vals` is not given. Defaults to 1.
             name (str, optional): Output filename used when `savefig=True`. Defaults to
@@ -1135,6 +1237,9 @@ class Simulation:
                 Defaults to None.
             internal_derivative_plot (bool, optional): If True, requests the internal
                 derivative form when `values="d_phi"`. Defaults to False.
+            lookup_algorithm (str, optional): Algorithm used to exclude grid points inside the
+                solutes when computing the isosurface potential: "kdtree" or "trimesh".
+                Defaults to "kdtree".
 
         Returns:
             None
@@ -1216,6 +1321,21 @@ class Simulation:
         return None
 
     def get_info(self, name=None, save_log=False):
+        """Prints the configuration of the simulation and of each registered solute.
+
+        Shows every public attribute of the simulation (excluding those related to solutes),
+        followed by the attributes of each solute (excluding the stored results). The output
+        can optionally be written to a log file as well.
+
+        Args:
+            name (str, optional): Log file name used when `save_log=True`. If None, a name of
+                the form "simulation_info_<timestamp>.log" is generated. Defaults to None.
+            save_log (bool, optional): If True, also writes the printed information to a log
+                file. Defaults to False.
+
+        Returns:
+            None
+        """
 
         if save_log:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1248,6 +1368,32 @@ class Simulation:
     def get_results(
         self, name=None, save_log=False, save_results=False, save_vtu=False, units="kt"
     ):
+        """Prints the results of the simulation and optionally saves them to disk.
+
+        Reports the simulation settings and, for each solute, its dielectric constants, kappa
+        and every entry stored in `solute.results` (energies, forces, etc.). Results can also be
+        exported to a log file, an HDF5 file, and VTU/VTS files for visualization.
+
+        Args:
+            name (str, optional): Base name for the output files. If None, names of the form
+                "simulation_results_<timestamp>..." are generated. When `save_log=True` it is
+                used as the full log file name. Defaults to None.
+            save_log (bool, optional): If True, also writes the printed output to a log file.
+                Defaults to False.
+            save_results (bool, optional): If True, saves the results of every solute to an
+                HDF5 file (one group per solute). Defaults to False.
+            save_vtu (bool, optional): If True, exports the surface potential and its normal
+                derivative of each solute as VTU files, plus the isosurface grid as a VTS file
+                if one was computed by `plot_surface_values`. Defaults to False.
+            units (str, optional): Unit identifier used to convert the surface potential and
+                its derivative when `save_vtu=True`. Defaults to "kt". Supported units are
+                `mv`, `mv_a`, `mv_m`, `v`, `v_m`, `v_a`, `kt_e`, `kt_a`, `kt`,
+                `kj_mol_e`, `kj_mol`, `kj_mol_a`, `kcal_mol_e`, `kcal_mol`,
+                `kcal_mola`, `e_eps0_angs`, `e_eps0_ang`, `atomic`.
+
+        Returns:
+            None
+        """
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if save_log:

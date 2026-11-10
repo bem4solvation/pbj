@@ -20,6 +20,25 @@ class LPBE_AMOEBA(Solute):
         solute_radius_type="PB",
         **kwargs,
     ):
+        """Initializes an AMOEBA solute with its surface mesh and Tinker multipoles.
+
+        Loads or generates the surface mesh and reads the AMOEBA parameters of every atom
+        (permanent charges, dipoles and quadrupoles, polarizabilities, Thole damping factors,
+        connectivity and scaling factors) from the Tinker files. Induced dipoles are initialized
+        to zero, and the Dirichlet and Neumann boundary element spaces ("P1") are created.
+
+        Args:
+            solute_file_path (str): Path to the molecular structure file (Tinker .xyz).
+            external_mesh_file (str, optional): Path to a precomputed surface mesh. If it has no
+                extension, MSMS files (`<path>.face` and `<path>.vert`) are assumed; otherwise
+                the file must be importable directly by bempp. Defaults to None.
+            radius_keyword (str, optional): Keyword used to select atom radii from the input
+                data. Defaults to "solute".
+            solute_radius_type (str, optional): Target classification for the solute radii.
+                Defaults to "PB".
+            **kwargs: Additional keyword arguments forwarded to `Solute.__init__`
+                (e.g., `mesh_density`, `solvent_radius`, `mesh_generator`).
+        """
         super().__init__(
             solute_file_path=solute_file_path,
             **kwargs,
@@ -402,6 +421,27 @@ class LPBE_AMOEBA(Solute):
         return coulomb_energy
 
     def calculate_induced_dipole_dissolved(self):
+        r"""Performs one iteration of the induced dipole update in the dissolved state.
+
+        For each atomic site, builds the total electric field from the permanent multipoles
+        (cached in `self.results["d_phi_coulomb_multipole"]`), the field of the current induced
+        dipoles (Thole damping, with the induced-dipole scaling factors temporarily set to 1.0),
+        and the solvent reaction field (`self.results["gradphir_charges"]`). The dipoles are then
+        updated with successive over-relaxation (SOR):
+
+        $$ \mu_i^{\text{new}} = (1 - \omega)\,\mu_i^{\text{old}} + \omega\,\alpha_i \mathbf{E}_i $$
+
+        This performs a single step; the caller is expected to repeat it until convergence.
+        Requires `self.results["induced_dipole"]` and `self.results["gradphir_charges"]`.
+
+        Returns:
+            None
+
+        Side Effects:
+            - Updates `self.d_induced` and `self.results["induced_dipole"]` in place.
+            - Computes and caches `self.results["d_phi_coulomb_multipole"]` if not present.
+            - Temporarily modifies `self.p12scale` and `self.p13scale`, restoring them afterwards.
+        """
 
         N = len(self.x_q)
 
@@ -440,6 +480,23 @@ class LPBE_AMOEBA(Solute):
         self.results["induced_dipole"] = d_induced
 
     def calculate_induced_dipole_vacuum(self):
+        """Computes the self-consistent induced dipoles of the solute in vacuum.
+
+        Starting from zero dipoles, iterates the SOR update using only the field from the
+        permanent multipoles and from the other induced dipoles (Thole damping, with the
+        induced-dipole scaling factors temporarily set to 1.0), with no solvent reaction field.
+        The loop ends when the residual (RMS of the change in dipole norms between iterations)
+        is not greater than `self.induced_dipole_iter_tol`.
+
+        Returns:
+            None
+
+        Side Effects:
+            - Stores the converged dipoles in `self.results["induced_dipole_vacuum"]`.
+            - Computes and caches `self.results["d_phi_coulomb_multipole"]` if not present.
+            - Temporarily modifies `self.p12scale` and `self.p13scale`, restoring them afterwards.
+            - Logs the residual of each iteration through `bempp.api.log`.
+        """
 
         N = len(self.x_q)
 
