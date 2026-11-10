@@ -10,8 +10,6 @@ import os
 from bempp_cl.api.external import fenicsx
 from mpi4py import MPI
 from dolfinx.io import XDMFFile
-from numba import prange
-from scipy.spatial import KDTree
 import ufl
 
 
@@ -98,7 +96,7 @@ class NPBE(Solute):
         element_diameter_ext = np.max(mesh_tri.edges_unique_length)
         L_Alpha = (
             np.logical_not(
-                self._contains_kdtree(mesh_tri, coord_0, element_diameter_ext, k=4)
+                mesh_tools.contains_kdtree(mesh_tri, coord_0, element_diameter_ext, k=4)
             )
         ).astype(int)
 
@@ -369,92 +367,3 @@ class NPBE(Solute):
         factor_units = unit_conversion / unit_conversion_base
         self.results["dispersion_energy"] = factor_units * dispersion_energy
         self.results["dispersion_energy_units"] = unit_label
-
-    def _numba_classify(self, signed_distances):
-        """This function simply iterates through a list of distances in parallel and labels them. Saves a little bit of memory."""
-        label = np.zeros_like(signed_distances, dtype=np.uint8)
-        for i in prange(label.shape[0]):
-            if signed_distances[i] > 0:
-                label[i] = 1
-            elif signed_distances[i] < 0:
-                label[i] = 0
-            else:
-                label[i] = 2
-        return label
-
-    def _contains_kdtree(self, mesh, points, element_diameter, k=4):
-        """
-        Alternative to method 'contains' of Trimesh.
-        Uses a KDTree to identify the nearest neighbors and their distances.
-        Points that are very close to the mesh are compared with all vertices
-        of the surface mesh and checked with a signed distance approach.
-
-        Args:
-            mesh (trimesh.base.Trimesh): Surface mesh. Shape: (m, d), where 'm' is the number of vertices of the mesh and 'd' the dimension.
-            points (numpy.ndarray): Voxelized mesh. Shape: (n, d), where 'm' is the number of points of the voxelized mesh and 'd' the dimension.
-            element_diameter (float): Element diameter of the surface mesh.
-            k (int, optional): Number of nearest neighbors to check. Defaults to 4.
-
-        Returns:
-            numpy.ndarray: Mask of shape (n, ). True if the corresponding point is inside the surface mesh.
-        """
-        k = 4  # Number of nearest neighbors to check
-        m, d = mesh.vertices.shape  # vertices shape: m x 3
-        n, _ = points.shape  # points shape: n x 3
-        # print(f"m: {m}, n: {n}, d: {d}, k: {k}")
-
-        # Run KDTree to find k-nearest neighbors with their distances:
-        tree = KDTree(mesh.vertices)
-        distances, indices = tree.query(points, k=k)  # get nearest k points
-
-        # Calculate dot products with the normal of each vertex of the surface
-        dot_products = np.einsum(
-            "knd,nkd->nk",
-            points - mesh.vertices[indices.T],
-            mesh.vertex_normals[indices],
-        )  # Dot products with vertex normals (inside or outside the mesh?)
-
-        # Classify points based on their dot products (all neighbors must agree):
-        classification = np.zeros(n, dtype=np.int8) + 2  # Array initiated with 2
-        classification[(dot_products > 0).all(axis=1)] = 0  # Outside the surface mesh
-        classification[(dot_products < 0).all(axis=1)] = 1  # Inside the surface mesh
-
-        # Identify points that could be problematic:
-        tol = 1e-15
-        mask_tocheck = (distances <= element_diameter + tol).any(
-            axis=1
-        )  # Points that are very close to the surface mesh
-        mask_tocheck[classification == 2] = (
-            True  # Points on which the neighbors disagreed
-        )
-        # print("Problematic points:", mask_tocheck.sum())
-
-        # Check problematic points: (This part can still be memory heavy with very big examples)
-
-        if mask_tocheck.sum() > 0:
-            GB_estimate, GB_limit = (
-                3.5 * (mask_tocheck.sum()) * m * (10**-8),
-                15,
-            )  # Subdivide the list by memory size.
-            subdiv = 1 + int(GB_estimate / GB_limit)
-            # print("Calculating signed_distances...")
-
-            q = trimesh.proximity.ProximityQuery(mesh)
-            sub_point_mask_tocheck = np.array_split(points[mask_tocheck, :], subdiv)
-            signed_distances = q.signed_distance(sub_point_mask_tocheck[0])
-            for j in range(len(sub_point_mask_tocheck) - 1):  # Subsection subdiv>1
-                sub_j_signed_distances = q.signed_distance(
-                    sub_point_mask_tocheck[j + 1]
-                )
-                signed_distances = np.concatenate(
-                    (signed_distances, sub_j_signed_distances)
-                )
-
-            # https://trimesh.org/trimesh.proximity.html#trimesh.proximity.ProximityQuery.signed_distance
-            # print("Signed_distances calculated")
-            # 0: outside, 1: inside, 2: signed_distance = 0
-            classification[mask_tocheck] = self._numba_classify(signed_distances)
-
-        # Verify there are no problems and return:
-        # assert (classification != 2).all(), "Some classification values are still 2"
-        return classification.astype(bool)

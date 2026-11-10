@@ -629,7 +629,12 @@ class Simulation:
         self.timings["time_calc_force"] = time.time() - start_time
 
     def calculate_potential_solvent(
-        self, eval_points, units="mV", rerun_all=False, rerun_rhs=False
+        self,
+        eval_points,
+        units="mV",
+        rerun_all=False,
+        rerun_rhs=False,
+        lookup_algorithm="kdtree",
     ):
         """Evaluates the electrostatic potential at specified points residing in the solvent region.
 
@@ -668,7 +673,6 @@ class Simulation:
             self.calculate_surface_potential()
 
         eval_points = np.transpose(eval_points)  # format that Bempp likes
-        # print(f"{eval_points.shape=}")
         # Mask out points in solute
         points_solvent = np.ones(np.shape(eval_points)[1], dtype=bool)
         points_nonlinear = np.zeros(np.shape(eval_points)[1], dtype=bool)
@@ -683,8 +687,36 @@ class Simulation:
                     vertices=np.transpose(solute.trace_space.grid.vertices),
                     faces=np.transpose(solute.trace_space.grid.elements),
                 )
-                points_solute_in = mesh_tri_solute.contains(np.transpose(eval_points))
-                points_solvent_in = mesh_tri_solvent.contains(np.transpose(eval_points))
+                if lookup_algorithm == "trimesh":
+                    points_solute_in = mesh_tri_solute.contains(
+                        np.transpose(eval_points)
+                    )
+                    points_solvent_in = mesh_tri_solvent.contains(
+                        np.transpose(eval_points)
+                    )
+                else:
+                    if lookup_algorithm != "kdtree":
+                        print(
+                            f"Unknown lookup_algorithm '{lookup_algorithm}'. Using 'kdtree' instead."
+                        )
+                    element_diameter_solute = np.max(
+                        mesh_tri_solute.edges_unique_length
+                    )
+                    element_diameter_solvent = np.max(
+                        mesh_tri_solvent.edges_unique_length
+                    )
+                    points_solute_in = mesh_tools.contains_kdtree(
+                        mesh_tri_solute,
+                        np.transpose(eval_points),
+                        element_diameter_solute,
+                        k=4,
+                    )
+                    points_solvent_in = mesh_tools.contains_kdtree(
+                        mesh_tri_solvent,
+                        np.transpose(eval_points),
+                        element_diameter_solvent,
+                        k=4,
+                    )
                 points_nonlinear = np.logical_and(
                     points_solvent_in, np.logical_not(points_solute_in)
                 )
@@ -700,8 +732,17 @@ class Simulation:
                 faces = np.transpose(solute.mesh.elements)
 
                 mesh_tri = trimesh.Trimesh(vertices=verts, faces=faces)
-
-                points_solute = mesh_tri.contains(np.transpose(eval_points))
+                if lookup_algorithm == "trimesh":
+                    points_solute = mesh_tri.contains(np.transpose(eval_points))
+                else:
+                    if lookup_algorithm != "kdtree":
+                        print(
+                            f"Unknown lookup_algorithm '{lookup_algorithm}'. Using 'kdtree' instead."
+                        )
+                    element_diameter = np.max(mesh_tri.edges_unique_length)
+                    points_solute = mesh_tools.contains_kdtree(
+                        mesh_tri, np.transpose(eval_points), element_diameter, k=4
+                    )
 
                 points_solvent = np.logical_and(
                     points_solvent, np.logical_not(points_solute)
@@ -1058,6 +1099,7 @@ class Simulation:
         figsize=(900, 800),
         solutes_names=None,
         internal_derivative_plot=False,
+        lookup_algorithm="kdtree",
     ):
         """Plot surface values for one or more registered solutes.
 
@@ -1140,7 +1182,9 @@ class Simulation:
             ]
             coordinates = [X, Y, Z]
             potential, _, _ = self.calculate_potential_solvent(
-                np.stack((X.ravel(), Y.ravel(), Z.ravel()), axis=1), units=units
+                np.stack((X.ravel(), Y.ravel(), Z.ravel()), axis=1),
+                units=units,
+                lookup_algorithm=lookup_algorithm,
             )
             isosurface_potential_vals = (
                 coordinates,
